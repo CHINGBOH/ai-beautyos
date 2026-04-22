@@ -1,9 +1,33 @@
 import { z } from "zod";
-import { protectedProcedure, router } from "../_core/trpc";
-import { invokeLLM } from "../_core/llm";
+import { TRPCError } from "@trpc/server";
+import { adminProcedure, router } from "../_core/trpc";
+import { invokeDeepSeekLLM } from "../llm";
+import type { TextContent, ImageContent, FileContent } from "../llm/types";
 import { getDb } from "../db";
-import { leads, conversations, messages, knowledgeBase } from "../../drizzle/schema";
+import {
+  leads,
+  conversations,
+  messages,
+  knowledgeBase,
+} from "../../drizzle/schema";
 import { eq, and, gte, lte, like, sql, desc, inArray, ne } from "drizzle-orm";
+
+/** 需要从查询结果中剔除的敏感字段 */
+const SENSITIVE_LEAD_FIELDS = new Set(["phone", "wechat", "notes"]);
+
+function stripSensitiveFields(
+  rows: Record<string, unknown>[]
+): Record<string, unknown>[] {
+  return rows.map(row => {
+    const clean: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(row)) {
+      if (!SENSITIVE_LEAD_FIELDS.has(key)) {
+        clean[key] = value;
+      }
+    }
+    return clean;
+  });
+}
 
 /**
  * 管理端 AI 助手 Router
@@ -14,7 +38,7 @@ export const adminAiRouter = router({
   /**
    * AI 查询数据库
    */
-  query: protectedProcedure
+  query: adminProcedure
     .input(
       z.object({
         question: z.string().min(1).max(500),
@@ -29,7 +53,11 @@ export const adminAiRouter = router({
         if (normalized.includes("客户") || normalized.includes("线索")) {
           tables.push("leads");
         }
-        if (normalized.includes("对话") || normalized.includes("咨询") || normalized.includes("聊天")) {
+        if (
+          normalized.includes("对话") ||
+          normalized.includes("咨询") ||
+          normalized.includes("聊天")
+        ) {
           tables.push("conversations");
         }
         if (normalized.includes("知识") || normalized.includes("FAQ")) {
@@ -38,7 +66,12 @@ export const adminAiRouter = router({
         if (tables.length === 0) {
           tables.push("leads");
         }
-        const isStats = normalized.includes("多少") || normalized.includes("统计") || normalized.includes("数量") || normalized.includes("本月") || normalized.includes("今天");
+        const isStats =
+          normalized.includes("多少") ||
+          normalized.includes("统计") ||
+          normalized.includes("数量") ||
+          normalized.includes("本月") ||
+          normalized.includes("今天");
         return {
           queryType: isStats ? "统计查询" : "客户查询",
           tables,
@@ -55,7 +88,8 @@ export const adminAiRouter = router({
         normalizedQuestion.includes("未面诊") ||
         normalizedQuestion.includes("未到店");
       const wantsConsulted =
-        normalizedQuestion.includes("咨询") || normalizedQuestion.includes("聊过");
+        normalizedQuestion.includes("咨询") ||
+        normalizedQuestion.includes("聊过");
 
       const shouldUseKeywordFilter =
         wantsPicosure && wantsNoBooking && wantsConsulted;
@@ -63,7 +97,7 @@ export const adminAiRouter = router({
       // 第一步：使用 LLM 分析用户问题，生成查询计划
       let queryPlan = buildFallbackPlan();
       try {
-        const analysisResponse = await invokeLLM({
+        const analysisResponse = await invokeDeepSeekLLM({
           messages: [
             {
               role: "system",
@@ -144,7 +178,13 @@ export const adminAiRouter = router({
                     description: "时间范围描述",
                   },
                 },
-                required: ["queryType", "tables", "conditions", "aggregations", "timeRange"],
+                required: [
+                  "queryType",
+                  "tables",
+                  "conditions",
+                  "aggregations",
+                  "timeRange",
+                ],
                 additionalProperties: false,
               },
             },
@@ -152,7 +192,9 @@ export const adminAiRouter = router({
         });
 
         const content = analysisResponse.choices[0].message.content;
-        const parsed = JSON.parse(typeof content === "string" ? content : JSON.stringify(content));
+        const parsed = JSON.parse(
+          typeof content === "string" ? content : JSON.stringify(content)
+        );
         if (parsed?.tables?.length) {
           queryPlan = parsed;
         }
@@ -163,7 +205,11 @@ export const adminAiRouter = router({
       // 第二步：根据查询计划执行数据库查询
       const dbInstance = await getDb();
       if (!dbInstance) {
-        throw new Error("数据库未初始化");
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message:
+            "数据库未配置，请设置 DATABASE_URL 环境变量后重启服务。本地开发可在项目根目录 .env 中配置。",
+        });
       }
 
       let queryResult: any = null;
@@ -195,7 +241,10 @@ export const adminAiRouter = router({
             .select()
             .from(conversations)
             .where(
-              and(inArray(conversations.id, conversationIds), ne(conversations.status, "converted"))
+              and(
+                inArray(conversations.id, conversationIds),
+                ne(conversations.status, "converted")
+              )
             )
             .orderBy(desc(conversations.createdAt))
             .limit(100);
@@ -238,11 +287,14 @@ export const adminAiRouter = router({
         const results = await dbInstance.select().from(leads).limit(100);
         queryResult = {
           type: "客户列表",
-          data: results,
+          data: stripSensitiveFields(results as Record<string, unknown>[]),
           count: results.length,
         };
       } else if (queryPlan.tables.includes("knowledge_base")) {
-        const results = await dbInstance.select().from(knowledgeBase).limit(100);
+        const results = await dbInstance
+          .select()
+          .from(knowledgeBase)
+          .limit(100);
         queryResult = {
           type: "知识库列表",
           data: results,
@@ -254,7 +306,7 @@ export const adminAiRouter = router({
       let answer = "";
       try {
         const questionText = `问题：${question}\n\n查询计划：${JSON.stringify(queryPlan, null, 2)}\n\n查询结果：${JSON.stringify(queryResult, null, 2)}`;
-        const answerResponse = await invokeLLM({
+        const answerResponse = await invokeDeepSeekLLM({
           messages: [
             {
               role: "system",
@@ -267,7 +319,14 @@ export const adminAiRouter = router({
             },
           ],
         });
-        answer = answerResponse.choices[0].message.content;
+        const content = answerResponse.choices[0].message.content;
+        answer =
+          typeof content === "string"
+            ? content
+            : content
+                .filter((c): c is TextContent => c.type === "text")
+                .map(c => c.text)
+                .join(" ");
       } catch (error) {
         console.warn("[AdminAI] LLM回答失败，使用本地摘要:", error);
         if (queryResult?.type === "统计概览") {
@@ -286,19 +345,4 @@ export const adminAiRouter = router({
         answer,
       };
     }),
-
-  /**
-   * 获取 AI 助手对话历史
-   * 
-   * @deprecated 功能暂未实现，计划在后续版本中添加
-   * 当前返回空数组，不会影响现有功能
-   */
-  getHistory: protectedProcedure.query(async () => {
-    // TODO: 实现对话历史记录
-    // 计划功能：
-    // 1. 存储管理员与AI助手的对话记录
-    // 2. 支持按时间、查询类型筛选
-    // 3. 支持导出对话记录
-    return [];
-  }),
 });

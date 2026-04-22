@@ -5,8 +5,7 @@
 import type { Express, Request, Response } from "express";
 import { getWeworkConfig } from "./wework-db";
 import { createWeworkCustomer, getWeworkCustomer, createWeworkMessage } from "./wework-db";
-import { getExternalContact, isMockMode } from "./wework-api";
-import { mockGetExternalContact } from "./wework-mock";
+import { getExternalContact } from "./wework-api";
 import crypto from "crypto";
 import { parseString } from "xml2js";
 
@@ -57,14 +56,7 @@ async function handleCustomerAddEvent(data: {
     }
 
     // 获取客户详情
-    const mockMode = await isMockMode();
-    let customerInfo;
-
-    if (mockMode) {
-      customerInfo = await mockGetExternalContact(data.externalUserId);
-    } else {
-      customerInfo = await getExternalContact(data.externalUserId);
-    }
+    const customerInfo = await getExternalContact(data.externalUserId);
 
     if (customerInfo.errcode === 0 && customerInfo.external_contact) {
       const contact = customerInfo.external_contact;
@@ -82,8 +74,8 @@ async function handleCustomerAddEvent(data: {
         remark: followUser?.remark,
         description: followUser?.description,
         createTime: followUser?.createtime
-          ? new Date(followUser.createtime * 1000)
-          : new Date(),
+          ? new Date(followUser.createtime * 1000).toISOString()
+          : new Date().toISOString(),
         tags: followUser?.tags ? JSON.stringify(followUser.tags) : undefined,
         state: followUser?.state || data.state,
       });

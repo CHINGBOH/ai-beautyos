@@ -3,9 +3,21 @@
  * 适配移动设备的触摸交互和小屏幕显示
  */
 
-import React, { useState, useEffect } from 'react';
-import { ChevronRight, ChevronDown, BookOpen, Clock, Star, Search, Filter, Home } from 'lucide-react';
-import { KNOWLEDGE_MODULES, MODULE_NAMES } from '../../shared/knowledge-modules';
+import React, { useState, useEffect } from "react";
+import {
+  ChevronRight,
+  ChevronDown,
+  BookOpen,
+  Clock,
+  Star,
+  Search,
+  Filter,
+  Home,
+} from "lucide-react";
+import {
+  KNOWLEDGE_MODULES,
+  MODULE_NAMES,
+} from "../../../shared/knowledge-modules";
 
 interface MobileKnowledgeNode {
   id: string;
@@ -31,7 +43,9 @@ interface MobileKnowledgeTreeProps {
   loading?: boolean;
 }
 
-export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = ({
+export const MobileOptimizedKnowledgeTree: React.FC<
+  MobileKnowledgeTreeProps
+> = ({
   initialData = [],
   selectedModule,
   onNodeSelect,
@@ -40,15 +54,19 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
   loading = false,
 }) => {
   const [expandedNodes, setExpandedNodes] = useState<Set<string>>(new Set());
-  const [selectedNode, setSelectedNode] = useState<MobileKnowledgeNode | null>(null);
-  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedNode, setSelectedNode] = useState<MobileKnowledgeNode | null>(
+    null
+  );
+  const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [currentModule, setCurrentModule] = useState(selectedModule || 'all');
-  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(null);
+  const [currentModule, setCurrentModule] = useState(selectedModule || "all");
+  const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(
+    null
+  );
 
   // 模块选项
   const moduleOptions = [
-    { value: 'all', label: '全部模块', icon: Home },
+    { value: "all", label: "全部模块", icon: Home },
     ...Object.entries(MODULE_NAMES).map(([key, name]) => ({
       value: key,
       label: name,
@@ -73,7 +91,7 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
   const handleNodeSelect = (node: MobileKnowledgeNode) => {
     setSelectedNode(node);
     onNodeSelect?.(node);
-    
+
     // 移动端自动展开子节点
     if (node.children && node.children.length > 0) {
       toggleNodeExpansion(node.id);
@@ -97,7 +115,10 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
   const handleTouchEnd = (e: React.TouchEvent, node: MobileKnowledgeNode) => {
     if (!touchStart) return;
 
-    const touchEnd = { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    const touchEnd = {
+      x: e.changedTouches[0].clientX,
+      y: e.changedTouches[0].clientY,
+    };
     const deltaX = Math.abs(touchEnd.x - touchStart.x);
     const deltaY = Math.abs(touchEnd.y - touchStart.y);
 
@@ -121,12 +142,12 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
         <div
           className={`
             flex items-center p-3 rounded-lg cursor-pointer transition-all duration-200
-            ${isSelected ? 'bg-blue-50 border-l-4 border-blue-500' : 'hover:bg-gray-50'}
-            ${depth === 0 ? 'bg-white shadow-sm' : ''}
+            ${isSelected ? "bg-stone-50 border-l-4 border-stone-400" : "hover:bg-gray-50"}
+            ${depth === 0 ? "bg-white shadow-sm" : ""}
           `}
           style={{ marginLeft: `${marginLeft}px` }}
-          onTouchStart={(e) => handleTouchStart(e, node)}
-          onTouchEnd={(e) => handleTouchEnd(e, node)}
+          onTouchStart={e => handleTouchStart(e, node)}
+          onTouchEnd={e => handleTouchEnd(e, node)}
         >
           {/* 展开/收起图标 */}
           {hasChildren && (
@@ -160,7 +181,7 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
                 {node.summary}
               </p>
             )}
-            
+
             {/* 元信息 */}
             <div className="flex items-center mt-1 space-x-3 text-xs text-gray-400">
               <div className="flex items-center">
@@ -182,14 +203,19 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
 
           {/* 难度标签 */}
           <div className="ml-2 flex-shrink-0">
-            <span className={`
+            <span
+              className={`
               inline-flex items-center px-2 py-1 rounded-full text-xs font-medium
-              ${node.difficulty === 'beginner' ? 'bg-green-100 text-green-800' : ''}
-              ${node.difficulty === 'intermediate' ? 'bg-yellow-100 text-yellow-800' : ''}
-              ${node.difficulty === 'advanced' ? 'bg-red-100 text-red-800' : ''}
-            `}>
-              {node.difficulty === 'beginner' ? '入门' : 
-               node.difficulty === 'intermediate' ? '进阶' : '专业'}
+              ${node.difficulty === "beginner" ? "bg-stone-100 text-stone-600" : ""}
+              ${node.difficulty === "intermediate" ? "bg-stone-100 text-stone-600" : ""}
+              ${node.difficulty === "advanced" ? "bg-stone-100 text-stone-700" : ""}
+            `}
+            >
+              {node.difficulty === "beginner"
+                ? "入门"
+                : node.difficulty === "intermediate"
+                  ? "进阶"
+                  : "专业"}
             </span>
           </div>
         </div>
@@ -213,7 +239,7 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
           type="text"
           placeholder="搜索知识内容..."
           value={searchQuery}
-          onChange={(e) => handleSearch(e.target.value)}
+          onChange={e => handleSearch(e.target.value)}
           className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
         <button
@@ -228,7 +254,7 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
       <div className="mt-3">
         <select
           value={currentModule}
-          onChange={(e) => setCurrentModule(e.target.value)}
+          onChange={e => setCurrentModule(e.target.value)}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
           {moduleOptions.map(option => (
@@ -248,19 +274,24 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
     return (
       <div className="absolute top-full left-0 right-0 bg-white border-b border-gray-200 p-4 shadow-lg z-20">
         <h3 className="font-medium text-gray-900 mb-3">筛选条件</h3>
-        
+
         <div className="space-y-3">
           {/* 难度筛选 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">难度</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              难度
+            </label>
             <div className="flex space-x-2">
-              {['beginner', 'intermediate', 'advanced'].map(difficulty => (
+              {["beginner", "intermediate", "advanced"].map(difficulty => (
                 <button
                   key={difficulty}
                   className="px-3 py-1 text-sm border border-gray-300 rounded-full hover:bg-gray-50"
                 >
-                  {difficulty === 'beginner' ? '入门' : 
-                   difficulty === 'intermediate' ? '进阶' : '专业'}
+                  {difficulty === "beginner"
+                    ? "入门"
+                    : difficulty === "intermediate"
+                      ? "进阶"
+                      : "专业"}
                 </button>
               ))}
             </div>
@@ -268,7 +299,9 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
 
           {/* 可信度筛选 */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">可信度</label>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              可信度
+            </label>
             <div className="flex space-x-2">
               {[7, 8, 9, 10].map(rating => (
                 <button
@@ -290,7 +323,7 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-stone-400 mx-auto"></div>
           <p className="mt-2 text-gray-500">加载中...</p>
         </div>
       </div>
@@ -314,9 +347,7 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
       {renderSearchBar()}
 
       {/* 过滤器 */}
-      <div className="relative">
-        {renderFilters()}
-      </div>
+      <div className="relative">{renderFilters()}</div>
 
       {/* 内容区域 */}
       <div className="flex-1 overflow-y-auto p-4 pb-20">
@@ -330,15 +361,21 @@ export const MobileOptimizedKnowledgeTree: React.FC<MobileKnowledgeTreeProps> = 
         <div className="fixed bottom-0 left-0 right-0 bg-white border-t border-gray-200 p-4">
           <div className="flex items-center justify-between">
             <div className="flex-1 min-w-0">
-              <h3 className="font-medium text-gray-900 truncate">{selectedNode.title}</h3>
+              <h3 className="font-medium text-gray-900 truncate">
+                {selectedNode.title}
+              </h3>
               <p className="text-sm text-gray-500">
-                {selectedNode.estimatedReadTime || 5}分钟 · {selectedNode.difficulty === 'beginner' ? '入门' : 
-                 selectedNode.difficulty === 'intermediate' ? '进阶' : '专业'}
+                {selectedNode.estimatedReadTime || 5}分钟 ·{" "}
+                {selectedNode.difficulty === "beginner"
+                  ? "入门"
+                  : selectedNode.difficulty === "intermediate"
+                    ? "进阶"
+                    : "专业"}
               </p>
             </div>
             <button
               onClick={() => handleNodeSelect(selectedNode)}
-              className="ml-4 px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+              className="ml-4 px-4 py-2 bg-stone-500 text-white rounded-lg hover:bg-[#B8A68D] transition-colors"
             >
               开始学习
             </button>

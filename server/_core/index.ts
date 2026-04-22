@@ -8,8 +8,11 @@ import { registerWeworkWebhookRoutes } from "../wework-webhook";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
 import { serveStatic, setupVite } from "./vite";
-import { restApi } from "../routers/rest-api"; // 导入
+import { restApi } from "../routers/rest-api";
 import { validateAndPrint } from "./env-validation";
+import { registerLangchainBackendProxy } from "./langchain-proxy";
+// import { registerTestRoute } from "./test-route";
+import { runBirthdayHolidayReminders } from "../jobs/birthday-holiday";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -59,6 +62,10 @@ async function startServer() {
       createContext,
     })
   );
+
+  // 将落地页调用的 FastAPI 契约转发到 Python 后端（默认 127.0.0.1:8000）
+  registerLangchainBackendProxy(app);
+
   // development mode uses Vite, production mode uses static files
   if (process.env.NODE_ENV === "development") {
     await setupVite(app, server);
@@ -73,8 +80,24 @@ async function startServer() {
     console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
   }
 
-  server.listen(port, () => {
+  const host = process.env.HOST || "0.0.0.0";
+  server.listen(port, host, () => {
     console.log(`Server running on http://localhost:${port}/`);
+    if (host === "0.0.0.0") {
+      console.log(`  (局域网访问需用本机 IP，如 http://<本机IP>:${port}/)`);
+    }
+    // 进程内定时：每日执行生日/节日提醒触发器（首次延后 1 分钟，之后每 24 小时）
+    const MS_PER_DAY = 24 * 60 * 60 * 1000;
+    setTimeout(() => {
+      runBirthdayHolidayReminders().catch((e) =>
+        console.error("[cron] birthday-holiday run error:", e instanceof Error ? e.message : e)
+      );
+    }, 60 * 1000);
+    setInterval(() => {
+      runBirthdayHolidayReminders().catch((e) =>
+        console.error("[cron] birthday-holiday run error:", e instanceof Error ? e.message : e)
+      );
+    }, MS_PER_DAY);
   });
 }
 

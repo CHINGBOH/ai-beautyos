@@ -27,7 +27,11 @@ export class RateLimiter {
    * @param identifier - Unique identifier (e.g., userId, IP address)
    * @returns Object with allowed flag and remaining requests
    */
-  check(identifier: string): { allowed: boolean; remaining: number; resetAt: number } {
+  check(identifier: string): {
+    allowed: boolean;
+    remaining: number;
+    resetAt: number;
+  } {
     const now = Date.now();
     const entry = this.requests.get(identifier);
 
@@ -74,7 +78,11 @@ export class RateLimiter {
   /**
    * Get current usage for an identifier
    */
-  getUsage(identifier: string): { count: number; remaining: number; resetAt: number } {
+  getUsage(identifier: string): {
+    count: number;
+    remaining: number;
+    resetAt: number;
+  } {
     const entry = this.requests.get(identifier);
     const now = Date.now();
 
@@ -98,11 +106,11 @@ export class RateLimiter {
    */
   private cleanup(): void {
     const now = Date.now();
-    for (const [key, entry] of this.requests.entries()) {
+    this.requests.forEach((entry, key) => {
       if (now >= entry.resetAt) {
         this.requests.delete(key);
       }
-    }
+    });
   }
 
   /**
@@ -120,4 +128,4 @@ export class RateLimiter {
 // Create singleton instances for different use cases
 export const contentGenerationLimiter = new RateLimiter(10, 60000); // 10 requests per minute
 export const imageGenerationLimiter = new RateLimiter(5, 60000); // 5 requests per minute
-export const apiLimiter = new RateLimiter(100, 60000); // 100 requests per minute
+export const apiLimiter = new RateLimiter(200, 60000); // 200 requests per minute per IP

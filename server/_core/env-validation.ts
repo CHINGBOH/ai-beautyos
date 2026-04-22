@@ -11,25 +11,45 @@ interface EnvVarConfig {
   errorMessage?: string;
 }
 
+const isProduction = process.env.NODE_ENV === "production";
+
 const ENV_VAR_CONFIGS: EnvVarConfig[] = [
   {
     name: "DATABASE_URL",
-    required: true,
-    description: "PostgreSQL 数据库连接字符串",
-    validator: (value) => value.startsWith("postgresql://") || value.startsWith("postgres://"),
+    required: isProduction,
+    description: isProduction
+      ? "PostgreSQL 数据库连接字符串（生产环境必须配置）"
+      : "PostgreSQL 数据库连接字符串（未配置时仅前端可访问，依赖数据库的 API 会返回 503）",
+    validator: (value) => !value || value.startsWith("postgresql://") || value.startsWith("postgres://"),
     errorMessage: "DATABASE_URL must be a valid PostgreSQL connection string",
   },
   {
     name: "JWT_SECRET",
-    required: true,
-    description: "JWT 密钥，用于加密会话",
-    validator: (value) => value.length >= 32,
-    errorMessage: "JWT_SECRET must be at least 32 characters long",
+    required: isProduction,
+    description: isProduction
+      ? "JWT 密钥（生产环境必须配置，至少 32 字符）"
+      : "JWT 密钥，用于加密会话（未配置时使用开发占位，仅适合本地）",
+    validator: (value) => !value || value.length >= 32,
+    errorMessage: "JWT_SECRET must be at least 32 characters long when set",
   },
   {
     name: "DEEPSEEK_API_KEY",
-    required: true,
-    description: "DeepSeek API 密钥，用于 AI 客服",
+    required: isProduction,
+    description: isProduction
+      ? "DeepSeek API 密锥（生产环境必须配置）"
+      : "DeepSeek API 密锥，用于 AI 客服与职能助手（未配置时相关 API 会报错，但服务可启动）",
+    validator: (value) => !value || value.startsWith("sk-"),
+    errorMessage: "DEEPSEEK_API_KEY must start with 'sk-'",
+  },
+  {
+    name: "OPENROUTER_API_KEY",
+    required: false,
+    description: "OpenRouter API 密锥（配置后启用 OpenRouter 路由，可选）",
+  },
+  {
+    name: "OPENROUTER_API_URL",
+    required: false,
+    description: "OpenRouter API 地址（默认 https://openrouter.ai/api/v1）",
   },
   {
     name: "VITE_APP_ID",
@@ -101,6 +121,13 @@ export function validateEnvVars(): ValidationResult {
  * 验证并打印结果
  */
 export function validateAndPrint(): void {
+  // DISABLE_AUTH 生产环境守卫
+  if (process.env.NODE_ENV === "production" && process.env.DISABLE_AUTH === "1") {
+    console.error("\n❌ FATAL: DISABLE_AUTH=1 is not allowed in production mode.");
+    console.error("Set DISABLE_AUTH=0 or remove it from your environment.\n");
+    process.exit(1);
+  }
+
   const result = validateEnvVars();
 
   if (result.warnings.length > 0) {

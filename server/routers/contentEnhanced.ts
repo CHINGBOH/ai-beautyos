@@ -1,14 +1,24 @@
 import { z } from "zod";
+import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
-import { invokeLLMWithRetry } from "../_core/llmWithRetry";
-import { getActiveKnowledge, createXiaohongshuPost, getAllMedicalProjects } from "../db";
+import { invokeLLMWithRetry } from "../llm";
+import {
+  getActiveKnowledge,
+  createXiaohongshuPost,
+  getAllMedicalProjects,
+  updateXiaohongshuPost,
+} from "../db";
 import { generateImage } from "../_core/imageGeneration";
 import { contentGenerationLimiter } from "../_core/rateLimiter";
-import { validateContent, getContentSuggestions } from "../_core/contentValidator";
+import {
+  validateContent,
+  getContentSuggestions,
+} from "../_core/contentValidator";
 import { xiaohongshuContentHistory } from "../../drizzle/schema";
 import { getDb } from "../db";
 import { eq, desc, sql } from "drizzle-orm";
 import { logger } from "../_core/logger";
+import type { ContentTemplate } from "../../shared/api-types";
 
 const CONTENT_GENERATION_PROMPT = `你是一位专业的小红书医美内容创作者，擅长撰写吸引人的医美项目推广文案。
 
@@ -118,23 +128,42 @@ export const contentRouterEnhanced = router({
   generate: protectedProcedure
     .input(
       z.object({
-        type: z.enum(["project", "case", "price", "guide", "holiday", "new_product"]),
-        project: z.string().optional(),
-        keywords: z.array(z.string()).optional(),
+        type: z.enum([
+          "project",
+          "case",
+          "price",
+          "guide",
+          "holiday",
+          "new_product",
+        ]),
+        project: z.string().max(200).optional(),
+        keywords: z.array(z.string().max(100)).optional(),
         tone: z.enum(["enthusiastic", "professional", "casual"]).optional(),
         useCache: z.boolean().default(true),
       })
     )
     .mutation(async ({ input, ctx }) => {
-      const { type, project, keywords, tone = "enthusiastic", useCache } = input;
+      const {
+        type,
+        project,
+        keywords,
+        tone = "enthusiastic",
+        useCache,
+      } = input;
 
       // Rate limiting
-      const rateLimit = contentGenerationLimiter.check(ctx.user.openId || "anonymous");
+      const rateLimit = contentGenerationLimiter.check(
+        ctx.user.openId || "anonymous"
+      );
       if (!rateLimit.allowed) {
-        throw new Error(`生成次数过多，请 ${Math.ceil((rateLimit.resetAt - Date.now()) / 1000)} 秒后重试`);
+        throw new Error(
+          `生成次数过多，请 ${Math.ceil((rateLimit.resetAt - Date.now()) / 1000)} 秒后重试`
+        );
       }
 
-      logger.info(`[Content] Generating content for ${project || "unknown"} project`);
+      logger.info(
+        `[Content] Generating content for ${project || "unknown"} project`
+      );
 
       try {
         // 获取相关知识库内容
@@ -144,7 +173,7 @@ export const contentRouterEnhanced = router({
         // 根据项目筛选知识库
         if (project) {
           relevantKnowledge = knowledgeItems.filter(
-            (k) =>
+            k =>
               k.title.includes(project) ||
               k.content.includes(project) ||
               (k.tags && k.tags.includes(project))
@@ -157,7 +186,7 @@ export const contentRouterEnhanced = router({
             ? "\n\n参考知识库：\n" +
               relevantKnowledge
                 .slice(0, 5)
-                .map((k) => `【${k.title}】\n${k.content}`)
+                .map(k => `【${k.title}】\n${k.content}`)
                 .join("\n\n")
             : "";
 
@@ -247,10 +276,37 @@ export const contentRouterEnhanced = router({
           }
         );
 
-        const contentString = typeof response.choices[0].message.content === 'string' 
-          ? response.choices[0].message.content 
-          : JSON.stringify(response.choices[0].message.content);
-        const generatedContent = JSON.parse(contentString || "{}");
+        const choice = response?.choices?.[0];
+        if (!choice?.message?.content) {
+          throw new Error(
+            "一键爽文生成失败：模型未返回内容。请检查 .env 中 VOLC_ARK_* 或 DEEPSEEK_API_KEY / Forge 是否配置正确。"
+          );
+        }
+        const contentString =
+          typeof choice.message.content === "string"
+            ? choice.message.content
+            : JSON.stringify(choice.message.content);
+        let generatedContent: {
+          title?: string;
+          content?: string;
+          tags?: string[];
+        };
+        try {
+          generatedContent = JSON.parse(contentString || "{}");
+        } catch {
+          throw new Error(
+            `一键爽文生成失败：模型返回不是合法 JSON。请重试或更换模型。`
+          );
+        }
+        if (
+          typeof generatedContent.title !== "string" ||
+          typeof generatedContent.content !== "string" ||
+          !Array.isArray(generatedContent.tags)
+        ) {
+          throw new Error(
+            "一键爽文生成失败：返回缺少 title/content/tags。请重试。"
+          );
+        }
 
         // 验证内容质量
         const validation = validateContent(
@@ -293,10 +349,12 @@ export const contentRouterEnhanced = router({
             generatedBy: "ai",
             generationParams: JSON.stringify(input),
             fromCache: response.fromCache ? 1 : 0,
-          });
+          } as any);
         }
 
-        logger.info(`[Content] Generated content with score ${validation.score}, fromCache: ${response.fromCache}`);
+        logger.info(
+          `[Content] Generated content with score ${validation.score}, fromCache: ${response.fromCache}`
+        );
 
         return {
           title: generatedContent.title,
@@ -310,6 +368,12 @@ export const contentRouterEnhanced = router({
         };
       } catch (error) {
         logger.error("[Content] Generation failed:", error);
+        const msg = error instanceof Error ? error.message : String(error);
+        if (!msg.includes("一键爽文")) {
+          throw new Error(
+            `一键爽文生成失败：${msg}。请检查 .env 中 VOLC_ARK_* 或 DEEPSEEK_API_KEY / Forge。`
+          );
+        }
         throw error;
       }
     }),
@@ -320,9 +384,9 @@ export const contentRouterEnhanced = router({
   generateImage: protectedProcedure
     .input(
       z.object({
-        title: z.string(),
-        content: z.string(),
-        project: z.string().optional(),
+        title: z.string().max(200),
+        content: z.string().max(10000),
+        project: z.string().max(200).optional(),
         style: z.enum(["modern", "elegant", "vibrant"]).optional(),
       })
     )
@@ -330,9 +394,13 @@ export const contentRouterEnhanced = router({
       const { title, content, project, style = "modern" } = input;
 
       // Rate limiting
-      const rateLimit = contentGenerationLimiter.check(ctx.user.openId || "anonymous");
+      const rateLimit = contentGenerationLimiter.check(
+        ctx.user.openId || "anonymous"
+      );
       if (!rateLimit.allowed) {
-        throw new Error(`生成次数过多，请 ${Math.ceil((rateLimit.resetAt - Date.now()) / 1000)} 秒后重试`);
+        throw new Error(
+          `生成次数过多，请 ${Math.ceil((rateLimit.resetAt - Date.now()) / 1000)} 秒后重试`
+        );
       }
 
       logger.info(`[Content] Generating image for ${title}`);
@@ -401,9 +469,15 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
       return history.map(h => ({
         ...h,
         tags: h.tags ? JSON.parse(h.tags) : [],
-        validationErrors: h.validationErrors ? JSON.parse(h.validationErrors) : [],
-        validationWarnings: h.validationWarnings ? JSON.parse(h.validationWarnings) : [],
-        generationParams: h.generationParams ? JSON.parse(h.generationParams) : null,
+        validationErrors: h.validationErrors
+          ? JSON.parse(h.validationErrors)
+          : [],
+        validationWarnings: h.validationWarnings
+          ? JSON.parse(h.validationWarnings)
+          : [],
+        generationParams: h.generationParams
+          ? JSON.parse(h.generationParams)
+          : null,
       }));
     }),
 
@@ -413,14 +487,22 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
   analyzeQuality: protectedProcedure
     .input(
       z.object({
-        title: z.string(),
-        content: z.string(),
-        tags: z.array(z.string()),
+        title: z.string().max(200),
+        content: z.string().max(10000),
+        tags: z.array(z.string().max(100)),
       })
     )
     .mutation(async ({ input }) => {
-      const validation = validateContent(input.title, input.content, input.tags);
-      const suggestions = getContentSuggestions(input.title, input.content, input.tags);
+      const validation = validateContent(
+        input.title,
+        input.content,
+        input.tags
+      );
+      const suggestions = getContentSuggestions(
+        input.title,
+        input.content,
+        input.tags
+      );
 
       return {
         validation,
@@ -430,151 +512,27 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
 
   /**
    * 获取小红书写作技巧和建议
+   * TODO: 将写作技巧数据迁移到数据库，支持动态配置
    */
-  getWritingTips: protectedProcedure
-    .input(
-      z.object({
-        contentType: z.enum(["project", "case", "price", "guide", "holiday", "new_product"]).optional(),
-      })
-    )
-    .query(async ({ input }) => {
-      const tips: Record<string, string[]> = {
-        project: [
-          "使用第一人称叙述，增加真实感",
-          "详细描述治疗过程和感受",
-          "分享恢复期的注意事项",
-          "添加前后对比效果",
-          "结尾提供实用建议"
-        ],
-        case: [
-          "突出治疗前后的明显变化",
-          "使用具体数据和时间节点",
-          "描述个人感受和体验",
-          "分享选择该项目的原因",
-          "提供效果维持的建议"
-        ],
-        price: [
-          "透明化价格信息",
-          "说明价格构成因素",
-          "提供性价比分析",
-          "分享优惠活动信息",
-          "提醒注意事项"
-        ],
-        guide: [
-          "提供实用的选择标准",
-          "分享避坑经验",
-          "推荐可靠的机构或医生",
-          "说明项目适应症",
-          "提醒风险和注意事项"
-        ],
-        holiday: [
-          "结合节日氛围和情感共鸣",
-          "突出限时优惠活动",
-          "营造紧迫感",
-          "强调节日特殊意义",
-          "提供节日专属福利"
-        ],
-        new_product: [
-          "突出产品创新点和优势",
-          "说明适用人群",
-          "分享使用感受和效果",
-          "强调安全性和可靠性",
-          "提供购买或体验方式"
-        ]
-      };
-
-      return {
-        tips: tips[input.contentType || "project"] || tips.project,
-        generalTips: [
-          "使用吸引人的标题",
-          "合理使用emoji增加亲和力",
-          "内容结构清晰分段",
-          "添加相关话题标签",
-          "结尾引导用户互动"
-        ]
-      };
-    }),
+  getWritingTips: protectedProcedure.query(async () => {
+    return {
+      tips: [],
+      generalTips: [],
+      message: "写作技巧数据尚未配置，请联系管理员添加",
+    };
+  }),
 
   /**
    * 获取预设模板
+   * TODO: 将模板数据迁移到数据库，支持用户自定义模板
    */
-  getTemplates: protectedProcedure
-    .input(
-      z.object({
-        type: z.enum(["project", "case", "price", "guide", "holiday", "new_product"]).optional(),
-      })
-    )
-    .query(async ({ input }) => {
-      // 预设模板数据
-      const templates: Record<string, Array<{id: string, name: string, title: string, content: string, tags: string[]}>> = {
-        project: [
-          {
-            id: "proj_001",
-            name: "经典体验分享",
-            title: "做了3次超皮秒，我的斑终于消失了！✨",
-            content: "姐妹们，我终于把脸上的斑给解决了！😭\n\n之前脸上的雀斑真的让我很自卑，试过各种护肤品都没用。后来朋友推荐了超皮秒，我做了3次，现在基本看不到了！\n\n✨ 治疗过程：\n- 第一次：有点疼，但能接受，像被橡皮筋弹一下\n- 恢复期：3-5天就结痂了，不影响工作\n- 效果：第一次做完就明显淡了很多\n\n💰 价格：我做的这家是5000一次，做了3次，总共15000\n\n⚠️ 注意事项：\n- 一定要做好防晒！\n- 选择正规机构很重要\n- 恢复期不要化妆\n\n现在真的自信多了！有同样困扰的姐妹可以私信我，我可以分享更多经验~",
-            tags: ["#超皮秒", "#祛斑", "#医美", "#变美", "#护肤"]
-          },
-          {
-            id: "proj_002",
-            name: "效果导向分享",
-            title: "28岁逆袭！水光针让我重回少女肌 💧",
-            content: "作为一个28岁的职场女性，熬夜加班是常态，皮肤状态真的很差...\n\n直到我遇到了水光针！真的是救星！\n\n🌟 使用感受：\n- 注射过程：几乎无痛，敷了麻药很舒服\n- 即时效果：第二天脸就水润得不行\n- 持久度：能维持1个月左右\n\n💡 小贴士：\n- 选择有资质的医生很重要\n- 术后护理不能马虎\n- 建议间隔1个月做一次\n\n真心推荐给有同样困扰的姐妹们！",
-            tags: ["#水光针", "#补水", "#医美", "#护肤", "#少女肌"]
-          }
-        ],
-        case: [
-          {
-            id: "case_001",
-            name: "前后对比",
-            title: "告别痘痘肌！3个月蜕变记录 🌸",
-            content: "今天来分享我的祛痘之路，真的是血泪史啊😭\n\n📸 3个月前 vs 现在\n\n BEFORE：满脸痘痘，不敢素颜出门\n AFTER：皮肤光滑细腻，素颜也自信\n\n🎯 治疗方案：\n- 专业清洁 + 光子嫩肤\n- 配合药物调理\n- 生活习惯调整\n\n⏰ 时间线：\n- 第1个月：痘痘明显减少\n- 第2个月：皮肤开始平滑\n- 第3个月：完全蜕变\n\n有同样困扰的姐妹可以试试！",
-            tags: ["#祛痘", "#皮肤管理", "#蜕变", "#医美", "#前后对比"]
-          }
-        ],
-        price: [
-          {
-            id: "price_001",
-            name: "价格透明",
-            title: "医美项目价格大公开！别再被坑了 💰",
-            content: "姐妹们，今天来给大家科普一下常见医美项目的真实价格！\n\n💸 超皮秒祛斑：3000-8000元/次\n💧 水光针：2000-6000元/次\n🔥 热玛吉：2万-5万元/次\n✨ 光子嫩肤：800-2000元/次\n\n⚠️ 价格影响因素：\n- 地区差异\n- 医院级别\n- 医生资质\n- 设备型号\n\n记住：便宜没好货，选正规机构最重要！",
-            tags: ["#医美价格", "#避坑", "#超皮秒", "#水光针", "#热玛吉"]
-          }
-        ],
-        guide: [
-          {
-            id: "guide_001",
-            name: "避坑指南",
-            title: "医美小白必看！5大避坑指南 ⚠️",
-            content: "作为一个踩过无数坑的过来人，今天分享医美避坑经验！\n\n🚫 五大雷区：\n1. 不要贪便宜选无资质机构\n2. 不要轻信朋友圈宣传\n3. 不要忽视术前检查\n4. 不要忽略术后护理\n5. 不要频繁更换医生\n\n✅ 选择标准：\n- 查验医生执业资格\n- 实地考察医院环境\n- 了解设备是否合规\n- 看真实案例效果\n\n希望姐妹们都能安全变美！",
-            tags: ["#医美避坑", "#选择指南", "#安全", "#医美", "#避雷"]
-          }
-        ],
-        holiday: [
-          {
-            id: "holiday_001",
-            name: "节日促销",
-            title: "女神节特惠！这些项目值得入手 🌹",
-            content: "三八女神节来了，各大医美机构都有活动！\n\n🎁 超值项目推荐：\n✨ 超皮秒：原价5000，现价3500\n💧 水光针：买3送1，超划算\n🔥 热玛吉：赠送护理套餐\n\n⏰ 活动时间：仅限本周\n\n姐妹们，一年就这么一次机会，抓紧变美吧！\n记得提前预约哦～",
-            tags: ["#女神节", "#医美优惠", "#超皮秒", "#水光针", "#促销"]
-          }
-        ],
-        new_product: [
-          {
-            id: "new_001",
-            name: "新品推荐",
-            title: "黑科技来袭！新项目体验报告 🔬",
-            content: "今天体验了最新的Fotona 4D，真的是黑科技！\n\n💫 项目亮点：\n- 无创紧致提升\n- 内部+外部双重作用\n- 即刻见效\n- 无恢复期\n\n🔍 适用人群：\n- 轻微松弛下垂\n- 希望改善轮廓\n- 怕疼不敢做手术\n\n⏰ 效果持续：3-6个月\n\n体验下来真的很棒，推荐给想要轻微提升的姐妹们！",
-            tags: ["#Fotona4D", "#新项目", "#紧致提升", "#无创", "#医美"]
-          }
-        ]
-      };
-
-      return {
-        templates: templates[input.type || "project"] || templates.project,
-        allTypes: Object.keys(templates)
-      };
-    }),
+  getTemplates: protectedProcedure.query(async () => {
+    return {
+      templates: [] as ContentTemplate[],
+      allTypes: ["project", "case", "price", "guide", "holiday", "new_product"],
+      message: "模板数据尚未配置，请使用「一键爽文」功能自动生成内容",
+    };
+  }),
 
   /**
    * 使用模板生成内容
@@ -583,16 +541,15 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
     .input(
       z.object({
         templateId: z.string(),
-        customizations: z.record(z.string()).optional(),
+        customizations: z.record(z.string(), z.string().max(1000)).optional(),
       })
     )
     .mutation(async ({ input }) => {
-      // 这里可以实现基于模板生成内容的逻辑
-      // 暂时返回模板内容，实际应用中可以进行个性化调整
-      return {
-        success: true,
-        message: "模板应用成功",
-      };
+      // TODO: 基于模板生成内容 — 需要模板库表和 LLM 填充逻辑
+      throw new TRPCError({
+        code: "NOT_IMPLEMENTED",
+        message: "模板生成功能尚未实现，请使用「一键爽文」功能生成内容",
+      });
     }),
 
   /**
@@ -603,9 +560,16 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
       z.object({
         items: z.array(
           z.object({
-            type: z.enum(["project", "case", "price", "guide", "holiday", "new_product"]),
-            project: z.string().optional(),
-            keywords: z.array(z.string()).optional(),
+            type: z.enum([
+              "project",
+              "case",
+              "price",
+              "guide",
+              "holiday",
+              "new_product",
+            ]),
+            project: z.string().max(200).optional(),
+            keywords: z.array(z.string().max(100)).optional(),
             tone: z.enum(["enthusiastic", "professional", "casual"]).optional(),
           })
         ),
@@ -621,35 +585,112 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
       // 分批处理
       for (let i = 0; i < total; i += batchSize) {
         const batch = items.slice(i, i + batchSize);
-        
+
         // 并行处理当前批次
         const batchResults = await Promise.allSettled(
-          batch.map(async (item) => {
+          batch.map(async item => {
             try {
-              // 这里应该调用生成内容的逻辑
-              // 为了演示，我们模拟生成内容
-              const mockContent = {
-                title: `批量生成-${item.type}-${item.project || '通用项目'}-${Date.now()}`,
-                content: `这是通过批量生成功能生成的${item.type}类型内容，针对${item.project || '通用项目'}。关键词：${item.keywords?.join(',') || '无'}。`,
-                tags: [`#${item.type}`, `#${item.project || '医美'}`, '#批量生成'],
+              // 获取相关知识库内容
+              const knowledgeItems = await getActiveKnowledge();
+              let relevantKnowledge = knowledgeItems;
+              if (item.project) {
+                relevantKnowledge = knowledgeItems.filter(
+                  k =>
+                    k.title.includes(item.project!) ||
+                    k.content.includes(item.project!) ||
+                    (k.tags && k.tags.includes(item.project!))
+                );
+              }
+              const knowledgeContext =
+                relevantKnowledge.length > 0
+                  ? "\n\n参考知识库：\n" +
+                    relevantKnowledge
+                      .slice(0, 3)
+                      .map(k => `【${k.title}】\n${k.content}`)
+                      .join("\n\n")
+                  : "";
+
+              // 根据类型构建提示词
+              const typePromptMap: Record<string, string> = {
+                project: `请生成一篇关于"${item.project || "医美项目"}"的体验分享文案。`,
+                case: `请生成一篇关于"${item.project || "医美项目"}"的效果对比文案。`,
+                price: `请生成一篇关于"${item.project || "医美项目"}"的价格揭秘文案。`,
+                guide: `请生成一篇关于"${item.project || "医美项目"}"的避坑指南文案。`,
+                holiday: `请生成一篇节日营销文案，结合"${item.project || "医美项目"}"。`,
+                new_product: `请生成一篇关于"${item.project || "医美项目"}"的新品推荐文案。`,
               };
-              
-              // 创建内容记录
+              let typePrompt =
+                typePromptMap[item.type] || typePromptMap.project;
+              if (item.keywords && item.keywords.length > 0) {
+                typePrompt += `\n\n必须包含以下关键词：${item.keywords.join("、")}`;
+              }
+
+              // 调用 LLM 生成内容
+              const response = await invokeLLMWithRetry(
+                {
+                  messages: [
+                    {
+                      role: "system",
+                      content: CONTENT_GENERATION_PROMPT + knowledgeContext,
+                    },
+                    { role: "user", content: typePrompt },
+                  ],
+                  response_format: {
+                    type: "json_schema",
+                    json_schema: {
+                      name: "xiaohongshu_content",
+                      strict: true,
+                      schema: {
+                        type: "object",
+                        properties: {
+                          title: { type: "string" },
+                          content: { type: "string" },
+                          tags: { type: "array", items: { type: "string" } },
+                        },
+                        required: ["title", "content", "tags"],
+                        additionalProperties: false,
+                      },
+                    },
+                  },
+                },
+                { enableCache: true, maxRetries: 3, retryDelay: 1000 }
+              );
+
+              const choice = response?.choices?.[0];
+              if (!choice?.message?.content) {
+                throw new Error("批量生成失败：模型未返回内容");
+              }
+              const contentString =
+                typeof choice.message.content === "string"
+                  ? choice.message.content
+                  : JSON.stringify(choice.message.content);
+              const generated = JSON.parse(contentString || "{}");
+              if (
+                typeof generated.title !== "string" ||
+                typeof generated.content !== "string" ||
+                !Array.isArray(generated.tags)
+              ) {
+                throw new Error("批量生成失败：返回缺少 title/content/tags");
+              }
+
+              // 保存到数据库
               const postResult = await createXiaohongshuPost({
-                title: mockContent.title,
-                content: mockContent.content,
-                tags: JSON.stringify(mockContent.tags),
+                title: generated.title,
+                content: generated.content,
+                tags: JSON.stringify(generated.tags),
                 contentType: item.type,
                 project: item.project || null,
                 status: "draft",
               });
 
               processed++;
-              
+
               return {
                 success: true,
                 data: {
-                  ...mockContent,
+                  title: generated.title,
+                  content: generated.content,
+                  tags: generated.tags,
                   postId: postResult.id,
                 },
                 index: i + batch.indexOf(item),
@@ -665,13 +706,20 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
         );
 
         // 添加批次结果到总结果
-        results.push(...batchResults.map(result => 
-          result.status === 'fulfilled' ? result.value : {
-            success: false,
-            error: result.reason instanceof Error ? result.reason.message : String(result.reason),
-            index: -1, // 索引信息可能丢失，需要改进
-          }
-        ));
+        results.push(
+          ...batchResults.map(result =>
+            result.status === "fulfilled"
+              ? result.value
+              : {
+                  success: false,
+                  error:
+                    result.reason instanceof Error
+                      ? result.reason.message
+                      : String(result.reason),
+                  index: -1, // 索引信息可能丢失，需要改进
+                }
+          )
+        );
 
         // 添加延迟以避免API限制
         if (i + batchSize < total) {
@@ -699,20 +747,18 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
       })
     )
     .mutation(async ({ input }) => {
-      // 在实际应用中，这里会将发布任务添加到队列中
-      // 由于我们没有实现任务队列，这里只是模拟
-      console.log(`Scheduled post ${input.postId} for ${input.scheduledTime}`);
-      
-      // 更新文章状态为scheduled
+      // 更新文章状态为 scheduled
+      // 注意：自动发布需要任务队列（如 BullMQ / node-cron），当前需手动发布
       await updateXiaohongshuPost(input.postId, {
         status: "scheduled",
-        scheduledAt: input.scheduledTime,
+        scheduledAt: input.scheduledTime.toISOString(),
       });
 
       return {
         success: true,
-        message: `内容已安排在 ${input.scheduledTime.toLocaleString()} 发布`,
+        message: `内容已安排在 ${input.scheduledTime.toLocaleString()} 发布（需手动触发或配置定时任务队列）`,
         scheduledTime: input.scheduledTime,
+        autoPublishEnabled: false,
       };
     }),
 });

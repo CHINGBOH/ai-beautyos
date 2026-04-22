@@ -1,0 +1,8 @@
+// 在 renderConfirmForm 函数开头添加调试
+const renderConfirmForm = () => {
+  console.log('[Debug] renderConfirmForm called, chatMode:', chatMode, 'step:', step, 'form:', form);
+  if (chatMode !== 'form' || step !== 'confirm') {
+    console.log('[Debug] renderConfirmForm returned null');
+    return null;
+  }
+  // ... rest of the function

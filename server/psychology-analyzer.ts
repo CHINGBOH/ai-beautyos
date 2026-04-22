@@ -3,7 +3,7 @@
  * 使用 LLM 分析客户对话内容，自动识别客户的心理动机和决策类型
  */
 
-import { invokeLLM } from "./_core/llm";
+import { invokeLLM } from "./llm";
 
 export interface PsychologyAnalysisResult {
   psychologyType: "恐惧型" | "贪婪型" | "安全型" | "敏感型";
@@ -182,11 +182,11 @@ export async function analyzePsychology(
     return result;
   } catch (error) {
     console.error("[Psychology Analyzer] Analysis failed:", error);
-    // 返回默认值
+    // 返回默认值，置信度设为0.3（低于0.6阈值，会被chat.ts忽略）
     return {
       psychologyType: "贪婪型",
       psychologyTags: ["待分析"],
-      confidence: 0,
+      confidence: 0.3,  // 修复：设为0.3确保与chat.ts中0.6阈值配合
       reasoning: "分析失败，使用默认值",
     };
   }
@@ -196,8 +196,16 @@ export async function analyzePsychology(
  * 判断是否需要更新心理标签
  * 当对话消息数量达到一定阈值时，触发心理分析
  */
+/**
+ * 判断是否需要更新心理标签
+ * 当对话消息数量达到一定阈值时，触发心理分析
+ * 
+ * 修复说明：原逻辑 messageCount === 5 || (messageCount > 5 && messageCount % 10 === 0)
+ * 会导致消息6-14不触发分析（bug）。
+ * 新逻辑：从第5条开始，之后每10条触发一次（5, 15, 25...）
+ */
 export function shouldAnalyzePsychology(messageCount: number): boolean {
-  // 第5条消息时首次分析
-  // 之后每10条消息重新分析一次
-  return messageCount === 5 || (messageCount > 5 && messageCount % 10 === 0);
+  // 第5条消息时首次分析，之后每10条消息重新分析一次
+  // 使用 >=5 确保不会漏掉消息，(count - 5) % 10 === 0 保证间隔
+  return messageCount >= 5 && (messageCount - 5) % 10 === 0;
 }

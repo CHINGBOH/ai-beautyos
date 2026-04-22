@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE `leads` MODIFY COLUMN `status` varchar(50) NOT NULL DEFAULT 'new';\nALTER TABLE `leads` ADD `age` int;\nALTER TABLE `leads` ADD `budget_level` enum('低','中','高');\nALTER TABLE `leads` ADD `psychology_type` varchar(50);\nALTER TABLE `leads` ADD `psychology_tags` text;\nALTER TABLE `leads` ADD `customer_tier` enum('A','B','C','D');\nALTER TABLE `leads` ADD `notes` text;\nALTER TABLE `leads` ADD `follow_up_date` timestamp;\nALTER TABLE `leads` ADD `updated_at` timestamp DEFAULT (now()) NOT NULL ON UPDATE CURRENT_TIMESTAMP;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RT9x8CnefpQZ1f.90a93e1e3c1a --database WxQZwxXtmPwQUu9473vYXR --execute ALTER TABLE `leads` MODIFY COLUMN `status` varchar(50) NOT NULL DEFAULT 'new';\nALTER TABLE `leads` ADD `age` int;\nALTER TABLE `leads` ADD `budget_level` enum('低','中','高');\nALTER TABLE `leads` ADD `psychology_type` varchar(50);\nALTER TABLE `leads` ADD `psychology_tags` text;\nALTER TABLE `leads` ADD `customer_tier` enum('A','B','C','D');\nALTER TABLE `leads` ADD `notes` text;\nALTER TABLE `leads` ADD `follow_up_date` timestamp;\nALTER TABLE `leads` ADD `updated_at` timestamp DEFAULT (now()) NOT NULL ON UPDATE CURRENT_TIMESTAMP;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 7331
-}

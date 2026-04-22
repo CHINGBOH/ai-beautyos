@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/trpc";
+import { adminProcedure, router } from "../_core/trpc";
 import { eq } from "drizzle-orm";
 import { systemConfig } from "../../drizzle/schema";
 import { getDb } from "../db";
@@ -9,7 +9,7 @@ export const adminRouter = router({
   /**
    * 保存 Airtable 配置
    */
-  saveAirtableConfig: publicProcedure
+  saveAirtableConfig: adminProcedure
     .input(
       z.object({
         token: z.string(),
@@ -37,7 +37,7 @@ export const adminRouter = router({
           .update(systemConfig)
           .set({
             configValue,
-            updatedAt: new Date(),
+            updatedAt: new Date().toISOString(),
           })
           .where(eq(systemConfig.configKey, "airtable"));
       } else {
@@ -54,7 +54,7 @@ export const adminRouter = router({
   /**
    * 获取 Airtable 配置
    */
-  getAirtableConfig: publicProcedure.query(async () => {
+  getAirtableConfig: adminProcedure.query(async () => {
     const db = await getDb();
     if (!db) return { token: null, baseId: null };
 
@@ -82,7 +82,7 @@ export const adminRouter = router({
   /**
    * 测试 Airtable 连接
    */
-  testAirtableConnection: publicProcedure
+  testAirtableConnection: adminProcedure
     .input(
       z.object({
         token: z.string(),
@@ -118,13 +118,14 @@ export const adminRouter = router({
         return {
           success: false,
           error: error instanceof Error ? error.message : "未知错误",
-        };      };
+        };
+      }
     }),
 
   /**
    * 自动设置 Airtable CRM 表结构
    */
-  setupAirtableTables: publicProcedure
+  setupAirtableTables: adminProcedure
     .input(
       z.object({
         token: z.string(),

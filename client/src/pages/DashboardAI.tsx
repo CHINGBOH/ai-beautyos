@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Textarea } from "@/components/ui/textarea";
 import { trpc } from "@/lib/trpc";
+import { UNAUTHED_ERR_MSG } from "@shared/const";
 import { toast } from "sonner";
 import { Loader2, Send, Sparkles, Database, TrendingUp, Users } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
@@ -25,7 +26,16 @@ export default function DashboardAI() {
       setQuestion("");
     },
     onError: (error) => {
-      toast.error("查询失败：" + error.message);
+      const msg = error.message;
+      if (msg === UNAUTHED_ERR_MSG) {
+        toast.error("请先登录后再使用职能助手。本地开发可在项目根目录 .env 中设置 DISABLE_AUTH=1 跳过登录。");
+        return;
+      }
+      if (msg.includes("fetch") || msg.includes("Network") || msg.includes("Failed to fetch")) {
+        toast.error("无法连接后端，请确认已运行 pnpm dev 启动前后端服务。");
+        return;
+      }
+      toast.error("查询失败：" + msg);
     },
   });
 
@@ -50,10 +60,10 @@ export default function DashboardAI() {
   };
 
   const quickQuestions = [
-    { icon: Users, text: "今天有多少新客户？", color: "text-blue-600" },
-    { icon: TrendingUp, text: "本月转化率是多少？", color: "text-green-600" },
-    { icon: Database, text: "找出所有A级客户", color: "text-purple-600" },
-    { icon: Sparkles, text: "哪些客户咨询过超皮秒但未预约？", color: "text-amber-600" },
+    { icon: Users, text: "今天有多少新客户？", color: "text-stone-600" },
+    { icon: TrendingUp, text: "本月转化率是多少？", color: "text-stone-600" },
+    { icon: Database, text: "找出所有A级客户", color: "text-stone-600" },
+    { icon: Sparkles, text: "哪些客户咨询过超皮秒但未预约？", color: "text-[#B8A68D]" },
   ];
 
   return (
@@ -61,7 +71,7 @@ export default function DashboardAI() {
       <div className="container mx-auto p-6 max-w-5xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold mb-2 flex items-center gap-2">
-          <Sparkles className="w-8 h-8 text-amber-600" />
+          <Sparkles className="w-8 h-8 text-[#B8A68D]" />
           AI 数据助手
         </h1>
         <p className="text-gray-600">
@@ -104,7 +114,7 @@ export default function DashboardAI() {
               key={index}
               className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
             >
-              <Card className={`max-w-3xl ${msg.role === "user" ? "bg-amber-50" : "bg-white"}`}>
+              <Card className={`max-w-3xl ${msg.role === "user" ? "bg-stone-50" : "bg-white"}`}>
                 <CardContent className="p-4">
                   {msg.role === "user" ? (
                     <p className="text-gray-800">{msg.content}</p>
@@ -153,7 +163,7 @@ export default function DashboardAI() {
             <Button
               type="submit"
               disabled={queryMutation.isPending || !question.trim()}
-              className="bg-amber-600 hover:bg-amber-700"
+              className="bg-[#B8A68D] hover:bg-[#A69479]"
             >
               {queryMutation.isPending ? (
                 <Loader2 className="w-5 h-5 animate-spin" />

@@ -25,7 +25,7 @@ export async function withDb<T>(
   fn: (db: NonNullable<Awaited<ReturnType<typeof getDb>>>) => Promise<T>
 ): Promise<T> {
   const db = await getDb();
-  
+
   if (!db) {
     const error = new DatabaseError(
       "Database connection is not available",
@@ -46,13 +46,13 @@ export async function withDb<T>(
       operation,
       error
     );
-    
+
     logger.error(`[DB] ${operation} failed:`, {
       message: dbError.message,
       operation,
       originalError: error,
     });
-    
+
     throw dbError;
   }
 }
@@ -72,5 +72,45 @@ export async function withDbOptional<T>(
       return null;
     }
     throw error;
+  }
+}
+
+/**
+ * 检查数据库连接池健康状态
+ * 返回连接池指标（如果底层驱动暴露了这些信息）
+ */
+export async function checkDbHealth(): Promise<{
+  available: boolean;
+  latencyMs: number;
+  poolMetrics?: Record<string, unknown>;
+}> {
+  const start = Date.now();
+  try {
+    const db = await getDb();
+    if (!db) {
+      return { available: false, latencyMs: 0 };
+    }
+    // 轻量查询验证连接可用
+    await db.execute("SELECT 1");
+    const latencyMs = Date.now() - start;
+
+    // postgres.js 驱动将 pool 挂在 client 上，尝试读取
+    let poolMetrics: Record<string, unknown> | undefined;
+    try {
+      const client = (db as any).$client;
+      if (client?.options) {
+        poolMetrics = {
+          maxConnections: client.options.max ?? null,
+          idleTimeout: client.options.idle_timeout ?? null,
+          connectTimeout: client.options.connect_timeout ?? null,
+        };
+      }
+    } catch {
+      // 驱动未暴露 pool 信息，忽略
+    }
+
+    return { available: true, latencyMs, poolMetrics };
+  } catch (error) {
+    return { available: false, latencyMs: Date.now() - start };
   }
 }

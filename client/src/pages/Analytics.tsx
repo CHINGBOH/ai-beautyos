@@ -66,9 +66,9 @@ export default function Analytics() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-orange-50">
+    <div className="min-h-screen bg-page-soft">
       {/* 导航栏 */}
-      <nav className="bg-white/80 backdrop-blur-md border-b border-amber-200 sticky top-0 z-50">
+      <nav className="bg-white/80 backdrop-blur-md border-b border-stone-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <img src="/yanmei-logo.jpg" alt="深圳妍美" className="h-10" />
@@ -85,7 +85,7 @@ export default function Analytics() {
               <Button variant="ghost">系统管理</Button>
             </Link>
             <Link href="/analytics">
-              <Button variant="default" className="bg-gradient-to-r from-amber-600 to-orange-600">
+              <Button variant="brand">
                 数据分析
               </Button>
             </Link>
@@ -98,7 +98,7 @@ export default function Analytics() {
           {/* 标题 */}
           <div className="mb-8">
             <h1 className="text-4xl font-bold text-gray-800 mb-2 flex items-center gap-3">
-              <BarChart3 className="text-amber-600" />
+              <BarChart3 className="text-[#B8A68D]" />
               智能数据分析
             </h1>
             <p className="text-gray-600">基于 AI 的数据分析和营销建议</p>
@@ -109,12 +109,12 @@ export default function Analytics() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Users className="text-amber-600" />
+                  <Users className="text-[#B8A68D]" />
                   总线索数
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-4xl font-bold text-amber-600">
+                <div className="text-4xl font-bold text-[#B8A68D]">
                   {overview.data?.totalLeads || 0}
                 </div>
               </CardContent>
@@ -123,12 +123,12 @@ export default function Analytics() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="text-orange-600" />
+                  <TrendingUp className="text-stone-600" />
                   总对话数
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="text-4xl font-bold text-orange-600">
+                <div className="text-4xl font-bold text-stone-600">
                   {overview.data?.totalConversations || 0}
                 </div>
               </CardContent>
@@ -137,7 +137,7 @@ export default function Analytics() {
             <Card>
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <FileText className="text-amber-700" />
+                  <FileText className="text-[#B8A68D]" />
                   热门项目
                 </CardTitle>
               </CardHeader>
@@ -269,7 +269,7 @@ export default function Analytics() {
 
                   {generateCustomerProfile.isPending && (
                     <div className="flex items-center justify-center py-8">
-                      <Loader2 className="h-8 w-8 animate-spin text-amber-600" />
+                      <Loader2 className="h-8 w-8 animate-spin text-[#B8A68D]" />
                     </div>
                   )}
 

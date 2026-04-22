@@ -1,0 +1,60 @@
+filebeat.inputs:
+  - type: log
+    enabled: true
+    paths:
+      - /var/log/medical-crm/*.log
+    json.keys_under_root: true
+    json.add_error_key: true
+    json.message_key: message
+    fields:
+      service: medical-crm-api
+      environment: ${ENVIRONMENT:production}
+    fields_under_root: true
+
+  - type: container
+    enabled: true
+    paths:
+      - /var/lib/docker/containers/*/*.log
+    processors:
+      - add_kubernetes_metadata:
+          host: ${NODE_NAME}
+          matchers:
+            - logs_path:
+                logs_path: "/var/lib/docker/containers/"
+
+processors:
+  - add_host_metadata:
+      when.not.contains.tags: forwarded
+  - add_cloud_metadata: ~
+  - add_docker_metadata: ~
+  - add_fields:
+      target: ''
+      fields:
+        log_type: medical-crm
+
+output.logstash:
+  hosts: ["${LOGSTASH_HOST:logstash}:5044"]
+  ssl.enabled: false
+
+output.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOST:elasticsearch}:9200"]
+  index: "medical-crm-%{+yyyy.MM.dd}"
+  username: "${ELASTICSEARCH_USER:}"
+  password: "${ELASTICSEARCH_PASSWORD:}"
+
+output.gelf:
+  enabled: true
+  hosts: ["${GRAYLOG_HOST:graylog}:12201"]
+  protocol: tcp
+
+logging.level: info
+logging.to_files: true
+logging.files:
+  path: /var/log/filebeat
+  name: filebeat
+  keepfiles: 7
+  permissions: 0644
+
+monitoring.enabled: true
+monitoring.elasticsearch:
+  hosts: ["${ELASTICSEARCH_HOST:elasticsearch}:9200"]

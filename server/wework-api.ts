@@ -19,7 +19,7 @@ export async function getAccessToken(): Promise<string> {
   // 检查是否有有效的缓存token
   if (config.accessToken && config.tokenExpiresAt) {
     const now = new Date();
-    if (config.tokenExpiresAt > now) {
+    if (new Date(config.tokenExpiresAt) > now) {
       return config.accessToken;
     }
   }
@@ -62,19 +62,23 @@ export async function createContactWay(params: {
   const accessToken = await getAccessToken();
   const url = `${WEWORK_API_BASE}/cgi-bin/externalcontact/add_contact_way`;
 
-  const response = await axios.post(url, {
-    type: params.type,
-    scene: params.scene,
-    style: 1, // 二维码样式
-    remark: params.remark,
-    skip_verify: params.skip_verify ?? true,
-    state: params.state,
-    user: params.user,
-  }, {
-    params: {
-      access_token: accessToken,
+  const response = await axios.post(
+    url,
+    {
+      type: params.type,
+      scene: params.scene,
+      style: 1, // 二维码样式
+      remark: params.remark,
+      skip_verify: params.skip_verify ?? true,
+      state: params.state,
+      user: params.user,
     },
-  });
+    {
+      params: {
+        access_token: accessToken,
+      },
+    }
+  );
 
   return response.data;
 }
@@ -151,13 +155,17 @@ export async function sendMessage(params: {
   const accessToken = await getAccessToken();
   const url = `${WEWORK_API_BASE}/cgi-bin/externalcontact/send_welcome_msg`;
 
-  const response = await axios.post(url, {
-    ...params,
-  }, {
-    params: {
-      access_token: accessToken,
+  const response = await axios.post(
+    url,
+    {
+      ...params,
     },
-  });
+    {
+      params: {
+        access_token: accessToken,
+      },
+    }
+  );
 
   return response.data;
 }
@@ -165,7 +173,10 @@ export async function sendMessage(params: {
 /**
  * 发送文本消息（使用客服消息接口）
  */
-export async function sendTextMessage(externalUserId: string, content: string): Promise<{
+export async function sendTextMessage(
+  externalUserId: string,
+  content: string
+): Promise<{
   errcode: number;
   errmsg: string;
 }> {
@@ -177,26 +188,22 @@ export async function sendTextMessage(externalUserId: string, content: string): 
   const accessToken = await getAccessToken();
   const url = `${WEWORK_API_BASE}/cgi-bin/message/send`;
 
-  const response = await axios.post(url, {
-    touser: externalUserId,
-    msgtype: "text",
-    agentid: config.agentId,
-    text: {
-      content,
+  const response = await axios.post(
+    url,
+    {
+      touser: externalUserId,
+      msgtype: "text",
+      agentid: config.agentId,
+      text: {
+        content,
+      },
     },
-  }, {
-    params: {
-      access_token: accessToken,
-    },
-  });
+    {
+      params: {
+        access_token: accessToken,
+      },
+    }
+  );
 
   return response.data;
-}
-
-/**
- * 检查是否为模拟模式
- */
-export async function isMockMode(): Promise<boolean> {
-  const config = await getWeworkConfig();
-  return config?.isMockMode === 1;
 }

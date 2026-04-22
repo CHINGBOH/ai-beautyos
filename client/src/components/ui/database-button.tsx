@@ -9,7 +9,7 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-[#B8A68D] text-white hover:bg-[#A69479]",
         destructive:
           "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-destructive/20 dark:focus-visible:ring-destructive/40 dark:bg-destructive/60",
         outline:
@@ -19,6 +19,8 @@ const buttonVariants = cva(
         ghost:
           "hover:bg-accent dark:hover:bg-accent/50",
         link: "text-primary underline-offset-4 hover:underline",
+        brand:
+          "bg-brand text-white focus-visible:ring-primary/20 shadow-sm rounded-lg transition-[opacity,box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:opacity-95",
       },
       size: {
         default: "h-9 px-4 py-2 has-[>svg]:px-3",
@@ -50,8 +52,10 @@ const DatabaseButton = React.forwardRef<HTMLButtonElement, DatabaseButtonProps>(
     
     const Comp = asChild ? Slot : "button";
     
-    // 使用数据库内容或备用文本
-    const buttonText = content?.linkText || content?.content || fallbackText || buttonKey;
+    // 使用数据库内容或备用文本，绝不向用户展示英文 key
+    const fromApi = (content?.linkText || content?.content || "").trim();
+    const isKeyLike = (t: string) => /^[a-z][a-z0-9-]*$/.test(t) && t.length < 40;
+    const buttonText = (fromApi && !isKeyLike(fromApi) ? fromApi : null) ?? (fallbackText || "按钮");
     
     // 如果正在加载且需要显示加载状态，则显示加载文本
     if (loading && showLoading) {
@@ -68,7 +72,7 @@ const DatabaseButton = React.forwardRef<HTMLButtonElement, DatabaseButtonProps>(
       );
     }
     
-    // 如果有错误且有备用文本，则使用备用文本，否则使用按钮键
+    // 如果有错误，使用备用文本，绝不展示英文 key
     if (error) {
       console.warn(`Failed to load button content for ${pageKey}:${buttonKey}`, error);
       return (
@@ -78,7 +82,7 @@ const DatabaseButton = React.forwardRef<HTMLButtonElement, DatabaseButtonProps>(
           className={cn(buttonVariants({ variant, size, className }))}
           {...props}
         >
-          {fallbackText || buttonKey}
+          {fallbackText || "按钮"}
         </Comp>
       );
     }

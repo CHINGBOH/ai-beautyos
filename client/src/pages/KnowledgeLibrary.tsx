@@ -1,11 +1,27 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { BookOpen, Search, Sparkles, Users, GraduationCap, Heart, Target } from "lucide-react";
+import {
+  BookOpen,
+  Search,
+  Sparkles,
+  Users,
+  GraduationCap,
+  Heart,
+  Target,
+  Loader2,
+  AlertCircle,
+} from "lucide-react";
 import { KnowledgeSearch } from "@/components/KnowledgeSearch";
 import { KnowledgeDetailView } from "@/components/KnowledgeDetailView";
 import { KNOWLEDGE_MODULES, MODULE_NAMES } from "@shared/types";
@@ -18,49 +34,75 @@ import { useAuth } from "@/_core/hooks/useAuth";
 export default function KnowledgeLibrary() {
   const { user } = useAuth();
   const isEmployee = user?.role === "admin" || user?.role === "staff";
-  
-  const [selectedModule, setSelectedModule] = useState<string>(KNOWLEDGE_MODULES.HEALTH_FOUNDATION);
-  const [selectedKnowledgeId, setSelectedKnowledgeId] = useState<number | null>(null);
+
+  const [selectedModule, setSelectedModule] = useState<string>(
+    KNOWLEDGE_MODULES.HEALTH_FOUNDATION
+  );
+  const [selectedKnowledgeId, setSelectedKnowledgeId] = useState<number | null>(
+    null
+  );
   const [learningPath, setLearningPath] = useState<any>(null);
+  const [searchKeyword, setSearchKeyword] = useState<string>("");
 
   // 获取知识库树
-  const { data: knowledgeTree } = trpc.knowledge.getTreeByModule.useQuery({
+  const {
+    data: knowledgeTree,
+    isLoading: treeLoading,
+    isError: treeError,
+  } = trpc.knowledge.getTreeByModule.useQuery({
     module: selectedModule,
   });
 
   // 生成学习路径
-  const generatePathMutation = trpc.learningPath.generateByQuestion.useMutation({
-    onSuccess: (data) => {
-      setLearningPath(data);
+  const {
+    data: generatedPath,
+    isLoading: pathLoading,
+    error: pathError,
+  } = trpc.learningPath.generateByQuestion.useQuery(
+    {
+      question: searchKeyword,
+      module: selectedModule,
     },
-  });
+    {
+      enabled: searchKeyword.length > 3,
+    }
+  );
+
+  useEffect(() => {
+    if (generatedPath) {
+      setLearningPath(generatedPath);
+    }
+  }, [generatedPath]);
 
   // 当搜索关键词变化时，自动生成学习路径
   const handleSearchChange = (keyword: string) => {
-    if (keyword.length > 3) {
-      generatePathMutation.mutate({
-        question: keyword,
-        module: selectedModule,
-      });
-    }
+    setSearchKeyword(keyword);
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-orange-50">
+    <div className="min-h-screen bg-page-soft">
       {/* 导航栏 */}
-      <nav className="bg-white/80 backdrop-blur-sm border-b border-amber-100 sticky top-0 z-50">
+      <nav className="bg-white/80 backdrop-blur-sm border-b border-stone-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <BookOpen className="w-6 h-6 text-amber-600" />
-              <span className="text-lg font-semibold text-amber-800">美业知识库</span>
+              <BookOpen className="w-6 h-6 text-[#B8A68D]" />
+              <span className="text-lg font-semibold text-stone-600">
+                美业知识库
+              </span>
               <Badge variant="outline" className="text-xs">
                 {isEmployee ? "员工视角" : "客户视角"}
               </Badge>
             </div>
             <div className="flex gap-3">
               {isEmployee && (
-                <Button variant="ghost" size="sm" onClick={() => window.location.href = "/dashboard/knowledge-tree"}>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() =>
+                    (window.location.href = "/dashboard/knowledge-tree")
+                  }
+                >
                   管理后台
                 </Button>
               )}
@@ -72,32 +114,32 @@ export default function KnowledgeLibrary() {
       <div className="container mx-auto px-4 py-8">
         {/* 欢迎区域 */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl font-bold mb-4">
-            让美成为您一生的事业和陪伴
-          </h1>
-          <p className="text-xl text-gray-600 mb-6">
+          <h1 className="mb-4">让美成为您一生的事业和陪伴</h1>
+          <p className="text-xl text-muted-foreground mb-6 leading-relaxed">
             从健康基础到医美技术，全方位知识体系助您科学变美
           </p>
-          
+
           {/* 快速入口 */}
           <div className="flex flex-wrap justify-center gap-3 mb-8">
-            {Object.entries(MODULE_NAMES).slice(0, 5).map(([key, name]) => (
-              <Button
-                key={key}
-                variant={selectedModule === key ? "default" : "outline"}
-                onClick={() => setSelectedModule(key)}
-                className="gap-2"
-              >
-                {name}
-              </Button>
-            ))}
+            {Object.entries(MODULE_NAMES)
+              .slice(0, 5)
+              .map(([key, name]) => (
+                <Button
+                  key={key}
+                  variant={selectedModule === key ? "default" : "outline"}
+                  onClick={() => setSelectedModule(key)}
+                  className="gap-2"
+                >
+                  {name}
+                </Button>
+              ))}
           </div>
         </div>
 
         {/* 搜索和学习路径 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
           {/* 搜索区域 */}
-          <Card className="lg:col-span-2">
+          <Card className="lg:col-span-2 shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Search className="w-5 h-5" />
@@ -110,7 +152,7 @@ export default function KnowledgeLibrary() {
             <CardContent>
               <KnowledgeSearch
                 module={selectedModule}
-                onSelectKnowledge={(id) => {
+                onSelectKnowledge={id => {
                   setSelectedKnowledgeId(id);
                   // 获取知识详情后可以基于内容生成学习路径
                 }}
@@ -119,25 +161,32 @@ export default function KnowledgeLibrary() {
           </Card>
 
           {/* 学习路径 */}
-          <Card>
+          <Card className="shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Target className="w-5 h-5" />
                 学习路径
               </CardTitle>
-              <CardDescription>
-                为您推荐的学习计划
-              </CardDescription>
+              <CardDescription>为您推荐的学习计划</CardDescription>
             </CardHeader>
             <CardContent>
               {learningPath ? (
                 <div className="space-y-3">
-                  <div className="text-sm font-medium">{learningPath.question}</div>
+                  <div className="text-sm font-medium">
+                    {learningPath.question}
+                  </div>
+                  {learningPath.recommendationText && (
+                    <p className="text-sm text-muted-foreground border-l-2 border-stone-200 pl-3">
+                      {learningPath.recommendationText}
+                    </p>
+                  )}
                   <div className="space-y-2">
                     {learningPath.path.map((stage: any, index: number) => (
                       <div key={index} className="border rounded p-2">
                         <div className="font-medium text-sm">{stage.stage}</div>
-                        <div className="text-xs text-gray-500">{stage.description}</div>
+                        <div className="text-xs text-gray-500">
+                          {stage.description}
+                        </div>
                         <div className="text-xs text-gray-400 mt-1">
                           {stage.knowledge.length} 个知识点
                         </div>
@@ -159,23 +208,30 @@ export default function KnowledgeLibrary() {
         </div>
 
         {/* 知识树浏览 */}
-        <Card>
+        <Card className="shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BookOpen className="w-5 h-5" />
-              {MODULE_NAMES[selectedModule as keyof typeof MODULE_NAMES]} - 知识树
+              {MODULE_NAMES[selectedModule as keyof typeof MODULE_NAMES]} -
+              知识树
             </CardTitle>
-            <CardDescription>
-              点击展开，深入了解每个知识点
-            </CardDescription>
+            <CardDescription>点击展开，深入了解每个知识点</CardDescription>
           </CardHeader>
           <CardContent>
-            {knowledgeTree && knowledgeTree.length > 0 ? (
+            {treeLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : treeError ? (
+              <div className="text-center py-12 text-destructive">
+                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-80" />
+                <p>加载失败，请稍后重试</p>
+              </div>
+            ) : knowledgeTree && knowledgeTree.length > 0 ? (
               <KnowledgeTreeView
                 tree={knowledgeTree}
-                onSelect={(id) => {
+                onSelect={id => {
                   setSelectedKnowledgeId(id);
-                  // 选择知识节点后可以查看详情
                 }}
                 isEmployee={isEmployee}
               />
@@ -191,9 +247,34 @@ export default function KnowledgeLibrary() {
 
         {/* 知识详情展示 */}
         {selectedKnowledgeId && (
-          <Card>
-            <CardHeader>
-              <CardTitle>知识详情</CardTitle>
+          <Card className="shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div className="flex flex-col gap-1">
+                <CardTitle>知识详情</CardTitle>
+                <CardDescription>
+                  可以将该知识用于对话，或返回列表浏览其他知识点
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setSelectedKnowledgeId(null)}
+                >
+                  ← 返回知识列表
+                </Button>
+                <Button
+                  variant="brand"
+                  size="sm"
+                  onClick={() =>
+                    (window.location.href = `/dashboard/chat?kbId=${encodeURIComponent(
+                      String(selectedKnowledgeId)
+                    )}`)
+                  }
+                >
+                  在对话中使用这篇知识
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               <KnowledgeDetailView knowledgeId={selectedKnowledgeId} />
@@ -234,7 +315,7 @@ function KnowledgeTreeView({
     return (
       <div key={node.id} className="select-none">
         <div
-          className={`flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${
+          className={`flex items-center gap-2 py-2 px-3 rounded-[var(--radius)] hover:bg-accent cursor-pointer transition-colors duration-[var(--motion-duration)] ease-[var(--motion-ease)] ${
             depth === 0 ? "font-semibold" : ""
           }`}
           style={{ paddingLeft: `${12 + depth * 24}px` }}
@@ -270,5 +351,5 @@ function KnowledgeTreeView({
     );
   };
 
-  return <div className="space-y-1">{tree.map((node) => renderNode(node))}</div>;
+  return <div className="space-y-1">{tree.map(node => renderNode(node))}</div>;
 }

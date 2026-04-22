@@ -10,6 +10,7 @@ build/
 # Environment variables
 .env
 .env.local
+.env.production
 .env.development.local
 .env.test.local
 .env.production.local
@@ -17,6 +18,7 @@ build/
 # IDE and editor files
 .vscode/
 .idea/
+docs/idea-*/
 *.swp
 *.swo
 *~
@@ -107,3 +109,7 @@ temp/
 *.sqlite3
 
 .codeartsdoer
+
+# Production env (keep .env.example only)
+.env.production
+server/.env

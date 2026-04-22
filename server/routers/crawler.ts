@@ -4,7 +4,7 @@
  */
 
 import { z } from "zod";
-import { router, publicProcedure } from "../_core/trpc";
+import { router, protectedProcedure } from "../_core/trpc";
 import { HtmlCrawler } from "../crawler/html-crawler";
 import { PubMedCrawler } from "../crawler/pubmed-crawler";
 import { CNKICrawler } from "../crawler/cnki-crawler";
@@ -12,11 +12,36 @@ import { MedicalBeautyCrawler } from "../crawler/medical-beauty-crawler";
 import { JsonApiCrawler } from "../crawler/json-api-crawler";
 import { logger } from "../_core/logger";
 
+/** SSRF 防护：禁止爬取内网地址 */
+function assertPublicUrl(url: string): void {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname;
+    if (
+      hostname === "localhost" ||
+      hostname === "127.0.0.1" ||
+      hostname === "::1" ||
+      hostname === "0.0.0.0" ||
+      hostname.endsWith(".local") ||
+      hostname.endsWith(".internal") ||
+      /^10\./.test(hostname) ||
+      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+      /^192\.168\./.test(hostname) ||
+      /^169\.254\./.test(hostname)
+    ) {
+      throw new Error(`禁止爬取内网地址: ${hostname}`);
+    }
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("禁止爬取")) throw e;
+    throw new Error(`无效的 URL: ${url}`);
+  }
+}
+
 export const crawlerRouter = router({
   /**
    * 爬取HTML页面
    */
-  crawlHtml: publicProcedure
+  crawlHtml: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -28,6 +53,7 @@ export const crawlerRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
+        assertPublicUrl(input.url);
         const crawler = new HtmlCrawler({
           contentSelector: input.contentSelector,
           titleSelector: input.titleSelector,
@@ -46,7 +72,7 @@ export const crawlerRouter = router({
   /**
    * 批量爬取HTML页面
    */
-  crawlHtmlBatch: publicProcedure
+  crawlHtmlBatch: protectedProcedure
     .input(
       z.object({
         urls: z.array(z.string().url()),
@@ -57,13 +83,21 @@ export const crawlerRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
+        for (const url of input.urls) assertPublicUrl(url);
         const crawler = new HtmlCrawler({
           contentSelector: input.contentSelector,
           titleSelector: input.titleSelector,
           delay: input.delay,
         });
 
-        const results = await crawler.crawlBatch(input.urls);
+        const results = await Promise.all(
+          input.urls.map(async (url, index) => {
+            if (index > 0 && input.delay) {
+              await new Promise(resolve => setTimeout(resolve, input.delay));
+            }
+            return await crawler.crawl(url);
+          })
+        );
         return { success: true, data: results, count: results.length };
       } catch (error) {
         logger.error("[Crawler] 批量爬取失败", error);
@@ -74,7 +108,7 @@ export const crawlerRouter = router({
   /**
    * 搜索PubMed论文
    */
-  searchPubMed: publicProcedure
+  searchPubMed: protectedProcedure
     .input(
       z.object({
         query: z.string().min(1),
@@ -108,7 +142,7 @@ export const crawlerRouter = router({
   /**
    * 爬取PubMed论文详情
    */
-  crawlPubMed: publicProcedure
+  crawlPubMed: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -116,6 +150,7 @@ export const crawlerRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
+        assertPublicUrl(input.url);
         const crawler = new PubMedCrawler();
         const result = await crawler.crawl(input.url);
         return { success: true, data: result };
@@ -128,7 +163,7 @@ export const crawlerRouter = router({
   /**
    * 搜索知网论文
    */
-  searchCNKI: publicProcedure
+  searchCNKI: protectedProcedure
     .input(
       z.object({
         keyword: z.string().min(1),
@@ -156,7 +191,7 @@ export const crawlerRouter = router({
   /**
    * 爬取知网论文详情
    */
-  crawlCNKI: publicProcedure
+  crawlCNKI: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -164,6 +199,7 @@ export const crawlerRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
+        assertPublicUrl(input.url);
         const crawler = new CNKICrawler();
         const result = await crawler.crawl(input.url);
         return { success: true, data: result };
@@ -176,7 +212,7 @@ export const crawlerRouter = router({
   /**
    * 爬取医美机构项目页面
    */
-  crawlMedicalBeautyProject: publicProcedure
+  crawlMedicalBeautyProject: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -193,6 +229,7 @@ export const crawlerRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
+        assertPublicUrl(input.url);
         const crawler = new MedicalBeautyCrawler();
         if (input.config) {
           crawler.setPageConfig("project", {
@@ -215,7 +252,7 @@ export const crawlerRouter = router({
   /**
    * 爬取医美机构案例页面
    */
-  crawlMedicalBeautyCase: publicProcedure
+  crawlMedicalBeautyCase: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -223,6 +260,7 @@ export const crawlerRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
+        assertPublicUrl(input.url);
         const crawler = new MedicalBeautyCrawler();
         const result = await crawler.crawlCase(input.url);
         return { success: true, data: result };
@@ -235,7 +273,7 @@ export const crawlerRouter = router({
   /**
    * 爬取JSON API
    */
-  crawlJsonApi: publicProcedure
+  crawlJsonApi: protectedProcedure
     .input(
       z.object({
         url: z.string().url(),
@@ -247,6 +285,7 @@ export const crawlerRouter = router({
     )
     .mutation(async ({ input }) => {
       try {
+        assertPublicUrl(input.url);
         const crawler = new JsonApiCrawler({
           baseUrl: input.baseUrl || "",
           headers: input.headers,

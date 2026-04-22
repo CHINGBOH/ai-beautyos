@@ -1,6 +1,6 @@
 import axios from "axios";
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/trpc";
+import { adminProcedure, protectedProcedure, router } from "../_core/trpc";
 import {
   getWeworkConfig,
   saveWeworkConfig,
@@ -15,23 +15,14 @@ import {
   updateMessageStatus,
 } from "../wework-db";
 import {
-  getMockAccessToken,
-  mockCreateContactWay,
-  mockGetExternalContact,
-  mockSendMessage,
-  mockCustomerAddEvent,
-  isMockMode,
-} from "../wework-mock";
-import {
   createContactWay as apiCreateContactWay,
   sendMessage as apiSendMessage,
   sendTextMessage,
-  isMockMode as apiIsMockMode,
 } from "../wework-api";
 
 export const weworkRouter = router({
   // 测试连接
-  testConnection: publicProcedure
+  testConnection: adminProcedure
     .input(
       z.object({
         corpId: z.string(),
@@ -56,22 +47,22 @@ export const weworkRouter = router({
             error: `连接失败: ${response.data.errmsg} (错误码: ${response.data.errcode})`,
           };
         }
-      } catch (error: any) {
+      } catch (error: unknown) {
         return {
           success: false,
-          error: `网络请求失败: ${error.message}`,
+          error: `网络请求失败: ${error instanceof Error ? error.message : String(error)}`,
         };
       }
     }),
 
   // 获取配置
-  getConfig: publicProcedure.query(async () => {
+  getConfig: protectedProcedure.query(async () => {
     const config = await getWeworkConfig();
     return config || null;
   }),
 
   // 保存配置
-  saveConfig: publicProcedure
+  saveConfig: adminProcedure
     .input(
       z.object({
         corpId: z.string().optional(),
@@ -87,7 +78,7 @@ export const weworkRouter = router({
     }),
 
   // 创建"联系我"二维码
-  createContactWay: publicProcedure
+  createContactWay: adminProcedure
     .input(
       z.object({
         type: z.enum(["single", "multi"]).default("single"),
@@ -99,30 +90,14 @@ export const weworkRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const mockMode = await apiIsMockMode();
-
-      let result;
-      if (mockMode) {
-        // 模拟模式
-        result = await mockCreateContactWay({
-          type: input.type === "single" ? 1 : 2,
-          scene: parseInt(input.scene),
-          remark: input.remark,
-          skip_verify: input.skipVerify,
-          state: input.state,
-          user: input.userIds,
-        });
-      } else {
-        // 真实模式
-        result = await apiCreateContactWay({
-          type: input.type === "single" ? 1 : 2,
-          scene: parseInt(input.scene),
-          remark: input.remark,
-          skip_verify: input.skipVerify,
-          state: input.state,
-          user: input.userIds,
-        });
-      }
+      const result = await apiCreateContactWay({
+        type: input.type === "single" ? 1 : 2,
+        scene: parseInt(input.scene),
+        remark: input.remark,
+        skip_verify: input.skipVerify,
+        state: input.state,
+        user: input.userIds,
+      });
 
       if (result.errcode === 0 && result.config_id && result.qr_code) {
         // 保存到数据库
@@ -151,85 +126,50 @@ export const weworkRouter = router({
     }),
 
   // 获取"联系我"列表
-  listContactWays: publicProcedure.query(async () => {
+  listContactWays: adminProcedure.query(async () => {
     return await listContactWays();
   }),
 
   // 删除"联系我"配置
-  deleteContactWay: publicProcedure
+  deleteContactWay: adminProcedure
     .input(z.object({ configId: z.string() }))
     .mutation(async ({ input }) => {
       await deleteContactWay(input.configId);
       return { success: true };
     }),
 
-  // 模拟添加客户（用于测试）
-  mockAddCustomer: publicProcedure
-    .input(
-      z.object({
-        state: z.string().optional(),
-      })
-    )
-    .mutation(async ({ input }) => {
-      const mockMode = await isMockMode();
-      if (!mockMode) {
-        throw new Error("只有在模拟模式下才能使用此功能");
-      }
-
-      // 生成模拟客户添加事件
-      const event = mockCustomerAddEvent(input.state);
-
-      // 获取客户详情
-      const customerInfo = await mockGetExternalContact(event.ExternalUserID);
-
-      if (customerInfo.errcode === 0 && customerInfo.external_contact) {
-        const contact = customerInfo.external_contact;
-        const followUser = customerInfo.follow_user?.[0];
-
-        // 保存到数据库
-        const customer = await createWeworkCustomer({
-          externalUserId: contact.external_userid,
-          name: contact.name,
-          avatar: contact.avatar,
-          type: contact.type === 1 ? "1" : "2",
-          gender: contact.gender === 0 ? "0" : contact.gender === 1 ? "1" : "2",
-          unionId: contact.unionid,
-          followUserId: followUser?.userid,
-          remark: followUser?.remark,
-          description: followUser?.description,
-          createTime: followUser?.createtime
-            ? new Date(followUser.createtime * 1000)
-            : new Date(),
-          tags: followUser?.tags ? JSON.stringify(followUser.tags) : undefined,
-          state: followUser?.state || input.state,
-        });
-
-        return {
-          success: true,
-          customer,
-        };
-      }
-
-      return {
-        success: false,
-        error: customerInfo.errmsg,
-      };
-    }),
-
   // 获取客户列表
-  listCustomers: publicProcedure.query(async () => {
+  listCustomers: protectedProcedure.query(async () => {
     return await listWeworkCustomers();
   }),
 
   // 获取客户详情
-  getCustomer: publicProcedure
+  getCustomer: protectedProcedure
     .input(z.object({ externalUserId: z.string() }))
     .query(async ({ input }) => {
       return await getWeworkCustomer(input.externalUserId);
     }),
 
+  // 模拟添加客户（测试用）
+  mockAddCustomer: protectedProcedure
+    .input(z.object({ state: z.string().optional() }))
+    .mutation(async ({ input }) => {
+      const externalUserId = `mock_${Date.now()}`;
+      const customer = await createWeworkCustomer({
+        externalUserId,
+        name: `模拟客户 ${externalUserId}`,
+        type: "1",
+        state: input.state,
+      });
+      return {
+        success: true,
+        customer,
+        error: undefined,
+      };
+    }),
+
   // 发送消息
-  sendMessage: publicProcedure
+  sendMessage: protectedProcedure
     .input(
       z.object({
         externalUserId: z.string(),
@@ -239,8 +179,6 @@ export const weworkRouter = router({
       })
     )
     .mutation(async ({ input }) => {
-      const mockMode = await apiIsMockMode();
-
       // 创建消息记录
       const message = await createWeworkMessage({
         externalUserId: input.externalUserId,
@@ -251,24 +189,17 @@ export const weworkRouter = router({
       });
 
       let result;
-      if (mockMode) {
-        // 模拟发送
-        result = await mockSendMessage({
+      if (input.msgType === "text") {
+        result = await sendTextMessage(
+          input.externalUserId,
+          input.content.content
+        );
+      } else {
+        result = await apiSendMessage({
           touser: input.externalUserId,
           msgtype: input.msgType,
           [input.msgType]: input.content,
         });
-      } else {
-        // 真实模式
-        if (input.msgType === "text") {
-          result = await sendTextMessage(input.externalUserId, input.content.content);
-        } else {
-          result = await apiSendMessage({
-            touser: input.externalUserId,
-            msgtype: input.msgType,
-            [input.msgType]: input.content,
-          });
-        }
       }
 
       if (result.errcode === 0) {
@@ -287,7 +218,7 @@ export const weworkRouter = router({
     }),
 
   // 获取消息列表
-  listMessages: publicProcedure
+  listMessages: protectedProcedure
     .input(z.object({ externalUserId: z.string().optional() }))
     .query(async ({ input }) => {
       return await listWeworkMessages(input.externalUserId);

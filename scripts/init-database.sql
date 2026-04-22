@@ -1,8 +1,6 @@
 -- PostgreSQL 数据库初始化脚本
 -- 执行方式: psql -U postgres -d medical_beauty_crm -f scripts/init-database.sql
-
--- 启用扩展
-CREATE EXTENSION IF NOT EXISTS vector;
+-- 若需向量搜索，请先安装 pgvector 后执行: CREATE EXTENSION IF NOT EXISTS vector;
 
 -- 创建用户表
 CREATE TABLE IF NOT EXISTS users (

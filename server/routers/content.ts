@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { invokeLLM } from "../_core/llm";
+import { invokeLLM } from "../llm";
 import { getActiveKnowledge } from "../db";
 import { generateImage } from "../_core/imageGeneration";
 
@@ -100,21 +100,27 @@ const CONTENT_GENERATION_PROMPT = `你是一位专业的小红书医美内容创
 export const contentRouter = router({
   /**
    * 生成小红书爽文
+   * @deprecated 前端已迁移至 contentEnhanced.generate，此方法保留用于向后兼容
    */
   generate: protectedProcedure
     .input(
       z.object({
-        type: z.enum(["project", "case", "price", "guide", "holiday"]),
-        project: z.string().optional(),
-        keywords: z.array(z.string()).optional(),
+        type: z.enum(["project", "case", "price", "guide", "holiday", "new_product"]),
+        project: z.string().max(200).optional(),
+        keywords: z.array(z.string().max(100)).optional(),
         tone: z.enum(["enthusiastic", "professional", "casual"]).optional(),
       })
     )
     .mutation(async ({ input }) => {
       const { type, project, keywords, tone = "enthusiastic" } = input;
 
-      // 获取相关知识库内容
-      const knowledgeItems = await getActiveKnowledge();
+      // 获取相关知识库内容（失败时用空列表，便于无 DB 时测试爽文）
+      let knowledgeItems: Awaited<ReturnType<typeof getActiveKnowledge>> = [];
+      try {
+        knowledgeItems = await getActiveKnowledge();
+      } catch {
+        // 无库或表结构不符时继续，仅无知识库上下文
+      }
       let relevantKnowledge = knowledgeItems;
 
       // 根据项目筛选知识库
@@ -155,6 +161,9 @@ export const contentRouter = router({
         case "holiday":
           typePrompt = `请生成一篇节日营销文案，结合"${project || "医美项目"}"，制造紧迫感和优惠吸引力。`;
           break;
+        case "new_product":
+          typePrompt = `请生成一篇关于"${project || "医美项目"}"的新品推荐文案。介绍项目或产品亮点、适用人群与使用感受，保持真实可信。`;
+          break;
       }
 
       // 添加关键词
@@ -170,53 +179,48 @@ export const contentRouter = router({
       };
       typePrompt += `\n\n${toneMap[tone]}。`;
 
-      // 调用 LLM 生成内容
-      const response = await invokeLLM({
-        messages: [
-          {
-            role: "system",
-            content: CONTENT_GENERATION_PROMPT + knowledgeContext,
-          },
-          {
-            role: "user",
-            content: typePrompt,
-          },
-        ],
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "xiaohongshu_content",
-            strict: true,
-            schema: {
-              type: "object",
-              properties: {
-                title: {
-                  type: "string",
-                  description: "小红书标题，需要吸引眼球，包含emoji",
-                },
-                content: {
-                  type: "string",
-                  description: "正文内容，结构清晰，包含emoji",
-                },
-                tags: {
-                  type: "array",
-                  description: "话题标签，以#开头",
-                  items: {
-                    type: "string",
-                  },
-                },
-              },
-              required: ["title", "content", "tags"],
-              additionalProperties: false,
-            },
-          },
-        },
-      });
+      // 调用 LLM 生成内容（统一走 Go 后端）
+      const userContent =
+        typePrompt + "\n\n请仅输出一个 JSON 对象，包含 title（字符串）、content（字符串）、tags（字符串数组）三个字段，不要其他说明。";
 
-      const contentString = typeof response.choices[0].message.content === 'string' 
-        ? response.choices[0].message.content 
-        : JSON.stringify(response.choices[0].message.content);
-      const generatedContent = JSON.parse(contentString || "{}");
+      let response;
+      try {
+        response = await invokeLLM({
+          messages: [
+            { role: "system", content: CONTENT_GENERATION_PROMPT + knowledgeContext },
+            { role: "user", content: userContent },
+          ],
+          response_format: { type: "json_object" as const },
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        throw new Error(`一键爽文调用失败：${msg}。请检查 Go 后端是否正常运行。`);
+      }
+
+      const choice = response?.choices?.[0];
+      if (!choice?.message?.content) {
+        throw new Error("一键爽文生成失败：模型未返回内容。请检查 API Key 与模型是否可用。");
+      }
+      const contentString =
+        typeof choice.message.content === "string"
+          ? choice.message.content
+          : JSON.stringify(choice.message.content);
+      let generatedContent: { title?: string; content?: string; tags?: string[] };
+      try {
+        generatedContent = JSON.parse(contentString || "{}");
+      } catch {
+        throw new Error(`一键爽文生成失败：模型返回不是合法 JSON。原始内容前 200 字：${contentString.slice(0, 200)}`);
+      }
+      if (
+        typeof generatedContent.title !== "string" ||
+        typeof generatedContent.content !== "string" ||
+        !Array.isArray(generatedContent.tags)
+      ) {
+        throw new Error(
+          "一键爽文生成失败：返回缺少 title/content/tags。请重试或更换模型。返回键：" +
+            Object.keys(generatedContent).join(",")
+        );
+      }
 
       return {
         title: generatedContent.title,
@@ -227,13 +231,14 @@ export const contentRouter = router({
 
   /**
    * 为内容生成配图
+   * @deprecated 前端已迁移至 contentEnhanced.generateImage，此方法保留用于向后兼容
    */
   generateImage: protectedProcedure
     .input(
       z.object({
-        title: z.string(),
-        content: z.string(),
-        project: z.string().optional(),
+        title: z.string().max(200),
+        content: z.string().max(10000),
+        project: z.string().max(200).optional(),
         style: z.enum(["modern", "elegant", "vibrant"]).optional(),
       })
     )

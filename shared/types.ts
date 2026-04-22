@@ -6,5 +6,6 @@
 export type * from "../drizzle/schema";
 export * from "./_core/errors";
 export * from "./knowledge-modules";
+export * from "./content-types";
 export * from "./enhanced-content-templates";
 export * from "./content-quality-control";

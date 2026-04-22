@@ -4,7 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { BookOpen, GraduationCap, CheckCircle2, Clock, Award } from "lucide-react";
+import { BookOpen, GraduationCap, CheckCircle2, Clock, Award, Loader2, AlertCircle } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { KNOWLEDGE_MODULES, MODULE_NAMES } from "@shared/types";
 
@@ -23,7 +23,7 @@ export default function KnowledgeLibraryEmployee() {
   });
 
   // 获取知识库树
-  const { data: knowledgeTree } = trpc.knowledge.getTreeByModule.useQuery({
+  const { data: knowledgeTree, isLoading: treeLoading, isError: treeError } = trpc.knowledge.getTreeByModule.useQuery({
     module: selectedModule,
   });
 
@@ -142,7 +142,16 @@ export default function KnowledgeLibraryEmployee() {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {knowledgeTree && knowledgeTree.length > 0 ? (
+            {treeLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : treeError ? (
+              <div className="text-center py-12 text-destructive">
+                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-80" />
+                <p>加载失败，请稍后重试</p>
+              </div>
+            ) : knowledgeTree && knowledgeTree.length > 0 ? (
               <EmployeeKnowledgeTreeView tree={knowledgeTree} />
             ) : (
               <div className="text-center py-12 text-muted-foreground">
@@ -197,7 +206,7 @@ function EmployeeKnowledgeTreeView({ tree }: { tree: any[] }) {
       <div key={node.id} className="select-none">
         <div
           className={`flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors border-l-2 ${
-            depth === 0 ? "border-blue-500 font-semibold" : "border-transparent"
+            depth === 0 ? "border-stone-400 font-semibold" : "border-transparent"
           }`}
           style={{ paddingLeft: `${12 + depth * 24}px` }}
           onClick={() => {

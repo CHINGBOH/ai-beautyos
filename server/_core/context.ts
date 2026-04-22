@@ -10,15 +10,19 @@ const buildDevUser = (): User => ({
   email: null,
   loginMethod: null,
   role: "admin",
-  createdAt: new Date(),
-  updatedAt: new Date(),
-  lastSignedIn: new Date(),
+  createdAt: new Date().toISOString(),
+  updatedAt: new Date().toISOString(),
+  lastSignedIn: new Date().toISOString(),
 });
+
+import type { ApiActionEntry } from "@shared/api-action-map";
 
 export type TrpcContext = {
   req: CreateExpressContextOptions["req"];
   res: CreateExpressContextOptions["res"];
   user: User | null;
+  /** 由 trpc 中间件注入：当前 procedure 在「一一调用」配对表中的条目，用于打点/校验 */
+  actionEntry?: ApiActionEntry | null;
 };
 
 export async function createContext(
@@ -30,7 +34,7 @@ export async function createContext(
     if (ENV.disableAuth) {
       user = buildDevUser();
     } else {
-    user = await sdk.authenticateRequest(opts.req);
+      user = await sdk.authenticateRequest(opts.req);
     }
   } catch (error) {
     // Authentication is optional for public procedures.

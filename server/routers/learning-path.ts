@@ -1,7 +1,128 @@
 import { z } from "zod";
 import { router, publicProcedure } from "../_core/trpc";
 import { searchKnowledge, getKnowledgeById, getKnowledgeByParentId } from "../db";
-import { KNOWLEDGE_MODULES } from "@shared/types";
+import { invokeLLM } from "../llm";
+import { KNOWLEDGE_MODULES, MODULE_NAMES, MODULE_DESCRIPTIONS } from "@shared/types";
+import type { KnowledgeModule } from "@shared/types";
+
+const VALID_MODULES = new Set<string>(Object.values(KNOWLEDGE_MODULES));
+
+function buildModuleListForPrompt(): string {
+  return (Object.keys(MODULE_NAMES) as KnowledgeModule[])
+    .map((id) => `${id} -> ${MODULE_NAMES[id]}，${MODULE_DESCRIPTIONS[id]}`)
+    .join("；");
+}
+
+type LearningIntent = {
+  keywords: string[];
+  module: string;
+  goalSummary: string | null;
+  suggestedLevel: "beginner" | "intermediate" | "advanced" | null;
+};
+
+async function parseLearningIntentWithLLM(userText: string): Promise<LearningIntent | null> {
+  const moduleList = buildModuleListForPrompt();
+  try {
+    const response = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content: `你是医美/美业知识库的学习路径助手。根据用户输入的问题或目标，解析出学习意图。
+
+知识库可用模块列表（module 必须是下列 id 之一）：
+${moduleList}
+
+请返回 JSON：
+- keywords：从用户输入中抽取的关键词数组，用于后续检索，至少 1 个。
+- module：上述列表中的模块 id，与用户意图最相关的一个。
+- goalSummary：用户目标或问题的简短概括，可选，无则填空字符串。
+- suggestedLevel：建议学习级别，可选值 beginner / intermediate / advanced，无则填空字符串。`,
+        },
+        { role: "user", content: userText },
+      ],
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "learning_intent",
+          strict: true,
+          schema: {
+            type: "object",
+            properties: {
+              keywords: { type: "array", items: { type: "string" } },
+              module: { type: "string" },
+              goalSummary: { type: "string" },
+              suggestedLevel: { type: "string", enum: ["beginner", "intermediate", "advanced"] },
+            },
+            required: ["keywords", "module"],
+            additionalProperties: false,
+          },
+        },
+      },
+    });
+    const raw = response.choices?.[0]?.message?.content;
+    if (!raw) return null;
+    const text = typeof raw === "string" ? raw : JSON.stringify(raw);
+    const parsed = JSON.parse(text) as {
+      keywords?: string[];
+      module?: string;
+      goalSummary?: string;
+      suggestedLevel?: string;
+    };
+    if (!Array.isArray(parsed.keywords) || typeof parsed.module !== "string") return null;
+    if (!VALID_MODULES.has(parsed.module)) return null;
+    return {
+      keywords: parsed.keywords.filter((k) => typeof k === "string" && k.length > 0),
+      module: parsed.module,
+      goalSummary:
+        typeof parsed.goalSummary === "string" && parsed.goalSummary.trim()
+          ? parsed.goalSummary.trim()
+          : null,
+      suggestedLevel:
+        parsed.suggestedLevel === "beginner" ||
+        parsed.suggestedLevel === "intermediate" ||
+        parsed.suggestedLevel === "advanced"
+          ? parsed.suggestedLevel
+          : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+type PathStage = { stage: string; knowledge: any[]; description: string };
+
+async function generateRecommendationText(
+  userInput: string,
+  path: PathStage[]
+): Promise<string | null> {
+  const pathSummary = path
+    .map(
+      (s) =>
+        `${s.stage}：${s.knowledge.slice(0, 2).map((k: any) => k?.title ?? "").filter(Boolean).join("、")}`
+    )
+    .join("；");
+  try {
+    const response = await invokeLLM({
+      messages: [
+        {
+          role: "system",
+          content:
+            "你是美业知识库的文案助手。根据用户的问题或目标以及已生成的学习路径摘要，写一句 1～2 行的「为您推荐的学习计划」短文案，用于页面展示。要求：亲切、简洁、突出路径价值，不要重复罗列知识点标题。只返回这句文案，不要其他内容。",
+        },
+        {
+          role: "user",
+          content: `用户输入：${userInput}\n\n学习路径摘要：${pathSummary}`,
+        },
+      ],
+    });
+    const raw = response.choices?.[0]?.message?.content;
+    if (!raw) return null;
+    const text = (typeof raw === "string" ? raw : JSON.stringify(raw)).trim();
+    return text.length > 0 ? text : null;
+  } catch {
+    return null;
+  }
+}
 
 /**
  * 学习路径生成器
@@ -15,29 +136,45 @@ export const learningPathRouter = router({
   generateByQuestion: publicProcedure
     .input(
       z.object({
-        question: z.string().min(1),
+        question: z.string().min(1).max(5000),
         module: z.string().optional(),
+        includeRecommendationText: z.boolean().optional().default(true),
       })
     )
     .query(async ({ input }) => {
-      const { question, module } = input;
-      
-      // 分析问题，识别关键词和模块
-      const keywords = extractKeywords(question);
-      const detectedModule = module || detectModule(question);
-      
+      const { question, module: inputModule, includeRecommendationText } = input;
+
+      // LLM 问题理解（方案 A：system 含模块清单），失败则降级规则
+      let keywords: string[];
+      let detectedModule: string;
+      const parsed = await parseLearningIntentWithLLM(question);
+      if (parsed && parsed.keywords.length > 0) {
+        keywords = parsed.keywords;
+        detectedModule = inputModule && VALID_MODULES.has(inputModule) ? inputModule : parsed.module;
+      } else {
+        keywords = extractKeywords(question);
+        detectedModule = inputModule || detectModule(question);
+      }
+
       // 搜索相关知识
       const allResults = await searchKnowledge(question, detectedModule, undefined, 20);
-      
+
       // 构建学习路径
       const path = buildLearningPath(keywords, detectedModule, allResults);
-      
+
+      // 可选：LLM 生成推荐话术
+      let recommendationText: string | null = null;
+      if (includeRecommendationText && path.length > 0) {
+        recommendationText = await generateRecommendationText(question, path);
+      }
+
       return {
         question,
         module: detectedModule,
         keywords,
         path,
         estimatedTime: calculateEstimatedTime(path),
+        recommendationText,
       };
     }),
 
@@ -48,38 +185,56 @@ export const learningPathRouter = router({
   generateByGoal: publicProcedure
     .input(
       z.object({
-        goal: z.string().min(1),
+        goal: z.string().min(1).max(5000),
         currentLevel: z.enum(["beginner", "intermediate", "advanced"]).optional().default("beginner"),
+        includeRecommendationText: z.boolean().optional().default(true),
       })
     )
     .query(async ({ input }) => {
-      const { goal, currentLevel } = input;
-      
-      // 识别目标相关的模块和知识点
-      const keywords = extractKeywords(goal);
-      const module = detectModule(goal);
-      
+      const { goal, currentLevel: inputLevel, includeRecommendationText } = input;
+
+      // LLM 问题理解，失败则降级规则
+      let keywords: string[];
+      let module: string;
+      let effectiveLevel = inputLevel;
+      const parsed = await parseLearningIntentWithLLM(goal);
+      if (parsed && parsed.keywords.length > 0) {
+        keywords = parsed.keywords;
+        module = parsed.module;
+        if (parsed.suggestedLevel) effectiveLevel = parsed.suggestedLevel;
+      } else {
+        keywords = extractKeywords(goal);
+        module = detectModule(goal);
+      }
+
       // 搜索相关知识
       const allResults = await searchKnowledge(goal, module, undefined, 30);
-      
+
       // 根据当前水平筛选和排序
-      const filteredResults = filterByLevel(allResults, currentLevel);
-      
+      const filteredResults = filterByLevel(allResults, effectiveLevel);
+
       // 构建目标导向的学习路径
-      const path = buildGoalPath(goal, keywords, module, filteredResults, currentLevel);
-      
+      const path = buildGoalPath(goal, keywords, module, filteredResults, effectiveLevel);
+
+      // 可选：LLM 生成推荐话术
+      let recommendationText: string | null = null;
+      if (includeRecommendationText && path.length > 0) {
+        recommendationText = await generateRecommendationText(goal, path);
+      }
+
       return {
         goal,
-        currentLevel,
+        currentLevel: effectiveLevel,
         module,
         path,
         estimatedTime: calculateEstimatedTime(path),
         milestones: generateMilestones(path),
+        recommendationText,
       };
     }),
 
   /**
-   * 获取推荐的学习路径（基于热门内容）
+   * 获取推荐的学习路径（基于知识库内容自动生成）
    */
   getRecommendedPaths: publicProcedure
     .input(
@@ -89,9 +244,30 @@ export const learningPathRouter = router({
       })
     )
     .query(async ({ input }) => {
-      // 这里可以基于用户行为、热门内容等生成推荐路径
-      // 暂时返回预设的推荐路径
-      return getPresetPaths(input.module, input.limit);
+      // 基于知识库内容动态生成推荐路径
+      const allKnowledge = await searchKnowledge("", input.module, undefined, 30);
+      if (!allKnowledge || allKnowledge.length === 0) {
+        return [];
+      }
+
+      // 按模块分组，每个模块取前几条作为一条推荐路径
+      const grouped: Record<string, any[]> = {};
+      for (const item of allKnowledge) {
+        const mod = item.module || "general";
+        if (!grouped[mod]) grouped[mod] = [];
+        if (grouped[mod].length < 5) grouped[mod].push(item);
+      }
+
+      return Object.entries(grouped)
+        .slice(0, input.limit)
+        .map(([mod, items]) => ({
+          id: `auto-${mod}`,
+          title: items[0]?.title ? `${MODULE_NAMES[mod as keyof typeof MODULE_NAMES] || mod}学习路径` : `${mod}学习路径`,
+          description: items.slice(0, 2).map((k) => k.title).join("、"),
+          module: mod,
+          estimatedTime: items.length * 7,
+          knowledgeCount: items.length,
+        }));
     }),
 });
 
@@ -99,20 +275,20 @@ export const learningPathRouter = router({
  * 提取关键词
  */
 function extractKeywords(text: string): string[] {
-  const commonKeywords = [
+  // 从文本中按字符长度降序提取已知关键词
+  const keywords = ["超皮秒", "热玛吉", "水光", "激光",
     "色斑", "痘痘", "敏感", "老化", "干燥", "油腻", "暗沉",
-    "睡眠", "水分", "心情", "饮食", "运动",
-    "超皮秒", "热玛吉", "水光", "激光",
+    "睡眠", "水分", "饮食", "运动",
     "中医", "体质", "食疗", "经络",
   ];
-  
+
   const found: string[] = [];
-  for (const keyword of commonKeywords) {
+  for (const keyword of keywords) {
     if (text.includes(keyword)) {
       found.push(keyword);
     }
   }
-  
+
   return found;
 }
 
@@ -262,69 +438,8 @@ function calculateEstimatedTime(path: Array<{ knowledge: any[] }>): number {
  * 生成里程碑
  */
 function generateMilestones(path: Array<{ stage: string; knowledge: any[] }>): Array<{ title: string; description: string }> {
-  return path.map((stage, index) => ({
+  return path.map((stage) => ({
     title: `完成${stage.stage}`,
     description: `学习${stage.knowledge.length}个相关知识点`,
   }));
-}
-
-/**
- * 获取预设的学习路径
- */
-function getPresetPaths(module?: string, limit: number = 5): Array<{
-  id: string;
-  title: string;
-  description: string;
-  module: string;
-  estimatedTime: number;
-  knowledgeCount: number;
-}> {
-  const presetPaths = [
-    {
-      id: "skin-spots",
-      title: "色斑问题完整解决方案",
-      description: "从色斑成因到治疗方案，全面了解色斑问题",
-      module: KNOWLEDGE_MODULES.SKIN_CARE,
-      estimatedTime: 45,
-      knowledgeCount: 8,
-    },
-    {
-      id: "sleep-beauty",
-      title: "睡眠与美容的关系",
-      description: "深入了解睡眠如何影响皮肤健康",
-      module: KNOWLEDGE_MODULES.HEALTH_FOUNDATION,
-      estimatedTime: 30,
-      knowledgeCount: 6,
-    },
-    {
-      id: "acne-treatment",
-      title: "痘痘问题全攻略",
-      description: "从成因分析到日常护理，科学战痘",
-      module: KNOWLEDGE_MODULES.SKIN_CARE,
-      estimatedTime: 50,
-      knowledgeCount: 10,
-    },
-    {
-      id: "tcm-beauty",
-      title: "中医美容入门",
-      description: "了解中医美容理论和实践方法",
-      module: KNOWLEDGE_MODULES.TCM,
-      estimatedTime: 60,
-      knowledgeCount: 12,
-    },
-    {
-      id: "aesthetics-basics",
-      title: "医美技术基础",
-      description: "了解常见医美项目的原理和效果",
-      module: KNOWLEDGE_MODULES.AESTHETICS,
-      estimatedTime: 40,
-      knowledgeCount: 7,
-    },
-  ];
-  
-  if (module) {
-    return presetPaths.filter(p => p.module === module).slice(0, limit);
-  }
-  
-  return presetPaths.slice(0, limit);
 }

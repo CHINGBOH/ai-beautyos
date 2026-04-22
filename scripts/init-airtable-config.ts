@@ -15,8 +15,13 @@ async function initAirtableConfig() {
       process.exit(1);
     }
 
-    const token = process.env.AIRTABLE_API_KEY || "patEJHiiGQRBKSgBQ";
-    const baseId = process.env.AIRTABLE_BASE_ID || "appkA4QaGKyrdr684";
+    const token = process.env.AIRTABLE_API_KEY;
+    const baseId = process.env.AIRTABLE_BASE_ID;
+
+    if (!token || !baseId) {
+      console.error("❌ 请设置环境变量 AIRTABLE_API_KEY 和 AIRTABLE_BASE_ID");
+      process.exit(1);
+    }
 
     const configValue = JSON.stringify({
       token,

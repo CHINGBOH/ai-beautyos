@@ -6,7 +6,7 @@ import { chatRouter } from "./routers/chat";
 import { adminRouter } from "./routers/admin";
 import { analyticsRouter } from "./routers/analytics";
 import { knowledgeRouter } from "./routers/knowledge";
-import { contentRouter } from "./routers/content";
+import { contentRouterEnhanced } from "./routers/contentEnhanced";
 import { customersRouter } from "./routers/customers";
 import { xiaohongshuRouter } from "./routers/xiaohongshu";
 import { adminAiRouter } from "./routers/admin-ai";
@@ -37,7 +37,7 @@ export const appRouter = router({
   learningPath: learningPathRouter,
   vectorSearch: vectorSearchRouter,
   adaptiveLearning: adaptiveLearningRouter,
-  content: contentRouter,
+  contentEnhanced: contentRouterEnhanced,
   customers: customersRouter,
   xiaohongshu: xiaohongshuRouter,
   adminAi: adminAiRouter,

@@ -1,44 +1,77 @@
-import { useState } from "react";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { DatabaseButton } from "@/components/ui/database-button";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Loader2, Sparkles, Copy, Check, Plus, X, Image as ImageIcon } from "lucide-react";
+import {
+  Loader2,
+  Sparkles,
+  Copy,
+  Check,
+  Plus,
+  X,
+  Image as ImageIcon,
+} from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { toast } from "sonner";
 import { trpc } from "@/lib/trpc";
-
-type ContentType = "project" | "case" | "price" | "guide" | "holiday" | "new_product";
-type ToneType = "enthusiastic" | "professional" | "casual";
+import {
+  type ContentType,
+  type ToneType,
+  CONTENT_TYPES,
+  CONTENT_TYPE_LABELS,
+  TONE_TYPES,
+  TONE_TYPE_LABELS,
+} from "@shared/types";
+import { XIAOHONGSHU_EXAMPLES } from "@shared/xiaohongshu-examples";
 
 export default function DashboardContent() {
-  const [contentType, setContentType] = useState<ContentType>("project");
+  const [contentType, setContentType] = useState<ContentType>(
+    CONTENT_TYPES.PROJECT
+  );
   const [project, setProject] = useState("超皮秒祛斑");
-  const [tone, setTone] = useState<ToneType>("enthusiastic");
+  const [tone, setTone] = useState<ToneType>(TONE_TYPES.ENTHUSIASTIC);
   const [keywords, setKeywords] = useState<string[]>([]);
   const [keywordInput, setKeywordInput] = useState("");
   const [copied, setCopied] = useState(false);
-  const [imageStyle, setImageStyle] = useState<"modern" | "elegant" | "vibrant">("modern");
+  const [imageStyle, setImageStyle] = useState<
+    "modern" | "elegant" | "vibrant"
+  >("modern");
   const [generatedImage, setGeneratedImage] = useState<string | null>(null);
   const [previewMode, setPreviewMode] = useState<"edit" | "preview">("edit"); // 编辑/预览模式
   const [editedTitle, setEditedTitle] = useState("");
   const [editedContent, setEditedContent] = useState("");
   const [editedTags, setEditedTags] = useState<string[]>([]);
   const [showQualityPanel, setShowQualityPanel] = useState(false); // 显示质量评估面板
-  const [writingTips, setWritingTips] = useState<{tips: string[], generalTips: string[]} | null>(null);
+  const [writingTips, setWritingTips] = useState<{
+    tips: string[];
+    generalTips: string[];
+  } | null>(null);
   const [showHistoryPanel, setShowHistoryPanel] = useState(false); // 显示历史记录面板
   const [selectedPostId, setSelectedPostId] = useState<number | null>(null);
 
-  const generateImageMutation = trpc.content.generateImage.useMutation({
-    onSuccess: (data) => {
+  const generateImageMutation = trpc.contentEnhanced.generateImage.useMutation({
+    onSuccess: data => {
       setGeneratedImage(data.url || null);
       toast.success("图片生成成功！");
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`图片生成失败：${error.message}`);
     },
   });
@@ -49,58 +82,81 @@ export default function DashboardContent() {
   );
 
   const getTemplatesQuery = trpc.contentEnhanced.getTemplates.useQuery(
-    { type: contentType },
+    undefined,
     { enabled: false } // 手动触发
   );
   const [showTemplatesPanel, setShowTemplatesPanel] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<any>(null);
   const [showBulkPanel, setShowBulkPanel] = useState(false);
-  const [bulkItems, setBulkItems] = useState<Array<{
+  const [bulkItems, setBulkItems] = useState<
+    Array<{
+      type: ContentType;
+      project: string;
+      keywords: string[];
+      tone: ToneType;
+    }>
+  >([]);
+  const [newBulkItem, setNewBulkItem] = useState<{
     type: ContentType;
     project: string;
     keywords: string[];
     tone: ToneType;
-  }>>([]);
-  const [newBulkItem, setNewBulkItem] = useState({
-    type: "project" as ContentType,
+  }>({
+    type: CONTENT_TYPES.PROJECT,
     project: "超皮秒祛斑",
-    keywords: [] as string[],
-    tone: "enthusiastic" as ToneType,
+    keywords: [],
+    tone: TONE_TYPES.ENTHUSIASTIC,
   });
 
-  const generateMutation = trpc.content.generate.useMutation({
-    onSuccess: (data) => {
+  const getProjectsQuery = trpc.contentEnhanced.getProjects.useQuery();
+  const projects = getProjectsQuery.data ?? [];
+  const projectOptions = projects
+    .map(p => ({
+      value: p.name || `id:${p.id}`,
+      label: p.displayName || p.name || `项目 ${p.id}`,
+    }))
+    .filter(opt => opt.value !== "");
+
+  useEffect(() => {
+    if (projectOptions.length === 0) {
+      setProject("");
+      return;
+    }
+    const values = projectOptions.map(o => o.value);
+    if (!project || !values.includes(project)) {
+      setProject(projectOptions[0].value);
+    }
+  }, [getProjectsQuery.data, project]);
+
+  const generateMutation = trpc.contentEnhanced.generate.useMutation({
+    onSuccess: data => {
       toast.success("内容生成成功！");
       // 生成成功后自动切换到预览模式并填充编辑字段
       setEditedTitle(data.title);
       setEditedContent(data.content);
       setEditedTags(data.tags || []);
       setPreviewMode("preview");
-      // 保存postId用于历史记录查询
-      if (data.postId) {
-        setSelectedPostId(data.postId);
-      }
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`生成失败：${error.message}`);
     },
   });
 
   const bulkGenerateMutation = trpc.contentEnhanced.bulkGenerate.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       toast.success(data.message);
       setShowBulkPanel(false); // 成功后关闭批量生成面板
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`批量生成失败：${error.message}`);
     },
   });
 
   const schedulePostMutation = trpc.contentEnhanced.schedulePost.useMutation({
-    onSuccess: (data) => {
+    onSuccess: data => {
       toast.success(data.message);
     },
-    onError: (error) => {
+    onError: error => {
       toast.error(`定时发布失败：${error.message}`);
     },
   });
@@ -108,17 +164,18 @@ export default function DashboardContent() {
   const [showScheduleModal, setShowScheduleModal] = useState(false);
   const [scheduleTime, setScheduleTime] = useState<Date | null>(null);
 
-  const analyzeQualityMutation = trpc.contentEnhanced.analyzeQuality.useMutation({
-    onSuccess: (data) => {
-      toast.success("质量分析完成！");
-    },
-    onError: (error) => {
-      toast.error(`质量分析失败：${error.message}`);
-    },
-  });
+  const analyzeQualityMutation =
+    trpc.contentEnhanced.analyzeQuality.useMutation({
+      onSuccess: data => {
+        toast.success("质量分析完成！");
+      },
+      onError: error => {
+        toast.error(`质量分析失败：${error.message}`);
+      },
+    });
 
   const getWritingTipsQuery = trpc.contentEnhanced.getWritingTips.useQuery(
-    { contentType: contentType },
+    undefined,
     { enabled: false } // 只在需要时手动触发
   );
 
@@ -202,10 +259,10 @@ export default function DashboardContent() {
     setBulkItems([...bulkItems, { ...newBulkItem }]);
     // 重置表单
     setNewBulkItem({
-      type: "project" as ContentType,
+      type: "project",
       project: "超皮秒祛斑",
       keywords: [],
-      tone: "enthusiastic" as ToneType,
+      tone: "enthusiastic",
     });
   };
 
@@ -233,7 +290,7 @@ export default function DashboardContent() {
       toast.error("请选择要发布的内容");
       return;
     }
-    
+
     if (!scheduleTime) {
       toast.error("请选择发布时间");
       return;
@@ -243,7 +300,7 @@ export default function DashboardContent() {
       postId: selectedPostId,
       scheduledTime: scheduleTime,
     });
-    
+
     setShowScheduleModal(false);
     setScheduleTime(null);
   };
@@ -256,7 +313,7 @@ export default function DashboardContent() {
   };
 
   const handleRemoveKeyword = (keyword: string) => {
-    setKeywords(keywords.filter((k) => k !== keyword));
+    setKeywords(keywords.filter(k => k !== keyword));
   };
 
   const handleCopy = () => {
@@ -278,233 +335,139 @@ export default function DashboardContent() {
           </p>
         </div>
 
-        {/* 生成器 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Sparkles className="w-5 h-5" />
-              AI 内容生成器
-            </CardTitle>
-            <CardDescription>
-              自动生成符合小红书风格的医美项目推广文案
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {/* 配置选项 */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {/* 内容类型 */}
-              <div className="space-y-2">
-                <Label>内容类型</Label>
-                <Select value={contentType} onValueChange={(v) => setContentType(v as ContentType)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="project">项目体验分享</SelectItem>
-                    <SelectItem value="case">效果对比展示</SelectItem>
-                    <SelectItem value="price">价格揭秘</SelectItem>
-                    <SelectItem value="guide">避坑指南</SelectItem>
-                    <SelectItem value="holiday">节日营销</SelectItem>
-                    <SelectItem value="new_product">新品推荐</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 项目选择 */}
-              <div className="space-y-2">
-                <Label>医美项目</Label>
-                <Select value={project} onValueChange={setProject}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="超皮秒祛斑">超皮秒祛斑</SelectItem>
-                    <SelectItem value="水光针">水光针</SelectItem>
-                    <SelectItem value="热玛吉">热玛吉</SelectItem>
-                    <SelectItem value="冷光美白">冷光美白</SelectItem>
-                    <SelectItem value="隐形矫正">隐形矫正</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 语气风格 */}
-              <div className="space-y-2">
-                <Label>语气风格</Label>
-                <Select value={tone} onValueChange={(v) => setTone(v as ToneType)}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="enthusiastic">热情洋溢</SelectItem>
-                    <SelectItem value="professional">专业严谨</SelectItem>
-                    <SelectItem value="casual">轻松随意</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* 关键词 */}
-              <div className="space-y-2">
-                <Label>关键词（可选）</Label>
-                <div className="flex gap-2">
-                  <Input
-                    placeholder="输入关键词"
-                    value={keywordInput}
-                    onChange={(e) => setKeywordInput(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault();
-                        handleAddKeyword();
-                      }
-                    }}
-                  />
-                  <DatabaseButton
-                    type="button"
-                    variant="outline"
-                    size="icon"
-                    pageKey="dashboard-content"
-                    buttonKey="add-keyword"
-                    fallbackText="+"
-                    onClick={handleAddKeyword}
-                  >
-                    <Plus className="w-4 h-4" />
-                  </DatabaseButton>
-                </div>
-                {keywords.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    {keywords.map((keyword) => (
-                      <Badge key={keyword} variant="secondary" className="gap-1">
-                        {keyword}
-                        <button
-                          onClick={() => handleRemoveKeyword(keyword)}
-                          className="ml-1 hover:text-destructive"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </Badge>
-                    ))}
+        {/* 分区布局：左侧配置区，右侧生成结果/编辑区 */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          {/* 配置区 */}
+          <div className="lg:col-span-4 space-y-6">
+            <Card className="shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Sparkles className="w-5 h-5" />
+                  配置
+                </CardTitle>
+                <CardDescription>类型、项目、语气与关键词</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {/* 配置选项 */}
+                <div className="space-y-4">
+                  {/* 内容类型 */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-foreground">
+                      内容类型
+                    </Label>
+                    <Select
+                      value={contentType}
+                      onValueChange={v => setContentType(v as ContentType)}
+                    >
+                      <SelectTrigger className="h-10 rounded-lg">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(
+                          Object.keys(CONTENT_TYPE_LABELS) as ContentType[]
+                        ).map(t => (
+                          <SelectItem key={t} value={t}>
+                            {CONTENT_TYPE_LABELS[t]}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                )}
-              </div>
-            </div>
 
-            {/* 生成按钮 */}
-            <DatabaseButton
-              onClick={handleGenerate}
-              disabled={generateMutation.isPending}
-              size="lg"
-              pageKey="dashboard-content"
-              buttonKey="generate-content"
-              fallbackText={generateMutation.isPending ? "生成中..." : "一键生成爽文"}
-              className="w-full"
-            >
-              {generateMutation.isPending ? (
-                <>
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                </>
-              ) : (
-                <>
-                  <Sparkles className="w-4 h-4 mr-2" />
-                </>
-              )}
-            </DatabaseButton>
-
-            {/* 生成结果 */}
-            {generateMutation.data && (
-              <div className="space-y-4 pt-4 border-t">
-                {/* 预览/编辑切换按钮 */}
-                <div className="flex justify-end gap-2">
-                  <Button
-                    variant={previewMode === "edit" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewMode("edit")}
-                  >
-                    编辑
-                  </Button>
-                  <Button
-                    variant={previewMode === "preview" ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setPreviewMode("preview")}
-                  >
-                    预览
-                  </Button>
-                </div>
-
-                {/* 标题 */}
-                <div>
-                  <div className="text-sm font-medium mb-2">标题</div>
-                  {previewMode === "edit" ? (
-                    <Input
-                      value={editedTitle}
-                      onChange={(e) => setEditedTitle(e.target.value)}
-                      className="font-medium"
-                    />
-                  ) : (
-                    <div className="p-3 bg-muted rounded-lg">
-                      <p className="font-medium">{editedTitle}</p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 正文 */}
-                <div>
-                  <div className="text-sm font-medium mb-2">正文</div>
-                  {previewMode === "edit" ? (
-                    <Textarea
-                      value={editedContent}
-                      onChange={(e) => setEditedContent(e.target.value)}
-                      rows={20}
-                      className="font-sans resize-none"
-                    />
-                  ) : (
-                    <Textarea
-                      value={editedContent}
-                      readOnly
-                      rows={20}
-                      className="font-sans resize-none bg-muted"
-                    />
-                  )}
-                </div>
-
-                {/* 标签编辑 */}
-                <div>
-                  <div className="text-sm font-medium mb-2">话题标签</div>
-                  {previewMode === "edit" ? (
-                    <div className="space-y-2">
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="添加新标签"
-                          value={keywordInput}
-                          onChange={(e) => setKeywordInput(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" && keywordInput.trim()) {
-                              e.preventDefault();
-                              if (!editedTags.includes(keywordInput.trim())) {
-                                setEditedTags([...editedTags, keywordInput.trim()]);
-                                setKeywordInput("");
-                              }
-                            }
-                          }}
+                  {/* 项目选择（从后端 medical_projects 拉取） */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-foreground">
+                      医美项目
+                    </Label>
+                    <Select
+                      value={project}
+                      onValueChange={setProject}
+                      disabled={getProjectsQuery.isLoading}
+                    >
+                      <SelectTrigger className="h-10 rounded-lg">
+                        <SelectValue
+                          placeholder={
+                            projects.length === 0
+                              ? "请先运行 npm run seed:medical-projects"
+                              : "选择项目"
+                          }
                         />
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="icon"
-                          onClick={() => {
-                            if (keywordInput.trim() && !editedTags.includes(keywordInput.trim())) {
-                              setEditedTags([...editedTags, keywordInput.trim()]);
-                              setKeywordInput("");
-                            }
-                          }}
-                        >
-                          <Plus className="w-4 h-4" />
-                        </Button>
-                      </div>
-                      <div className="flex flex-wrap gap-2">
-                        {editedTags.map((tag, index) => (
-                          <Badge key={index} variant="secondary" className="gap-1">
-                            {tag}
+                      </SelectTrigger>
+                      <SelectContent>
+                        {projectOptions.map(opt => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 语气风格 */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-foreground">
+                      语气风格
+                    </Label>
+                    <Select
+                      value={tone}
+                      onValueChange={v => setTone(v as ToneType)}
+                    >
+                      <SelectTrigger className="h-10 rounded-lg">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(Object.keys(TONE_TYPE_LABELS) as ToneType[]).map(
+                          t => (
+                            <SelectItem key={t} value={t}>
+                              {TONE_TYPE_LABELS[t]}
+                            </SelectItem>
+                          )
+                        )}
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  {/* 关键词 */}
+                  <div className="space-y-2">
+                    <Label className="text-sm font-medium text-foreground">
+                      关键词（可选）
+                    </Label>
+                    <div className="flex gap-2">
+                      <Input
+                        placeholder="输入关键词"
+                        className="h-10 rounded-lg"
+                        value={keywordInput}
+                        onChange={e => setKeywordInput(e.target.value)}
+                        onKeyDown={e => {
+                          if (e.key === "Enter") {
+                            e.preventDefault();
+                            handleAddKeyword();
+                          }
+                        }}
+                      />
+                      <DatabaseButton
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        pageKey="dashboard-content"
+                        buttonKey="add-keyword"
+                        fallbackText="+"
+                        onClick={handleAddKeyword}
+                      >
+                        <Plus className="w-4 h-4" />
+                      </DatabaseButton>
+                    </div>
+                    {keywords.length > 0 && (
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {keywords.map(keyword => (
+                          <Badge
+                            key={keyword}
+                            variant="secondary"
+                            className="gap-1"
+                          >
+                            {keyword}
                             <button
-                              onClick={() => setEditedTags(editedTags.filter((_, i) => i !== index))}
+                              onClick={() => handleRemoveKeyword(keyword)}
                               className="ml-1 hover:text-destructive"
                             >
                               <X className="w-3 h-3" />
@@ -512,613 +475,972 @@ export default function DashboardContent() {
                           </Badge>
                         ))}
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex flex-wrap gap-2">
-                      {editedTags.map((tag: string, index: number) => (
-                        <Badge key={index} variant="secondary">
-                          {tag}
-                        </Badge>
-                      ))}
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
 
-                {/* 图片生成 */}
-                <div>
-                  <div className="text-sm font-medium mb-2">配图</div>
-                  <div className="space-y-3">
-                    <div className="flex gap-2">
-                      <Select value={imageStyle} onValueChange={(v) => setImageStyle(v as any)}>
-                        <SelectTrigger className="w-[180px]">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="modern">现代简约</SelectItem>
-                          <SelectItem value="elegant">优雅高级</SelectItem>
-                          <SelectItem value="vibrant">活力鲜艳</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <DatabaseButton
-                        onClick={() => {
-                          generateImageMutation.mutate({
-                            title: editedTitle,
-                            content: editedContent,
-                            project: project || undefined,
-                            style: imageStyle,
-                          });
-                        }}
-                        disabled={generateImageMutation.isPending}
-                        variant="outline"
-                        pageKey="dashboard-content"
-                        buttonKey="generate-image"
-                        fallbackText={generateImageMutation.isPending ? "生成中..." : "生成配图"}
+                {/* 生成按钮 */}
+                <DatabaseButton
+                  onClick={handleGenerate}
+                  disabled={generateMutation.isPending || !project}
+                  size="lg"
+                  variant="brand"
+                  pageKey="dashboard-content"
+                  buttonKey="generate-content"
+                  fallbackText={
+                    generateMutation.isPending ? "生成中..." : "一键生成爽文"
+                  }
+                  className="w-full rounded-lg"
+                >
+                  {generateMutation.isPending ? (
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" />
+                    </>
+                  )}
+                </DatabaseButton>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* 生成结果/编辑区 */}
+          <div className="lg:col-span-8 space-y-6">
+            <Card className="shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
+              <CardHeader>
+                <CardTitle>生成结果</CardTitle>
+                <CardDescription>编辑、配图、复制与发布</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* 生成结果（含加载示例后的展示） */}
+                {generateMutation.data || editedTitle || editedContent ? (
+                  <div className="space-y-4 pt-4 border-t">
+                    {/* 预览/编辑切换按钮 */}
+                    <div className="flex justify-end gap-2">
+                      <Button
+                        variant={previewMode === "edit" ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setPreviewMode("edit")}
                       >
-                        {generateImageMutation.isPending ? (
+                        编辑
+                      </Button>
+                      <Button
+                        variant={
+                          previewMode === "preview" ? "default" : "outline"
+                        }
+                        size="sm"
+                        onClick={() => setPreviewMode("preview")}
+                      >
+                        预览
+                      </Button>
+                    </div>
+
+                    {/* 标题 */}
+                    <div>
+                      <Label className="text-sm font-medium text-foreground mb-2 block">
+                        标题
+                      </Label>
+                      {previewMode === "edit" ? (
+                        <Input
+                          value={editedTitle}
+                          onChange={e => setEditedTitle(e.target.value)}
+                          className="font-medium h-10 rounded-lg"
+                        />
+                      ) : (
+                        <div className="p-3 bg-muted rounded-lg">
+                          <p className="font-medium">{editedTitle}</p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 正文 */}
+                    <div>
+                      <Label className="text-sm font-medium text-foreground mb-2 block">
+                        正文
+                      </Label>
+                      {previewMode === "edit" ? (
+                        <Textarea
+                          value={editedContent}
+                          onChange={e => setEditedContent(e.target.value)}
+                          rows={20}
+                          className="font-sans resize-none"
+                        />
+                      ) : (
+                        <Textarea
+                          value={editedContent}
+                          readOnly
+                          rows={20}
+                          className="font-sans resize-none bg-muted"
+                        />
+                      )}
+                    </div>
+
+                    {/* 标签编辑 */}
+                    <div>
+                      <Label className="text-sm font-medium text-foreground mb-2 block">
+                        话题标签
+                      </Label>
+                      {previewMode === "edit" ? (
+                        <div className="space-y-2">
+                          <div className="flex gap-2">
+                            <Input
+                              placeholder="添加新标签"
+                              value={keywordInput}
+                              onChange={e => setKeywordInput(e.target.value)}
+                              onKeyDown={e => {
+                                if (e.key === "Enter" && keywordInput.trim()) {
+                                  e.preventDefault();
+                                  if (
+                                    !editedTags.includes(keywordInput.trim())
+                                  ) {
+                                    setEditedTags([
+                                      ...editedTags,
+                                      keywordInput.trim(),
+                                    ]);
+                                    setKeywordInput("");
+                                  }
+                                }
+                              }}
+                            />
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="icon"
+                              onClick={() => {
+                                if (
+                                  keywordInput.trim() &&
+                                  !editedTags.includes(keywordInput.trim())
+                                ) {
+                                  setEditedTags([
+                                    ...editedTags,
+                                    keywordInput.trim(),
+                                  ]);
+                                  setKeywordInput("");
+                                }
+                              }}
+                            >
+                              <Plus className="w-4 h-4" />
+                            </Button>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {editedTags.map((tag, index) => (
+                              <Badge
+                                key={index}
+                                variant="secondary"
+                                className="gap-1"
+                              >
+                                {tag}
+                                <button
+                                  onClick={() =>
+                                    setEditedTags(
+                                      editedTags.filter((_, i) => i !== index)
+                                    )
+                                  }
+                                  className="ml-1 hover:text-destructive"
+                                >
+                                  <X className="w-3 h-3" />
+                                </button>
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {editedTags.map((tag: string, index: number) => (
+                            <Badge key={index} variant="secondary">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* 图片生成 */}
+                    <div>
+                      <Label className="text-sm font-medium text-foreground mb-2 block">
+                        配图
+                      </Label>
+                      <div className="space-y-3">
+                        <div className="flex gap-2">
+                          <Select
+                            value={imageStyle}
+                            onValueChange={v => setImageStyle(v as any)}
+                          >
+                            <SelectTrigger className="w-[180px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="modern">现代简约</SelectItem>
+                              <SelectItem value="elegant">优雅高级</SelectItem>
+                              <SelectItem value="vibrant">活力鲜艳</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          <DatabaseButton
+                            onClick={() => {
+                              generateImageMutation.mutate({
+                                title: editedTitle,
+                                content: editedContent,
+                                project: project || undefined,
+                                style: imageStyle,
+                              });
+                            }}
+                            disabled={generateImageMutation.isPending}
+                            variant="outline"
+                            pageKey="dashboard-content"
+                            buttonKey="generate-image"
+                            fallbackText={
+                              generateImageMutation.isPending
+                                ? "生成中..."
+                                : "生成配图"
+                            }
+                          >
+                            {generateImageMutation.isPending ? (
+                              <>
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              </>
+                            ) : (
+                              <>
+                                <ImageIcon className="w-4 h-4 mr-2" />
+                              </>
+                            )}
+                          </DatabaseButton>
+                        </div>
+                        {generatedImage && (
+                          <div className="relative rounded-lg overflow-hidden border">
+                            <img
+                              src={generatedImage}
+                              alt="Generated image"
+                              className="w-full h-auto"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* 操作按钮 */}
+                    <div className="flex gap-3 pt-4">
+                      {previewMode === "edit" && (
+                        <DatabaseButton
+                          onClick={handleSaveEdits}
+                          variant="outline"
+                          className="flex-1"
+                          pageKey="dashboard-content"
+                          buttonKey="save-edits"
+                          fallbackText="保存修改"
+                        >
+                          <Check className="w-4 h-4 mr-2" />
+                        </DatabaseButton>
+                      )}
+                      <DatabaseButton
+                        onClick={handleCopy}
+                        variant="outline"
+                        className="flex-1"
+                        pageKey="dashboard-content"
+                        buttonKey="copy-all"
+                        fallbackText={copied ? "已复制" : "复制全部"}
+                      >
+                        {copied ? (
                           <>
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                            <Check className="w-4 h-4 mr-2" />
                           </>
                         ) : (
                           <>
-                            <ImageIcon className="w-4 h-4 mr-2" />
+                            <Copy className="w-4 h-4 mr-2" />
                           </>
                         )}
                       </DatabaseButton>
+                      <DatabaseButton
+                        onClick={handleGenerate}
+                        variant="outline"
+                        className="flex-1"
+                        pageKey="dashboard-content"
+                        buttonKey="regenerate"
+                        fallbackText="重新生成"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                      </DatabaseButton>
+                      <DatabaseButton
+                        onClick={() => setShowScheduleModal(true)}
+                        variant="outline"
+                        className="flex-1"
+                        pageKey="dashboard-content"
+                        buttonKey="schedule-post"
+                        fallbackText="定时发布"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                      </DatabaseButton>
                     </div>
-                    {generatedImage && (
-                      <div className="relative rounded-lg overflow-hidden border">
-                        <img
-                          src={generatedImage}
-                          alt="Generated image"
-                          className="w-full h-auto"
-                        />
-                      </div>
-                    )}
-                  </div>
-                </div>
 
-                {/* 操作按钮 */}
-                <div className="flex gap-3 pt-4">
-                  {previewMode === "edit" && (
-                    <DatabaseButton
-                      onClick={handleSaveEdits}
-                      variant="outline"
-                      className="flex-1"
-                      pageKey="dashboard-content"
-                      buttonKey="save-edits"
-                      fallbackText="保存修改"
-                    >
-                      <Check className="w-4 h-4 mr-2" />
-                    </DatabaseButton>
-                  )}
-                  <DatabaseButton
-                    onClick={handleCopy}
-                    variant="outline"
-                    className="flex-1"
-                    pageKey="dashboard-content"
-                    buttonKey="copy-all"
-                    fallbackText={copied ? "已复制" : "复制全部"}
-                  >
-                    {copied ? (
-                      <>
-                        <Check className="w-4 h-4 mr-2" />
-                      </>
-                    ) : (
-                      <>
-                        <Copy className="w-4 h-4 mr-2" />
-                      </>
-                    )}
-                  </DatabaseButton>
-                  <DatabaseButton
-                    onClick={handleGenerate}
-                    variant="outline"
-                    className="flex-1"
-                    pageKey="dashboard-content"
-                    buttonKey="regenerate"
-                    fallbackText="重新生成"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  </DatabaseButton>
-                  <DatabaseButton
-                    onClick={() => setShowScheduleModal(true)}
-                    variant="outline"
-                    className="flex-1"
-                    pageKey="dashboard-content"
-                    buttonKey="schedule-post"
-                    fallbackText="定时发布"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  </DatabaseButton>
-                </div>
+                    {/* 质量评估和写作技巧按钮 */}
+                    <div className="flex gap-2 pt-2">
+                      <DatabaseButton
+                        onClick={handleAnalyzeQuality}
+                        variant="outline"
+                        size="sm"
+                        pageKey="dashboard-content"
+                        buttonKey="analyze-quality"
+                        fallbackText="内容质量分析"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                      </DatabaseButton>
+                      <DatabaseButton
+                        onClick={handleGetWritingTips}
+                        variant="outline"
+                        size="sm"
+                        pageKey="dashboard-content"
+                        buttonKey="writing-tips"
+                        fallbackText="写作技巧"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                      </DatabaseButton>
+                      <DatabaseButton
+                        onClick={handleGetTemplates}
+                        variant="outline"
+                        size="sm"
+                        pageKey="dashboard-content"
+                        buttonKey="templates"
+                        fallbackText="模板库"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                      </DatabaseButton>
+                      <DatabaseButton
+                        onClick={() => setShowBulkPanel(true)}
+                        variant="outline"
+                        size="sm"
+                        pageKey="dashboard-content"
+                        buttonKey="bulk-generate"
+                        fallbackText="批量生成"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                      </DatabaseButton>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowQualityPanel(!showQualityPanel)}
+                      >
+                        {showQualityPanel ? "隐藏" : "显示"} 技巧/分析
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowHistoryPanel(!showHistoryPanel)}
+                      >
+                        {showHistoryPanel ? "隐藏" : "显示"} 历史记录
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() =>
+                          setShowTemplatesPanel(!showTemplatesPanel)
+                        }
+                      >
+                        {showTemplatesPanel ? "隐藏" : "显示"} 模板
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setShowBulkPanel(!showBulkPanel)}
+                      >
+                        {showBulkPanel ? "隐藏" : "显示"} 批量生成
+                      </Button>
+                    </div>
 
-                {/* 质量评估和写作技巧按钮 */}
-                <div className="flex gap-2 pt-2">
-                  <DatabaseButton
-                    onClick={handleAnalyzeQuality}
-                    variant="outline"
-                    size="sm"
-                    pageKey="dashboard-content"
-                    buttonKey="analyze-quality"
-                    fallbackText="内容质量分析"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  </DatabaseButton>
-                  <DatabaseButton
-                    onClick={handleGetWritingTips}
-                    variant="outline"
-                    size="sm"
-                    pageKey="dashboard-content"
-                    buttonKey="writing-tips"
-                    fallbackText="写作技巧"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  </DatabaseButton>
-                  <DatabaseButton
-                    onClick={handleGetTemplates}
-                    variant="outline"
-                    size="sm"
-                    pageKey="dashboard-content"
-                    buttonKey="templates"
-                    fallbackText="模板库"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  </DatabaseButton>
-                  <DatabaseButton
-                    onClick={() => setShowBulkPanel(true)}
-                    variant="outline"
-                    size="sm"
-                    pageKey="dashboard-content"
-                    buttonKey="bulk-generate"
-                    fallbackText="批量生成"
-                  >
-                    <Sparkles className="w-4 h-4 mr-2" />
-                  </DatabaseButton>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowQualityPanel(!showQualityPanel)}
-                  >
-                    {showQualityPanel ? "隐藏" : "显示"} 技巧/分析
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowHistoryPanel(!showHistoryPanel)}
-                  >
-                    {showHistoryPanel ? "隐藏" : "显示"} 历史记录
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowTemplatesPanel(!showTemplatesPanel)}
-                  >
-                    {showTemplatesPanel ? "隐藏" : "显示"} 模板
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setShowBulkPanel(!showBulkPanel)}
-                  >
-                    {showBulkPanel ? "隐藏" : "显示"} 批量生成
-                  </Button>
-                </div>
-
-                {/* 质量评估和写作技巧面板 */}
-                {showQualityPanel && (
-                  <Card className="mt-4">
-                    <CardHeader>
-                      <CardTitle className="text-lg">写作技巧与质量分析</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-4">
-                        {writingTips && (
-                          <div>
-                            <h4 className="font-medium mb-2">针对{contentType}类型的写作技巧：</h4>
-                            <ul className="list-disc pl-5 space-y-1">
-                              {writingTips.tips.map((tip, index) => (
-                                <li key={index}>{tip}</li>
-                              ))}
-                            </ul>
-                          </div>
-                        )}
-                        
-                        {analyzeQualityMutation.data && (
-                          <div>
-                            <h4 className="font-medium mb-2">内容质量分析：</h4>
-                            <div className="space-y-2">
+                    {/* 质量评估和写作技巧面板 */}
+                    {showQualityPanel && (
+                      <Card className="mt-4 shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
+                        <CardHeader>
+                          <CardTitle className="text-lg">
+                            写作技巧与质量分析
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-4">
+                            {writingTips && (
                               <div>
-                                <span className="font-medium">评分:</span> 
-                                <span className="ml-2">{analyzeQualityMutation.data.validation.score}/100</span>
+                                <h4 className="font-medium mb-2">
+                                  针对{contentType}类型的写作技巧：
+                                </h4>
+                                <ul className="list-disc pl-5 space-y-1">
+                                  {writingTips.tips.map((tip, index) => (
+                                    <li key={index}>{tip}</li>
+                                  ))}
+                                </ul>
                               </div>
-                              {analyzeQualityMutation.data.validation.errors.length > 0 && (
-                                <div>
-                                  <span className="font-medium">错误:</span>
-                                  <ul className="list-disc pl-5 mt-1">
-                                    {analyzeQualityMutation.data.validation.errors.map((error, index) => (
-                                      <li key={index} className="text-red-600">{error}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              {analyzeQualityMutation.data.validation.warnings.length > 0 && (
-                                <div>
-                                  <span className="font-medium">警告:</span>
-                                  <ul className="list-disc pl-5 mt-1">
-                                    {analyzeQualityMutation.data.validation.warnings.map((warning, index) => (
-                                      <li key={index} className="text-yellow-600">{warning}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                              {analyzeQualityMutation.data.suggestions.length > 0 && (
-                                <div>
-                                  <span className="font-medium">改进建议:</span>
-                                  <ul className="list-disc pl-5 mt-1">
-                                    {analyzeQualityMutation.data.suggestions.map((suggestion, index) => (
-                                      <li key={index}>{suggestion}</li>
-                                    ))}
-                                  </ul>
-                                </div>
-                              )}
-                            </div>
-                          </div>
-                        )}
-                        
-                        {!writingTips && !analyzeQualityMutation.data && (
-                          <p className="text-muted-foreground">点击上方按钮获取写作技巧或进行内容质量分析</p>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                )}
+                            )}
 
-                {/* 历史记录面板 */}
-                {showHistoryPanel && selectedPostId && (
-                  <Card className="mt-4">
-                    <CardHeader>
-                      <CardTitle className="text-lg">内容历史记录</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {getHistoryQuery.isLoading ? (
-                        <div className="flex justify-center items-center h-20">
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                          <span className="ml-2">加载历史记录中...</span>
-                        </div>
-                      ) : getHistoryQuery.data && getHistoryQuery.data.length > 0 ? (
-                        <div className="space-y-4">
-                          <h4 className="font-medium">版本历史 (最近10个版本):</h4>
-                          <div className="space-y-3 max-h-60 overflow-y-auto">
-                            {getHistoryQuery.data.map((history, index) => (
-                              <div key={history.id} className="border rounded-lg p-3 bg-background">
-                                <div className="flex justify-between items-start">
+                            {analyzeQualityMutation.data && (
+                              <div>
+                                <h4 className="font-medium mb-2">
+                                  内容质量分析：
+                                </h4>
+                                <div className="space-y-2">
                                   <div>
-                                    <div className="font-medium">{history.title}</div>
-                                    <div className="text-sm text-muted-foreground">
-                                      版本 {history.version} • {new Date(history.createdAt).toLocaleString('zh-CN')}
-                                    </div>
-                                    <div className="text-sm mt-1 line-clamp-2">{history.content.substring(0, 100)}...</div>
+                                    <span className="font-medium">评分:</span>
+                                    <span className="ml-2">
+                                      {
+                                        analyzeQualityMutation.data.validation
+                                          .score
+                                      }
+                                      /100
+                                    </span>
                                   </div>
-                                  <div className="text-right">
-                                    <div className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">
-                                      质量分: {history.qualityScore}
+                                  {analyzeQualityMutation.data.validation.errors
+                                    .length > 0 && (
+                                    <div>
+                                      <span className="font-medium">错误:</span>
+                                      <ul className="list-disc pl-5 mt-1">
+                                        {analyzeQualityMutation.data.validation.errors.map(
+                                          (error, index) => (
+                                            <li
+                                              key={index}
+                                              className="text-stone-600"
+                                            >
+                                              {error}
+                                            </li>
+                                          )
+                                        )}
+                                      </ul>
                                     </div>
-                                    <Button 
-                                      variant="outline" 
-                                      size="sm" 
-                                      className="mt-2 text-xs"
-                                      onClick={() => {
-                                        setEditedTitle(history.title);
-                                        setEditedContent(history.content);
-                                        setEditedTags(history.tags || []);
-                                        setPreviewMode("preview");
-                                        toast.success("已加载历史版本");
-                                      }}
-                                    >
-                                      加载此版本
-                                    </Button>
-                                  </div>
+                                  )}
+                                  {analyzeQualityMutation.data.validation
+                                    .warnings.length > 0 && (
+                                    <div>
+                                      <span className="font-medium">警告:</span>
+                                      <ul className="list-disc pl-5 mt-1">
+                                        {analyzeQualityMutation.data.validation.warnings.map(
+                                          (warning, index) => (
+                                            <li
+                                              key={index}
+                                              className="text-[#B8A68D]"
+                                            >
+                                              {warning}
+                                            </li>
+                                          )
+                                        )}
+                                      </ul>
+                                    </div>
+                                  )}
+                                  {analyzeQualityMutation.data.suggestions
+                                    .length > 0 && (
+                                    <div>
+                                      <span className="font-medium">
+                                        改进建议:
+                                      </span>
+                                      <ul className="list-disc pl-5 mt-1">
+                                        {analyzeQualityMutation.data.suggestions.map(
+                                          (suggestion, index) => (
+                                            <li key={index}>{suggestion}</li>
+                                          )
+                                        )}
+                                      </ul>
+                                    </div>
+                                  )}
                                 </div>
-                                
-                                {history.validationErrors && history.validationErrors.length > 0 && (
-                                  <div className="mt-2 text-xs text-red-600">
-                                    错误: {history.validationErrors.join(', ')}
+                              </div>
+                            )}
+
+                            {!writingTips && !analyzeQualityMutation.data && (
+                              <p className="text-muted-foreground">
+                                点击上方按钮获取写作技巧或进行内容质量分析
+                              </p>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* 历史记录面板 */}
+                    {showHistoryPanel && selectedPostId && (
+                      <Card className="mt-4 shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
+                        <CardHeader>
+                          <CardTitle className="text-lg">
+                            内容历史记录
+                          </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {getHistoryQuery.isLoading ? (
+                            <div className="flex justify-center items-center h-20">
+                              <Loader2 className="w-6 h-6 animate-spin" />
+                              <span className="ml-2">加载历史记录中...</span>
+                            </div>
+                          ) : getHistoryQuery.data &&
+                            getHistoryQuery.data.length > 0 ? (
+                            <div className="space-y-4">
+                              <h4 className="font-medium">
+                                版本历史 (最近10个版本):
+                              </h4>
+                              <div className="space-y-3 max-h-60 overflow-y-auto">
+                                {getHistoryQuery.data.map((history, index) => (
+                                  <div
+                                    key={history.id}
+                                    className="border rounded-lg p-3 bg-background"
+                                  >
+                                    <div className="flex justify-between items-start">
+                                      <div>
+                                        <div className="font-medium">
+                                          {history.title}
+                                        </div>
+                                        <div className="text-sm text-muted-foreground">
+                                          版本 {history.version} •{" "}
+                                          {new Date(
+                                            history.createdAt
+                                          ).toLocaleString("zh-CN")}
+                                        </div>
+                                        <div className="text-sm mt-1 line-clamp-2">
+                                          {history.content.substring(0, 100)}...
+                                        </div>
+                                      </div>
+                                      <div className="text-right">
+                                        <div className="text-xs bg-stone-100 text-stone-600 px-2 py-1 rounded">
+                                          质量分: {history.qualityScore}
+                                        </div>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          className="mt-2 text-xs"
+                                          onClick={() => {
+                                            setEditedTitle(history.title);
+                                            setEditedContent(history.content);
+                                            setEditedTags(history.tags || []);
+                                            setPreviewMode("preview");
+                                            toast.success("已加载历史版本");
+                                          }}
+                                        >
+                                          加载此版本
+                                        </Button>
+                                      </div>
+                                    </div>
+
+                                    {history.validationErrors &&
+                                      history.validationErrors.length > 0 && (
+                                        <div className="mt-2 text-xs text-stone-600">
+                                          错误:{" "}
+                                          {history.validationErrors.join(", ")}
+                                        </div>
+                                      )}
+
+                                    {history.validationWarnings &&
+                                      history.validationWarnings.length > 0 && (
+                                        <div className="mt-1 text-xs text-[#B8A68D]">
+                                          警告:{" "}
+                                          {history.validationWarnings.join(
+                                            ", "
+                                          )}
+                                        </div>
+                                      )}
                                   </div>
-                                )}
-                                
-                                {history.validationWarnings && history.validationWarnings.length > 0 && (
-                                  <div className="mt-1 text-xs text-yellow-600">
-                                    警告: {history.validationWarnings.join(', ')}
-                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground">
+                              暂无历史记录
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
+
+                    {/* 模板面板 */}
+                    {showTemplatesPanel && (
+                      <Card className="mt-4 shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
+                        <CardHeader>
+                          <CardTitle className="text-lg">内容模板</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          {getTemplatesQuery.isLoading ? (
+                            <div className="flex justify-center items-center h-20">
+                              <Loader2 className="w-6 h-6 animate-spin" />
+                              <span className="ml-2">加载模板中...</span>
+                            </div>
+                          ) : getTemplatesQuery.data &&
+                            getTemplatesQuery.data.templates.length > 0 ? (
+                            <div className="space-y-4">
+                              <h4 className="font-medium">
+                                预设模板 (适用于 {contentType} 类型):
+                              </h4>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                {getTemplatesQuery.data.templates.map(
+                                  template => (
+                                    <Card
+                                      key={template.id}
+                                      className={`cursor-pointer hover:shadow-md transition-shadow ${
+                                        selectedTemplate?.id === template.id
+                                          ? "ring-2 ring-blue-500"
+                                          : ""
+                                      }`}
+                                      onClick={() =>
+                                        handleUseTemplate(template)
+                                      }
+                                    >
+                                      <CardContent className="p-4">
+                                        <h5 className="font-medium mb-2">
+                                          {template.name}
+                                        </h5>
+                                        <p className="text-sm line-clamp-2 mb-2">
+                                          {template.title}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground line-clamp-3">
+                                          {template.content.substring(0, 100)}
+                                          ...
+                                        </p>
+                                        <div className="flex flex-wrap gap-1 mt-2">
+                                          {template.tags
+                                            .slice(0, 3)
+                                            .map((tag, idx) => (
+                                              <Badge
+                                                key={idx}
+                                                variant="secondary"
+                                                className="text-xs"
+                                              >
+                                                {tag}
+                                              </Badge>
+                                            ))}
+                                        </div>
+                                      </CardContent>
+                                    </Card>
+                                  )
                                 )}
                               </div>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground">暂无历史记录</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
+                            </div>
+                          ) : (
+                            <p className="text-muted-foreground">
+                              暂无可用模板
+                            </p>
+                          )}
+                        </CardContent>
+                      </Card>
+                    )}
 
-                {/* 模板面板 */}
-                {showTemplatesPanel && (
-                  <Card className="mt-4">
-                    <CardHeader>
-                      <CardTitle className="text-lg">内容模板</CardTitle>
-                    </CardHeader>
-                    <CardContent>
-                      {getTemplatesQuery.isLoading ? (
-                        <div className="flex justify-center items-center h-20">
-                          <Loader2 className="w-6 h-6 animate-spin" />
-                          <span className="ml-2">加载模板中...</span>
-                        </div>
-                      ) : getTemplatesQuery.data && getTemplatesQuery.data.templates.length > 0 ? (
-                        <div className="space-y-4">
-                          <h4 className="font-medium">预设模板 (适用于 {contentType} 类型):</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                            {getTemplatesQuery.data.templates.map((template) => (
-                              <Card 
-                                key={template.id} 
-                                className={`cursor-pointer hover:shadow-md transition-shadow ${
-                                  selectedTemplate?.id === template.id ? 'ring-2 ring-blue-500' : ''
-                                }`}
-                                onClick={() => handleUseTemplate(template)}
-                              >
-                                <CardContent className="p-4">
-                                  <h5 className="font-medium mb-2">{template.name}</h5>
-                                  <p className="text-sm line-clamp-2 mb-2">{template.title}</p>
-                                  <p className="text-xs text-muted-foreground line-clamp-3">{template.content.substring(0, 100)}...</p>
-                                  <div className="flex flex-wrap gap-1 mt-2">
-                                    {template.tags.slice(0, 3).map((tag, idx) => (
-                                      <Badge key={idx} variant="secondary" className="text-xs">
-                                        {tag}
-                                      </Badge>
-                                    ))}
-                                  </div>
-                                </CardContent>
-                              </Card>
-                            ))}
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-muted-foreground">暂无可用模板</p>
-                      )}
-                    </CardContent>
-                  </Card>
-                )}
-
-                {/* 批量生成面板 */}
-                {showBulkPanel && (
-                  <Card className="mt-4">
-                    <CardHeader>
-                      <CardTitle className="text-lg">批量生成内容</CardTitle>
-                      <CardDescription>一次性生成多个不同类型的内容</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                {/* 定时发布模态框 */}
-                {showScheduleModal && (
-                  <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                    <Card className="w-[480px] p-6">
-                      <CardHeader>
-                        <CardTitle>定时发布</CardTitle>
-                        <CardDescription>选择发布时间</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        <div className="space-y-4">
-                          <div>
-                            <Label>发布时间</Label>
-                            <Input
-                              type="datetime-local"
-                              value={scheduleTime ? new Date(scheduleTime.getTime() - scheduleTime.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ""}
-                              onChange={(e) => setScheduleTime(new Date(e.target.value))}
-                              min={new Date().toISOString().slice(0, 16)}
-                            />
-                          </div>
-                          
-                          <div className="flex justify-end gap-2 pt-4">
-                            <Button
-                              variant="outline"
-                              onClick={() => {
-                                setShowScheduleModal(false);
-                                setScheduleTime(null);
-                              }}
-                            >
-                              取消
-                            </Button>
-                            <Button
-                              onClick={handleSchedulePost}
-                              disabled={!scheduleTime || schedulePostMutation.isPending}
-                            >
-                              {schedulePostMutation.isPending ? (
-                                <>
-                                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                  发布中...
-                                </>
-                              ) : (
-                                "确认发布"
-                              )}
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </div>
-                )}
-
-                {/* 批量生成面板 */}
-                {showBulkPanel && (
-                  <Card className="mt-4">
-                    <CardHeader>
-                      <CardTitle className="text-lg">批量生成内容</CardTitle>
-                      <CardDescription>一次性生成多个不同类型的内容</CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="space-y-6">
-                        {/* 添加新项目表单 */}
-                        <Card>
+                    {/* 定时发布模态框 */}
+                    {showScheduleModal && (
+                      <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                        <Card className="w-[480px] p-6">
                           <CardHeader>
-                            <CardTitle className="text-sm">添加生成项目</CardTitle>
+                            <CardTitle>定时发布</CardTitle>
+                            <CardDescription>选择发布时间</CardDescription>
                           </CardHeader>
                           <CardContent>
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                            <div className="space-y-4">
                               <div>
-                                <Label>内容类型</Label>
-                                <Select 
-                                  value={newBulkItem.type} 
-                                  onValueChange={(value) => setNewBulkItem({...newBulkItem, type: value as ContentType})}
-                                >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="project">项目体验分享</SelectItem>
-                                    <SelectItem value="case">效果对比展示</SelectItem>
-                                    <SelectItem value="price">价格揭秘</SelectItem>
-                                    <SelectItem value="guide">避坑指南</SelectItem>
-                                    <SelectItem value="holiday">节日营销</SelectItem>
-                                    <SelectItem value="new_product">新品推荐</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              
-                              <div>
-                                <Label>医美项目</Label>
+                                <Label>发布时间</Label>
                                 <Input
-                                  value={newBulkItem.project}
-                                  onChange={(e) => setNewBulkItem({...newBulkItem, project: e.target.value})}
-                                  placeholder="输入项目名称"
+                                  type="datetime-local"
+                                  value={
+                                    scheduleTime
+                                      ? new Date(
+                                          scheduleTime.getTime() -
+                                            scheduleTime.getTimezoneOffset() *
+                                              60000
+                                        )
+                                          .toISOString()
+                                          .slice(0, 16)
+                                      : ""
+                                  }
+                                  onChange={e =>
+                                    setScheduleTime(new Date(e.target.value))
+                                  }
+                                  min={new Date().toISOString().slice(0, 16)}
                                 />
                               </div>
-                              
-                              <div>
-                                <Label>语气风格</Label>
-                                <Select 
-                                  value={newBulkItem.tone} 
-                                  onValueChange={(value) => setNewBulkItem({...newBulkItem, tone: value as ToneType})}
+
+                              <div className="flex justify-end gap-2 pt-4">
+                                <Button
+                                  variant="outline"
+                                  onClick={() => {
+                                    setShowScheduleModal(false);
+                                    setScheduleTime(null);
+                                  }}
                                 >
-                                  <SelectTrigger>
-                                    <SelectValue />
-                                  </SelectTrigger>
-                                  <SelectContent>
-                                    <SelectItem value="enthusiastic">热情洋溢</SelectItem>
-                                    <SelectItem value="professional">专业严谨</SelectItem>
-                                    <SelectItem value="casual">轻松随意</SelectItem>
-                                  </SelectContent>
-                                </Select>
-                              </div>
-                              
-                              <div className="flex items-end">
-                                <Button 
-                                  type="button" 
-                                  onClick={handleAddBulkItem}
-                                  className="w-full"
-                                >
-                                  添加到队列
+                                  取消
                                 </Button>
-                              </div>
-                            </div>
-                            
-                            {/* 关键词输入 */}
-                            <div className="mt-4">
-                              <Label>关键词（可选）</Label>
-                              <div className="flex gap-2 mt-2">
-                                <Input
-                                  placeholder="输入关键词，回车添加"
-                                  value={newBulkItem.keywords.join(',')}
-                                  onChange={(e) => setNewBulkItem({
-                                    ...newBulkItem, 
-                                    keywords: e.target.value.split(',').map(k => k.trim()).filter(k => k)
-                                  })}
-                                />
+                                <Button
+                                  onClick={handleSchedulePost}
+                                  disabled={
+                                    !scheduleTime ||
+                                    schedulePostMutation.isPending
+                                  }
+                                >
+                                  {schedulePostMutation.isPending ? (
+                                    <>
+                                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                      发布中...
+                                    </>
+                                  ) : (
+                                    "确认发布"
+                                  )}
+                                </Button>
                               </div>
                             </div>
                           </CardContent>
                         </Card>
+                      </div>
+                    )}
 
-                        {/* 批量项目列表 */}
-                        <div>
-                          <h4 className="font-medium mb-2">待生成列表 ({bulkItems.length} 个项目)</h4>
-                          {bulkItems.length > 0 ? (
-                            <div className="space-y-2 max-h-60 overflow-y-auto">
-                              {bulkItems.map((item, index) => (
-                                <Card key={index} className="p-3">
-                                  <div className="flex justify-between items-center">
-                                    <div>
-                                      <span className="font-medium">{item.type}</span>
-                                      <span className="mx-2">•</span>
-                                      <span>{item.project}</span>
-                                      <span className="mx-2">•</span>
-                                      <span className="text-sm text-muted-foreground">{item.tone}</span>
-                                      {item.keywords.length > 0 && (
-                                        <>
-                                          <span className="mx-2">•</span>
-                                          <span className="text-sm text-muted-foreground">关键词: {item.keywords.join(', ')}</span>
-                                        </>
-                                      )}
-                                    </div>
-                                    <Button
-                                      variant="outline"
-                                      size="sm"
-                                      onClick={() => handleRemoveBulkItem(index)}
+                    {/* 批量生成面板 */}
+                    {showBulkPanel && (
+                      <Card className="mt-4 shadow-card transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
+                        <CardHeader>
+                          <CardTitle className="text-lg">
+                            批量生成内容
+                          </CardTitle>
+                          <CardDescription>
+                            一次性生成多个不同类型的内容
+                          </CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="space-y-6">
+                            {/* 添加新项目表单 */}
+                            <Card>
+                              <CardHeader>
+                                <CardTitle className="text-sm">
+                                  添加生成项目
+                                </CardTitle>
+                              </CardHeader>
+                              <CardContent>
+                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                  <div>
+                                    <Label>内容类型</Label>
+                                    <Select
+                                      value={newBulkItem.type}
+                                      onValueChange={value =>
+                                        setNewBulkItem({
+                                          ...newBulkItem,
+                                          type: value as ContentType,
+                                        })
+                                      }
                                     >
-                                      删除
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {(
+                                          Object.keys(
+                                            CONTENT_TYPE_LABELS
+                                          ) as ContentType[]
+                                        ).map(t => (
+                                          <SelectItem key={t} value={t}>
+                                            {CONTENT_TYPE_LABELS[t]}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div>
+                                    <Label>医美项目</Label>
+                                    <Input
+                                      value={newBulkItem.project}
+                                      onChange={e =>
+                                        setNewBulkItem({
+                                          ...newBulkItem,
+                                          project: e.target.value,
+                                        })
+                                      }
+                                      placeholder="输入项目名称"
+                                    />
+                                  </div>
+
+                                  <div>
+                                    <Label>语气风格</Label>
+                                    <Select
+                                      value={newBulkItem.tone}
+                                      onValueChange={value =>
+                                        setNewBulkItem({
+                                          ...newBulkItem,
+                                          tone: value as ToneType,
+                                        })
+                                      }
+                                    >
+                                      <SelectTrigger>
+                                        <SelectValue />
+                                      </SelectTrigger>
+                                      <SelectContent>
+                                        {(
+                                          Object.keys(
+                                            TONE_TYPE_LABELS
+                                          ) as ToneType[]
+                                        ).map(t => (
+                                          <SelectItem key={t} value={t}>
+                                            {TONE_TYPE_LABELS[t]}
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                  </div>
+
+                                  <div className="flex items-end">
+                                    <Button
+                                      type="button"
+                                      onClick={handleAddBulkItem}
+                                      className="w-full"
+                                    >
+                                      添加到队列
                                     </Button>
                                   </div>
-                                </Card>
-                              ))}
-                            </div>
-                          ) : (
-                            <p className="text-muted-foreground">暂无待生成项目</p>
-                          )}
-                        </div>
+                                </div>
 
-                        {/* 批量生成按钮 */}
-                        <div className="flex justify-end gap-2">
-                          <Button
-                            variant="outline"
-                            onClick={() => setShowBulkPanel(false)}
-                          >
-                            取消
-                          </Button>
-                          <Button
-                            onClick={handleBulkGenerate}
-                            disabled={bulkItems.length === 0 || bulkGenerateMutation.isPending}
-                          >
-                            {bulkGenerateMutation.isPending ? (
-                              <>
-                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                                生成中...
-                              </>
-                            ) : (
-                              <>
-                                批量生成 ({bulkItems.length} 个)
-                              </>
-                            )}
-                          </Button>
-                        </div>
-                      </div>
-                    </CardContent>
-                  </Card>
+                                {/* 关键词输入 */}
+                                <div className="mt-4">
+                                  <Label>关键词（可选）</Label>
+                                  <div className="flex gap-2 mt-2">
+                                    <Input
+                                      placeholder="输入关键词，回车添加"
+                                      value={newBulkItem.keywords.join(",")}
+                                      onChange={e =>
+                                        setNewBulkItem({
+                                          ...newBulkItem,
+                                          keywords: e.target.value
+                                            .split(",")
+                                            .map(k => k.trim())
+                                            .filter(k => k),
+                                        })
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </CardContent>
+                            </Card>
+
+                            {/* 批量项目列表 */}
+                            <div>
+                              <h4 className="font-medium mb-2">
+                                待生成列表 ({bulkItems.length} 个项目)
+                              </h4>
+                              {bulkItems.length > 0 ? (
+                                <div className="space-y-2 max-h-60 overflow-y-auto">
+                                  {bulkItems.map((item, index) => (
+                                    <Card key={index} className="p-3">
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <span className="font-medium">
+                                            {item.type}
+                                          </span>
+                                          <span className="mx-2">•</span>
+                                          <span>{item.project}</span>
+                                          <span className="mx-2">•</span>
+                                          <span className="text-sm text-muted-foreground">
+                                            {item.tone}
+                                          </span>
+                                          {item.keywords.length > 0 && (
+                                            <>
+                                              <span className="mx-2">•</span>
+                                              <span className="text-sm text-muted-foreground">
+                                                关键词:{" "}
+                                                {item.keywords.join(", ")}
+                                              </span>
+                                            </>
+                                          )}
+                                        </div>
+                                        <Button
+                                          variant="outline"
+                                          size="sm"
+                                          onClick={() =>
+                                            handleRemoveBulkItem(index)
+                                          }
+                                        >
+                                          删除
+                                        </Button>
+                                      </div>
+                                    </Card>
+                                  ))}
+                                </div>
+                              ) : (
+                                <p className="text-muted-foreground">
+                                  暂无待生成项目
+                                </p>
+                              )}
+                            </div>
+
+                            {/* 批量生成按钮 */}
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="outline"
+                                onClick={() => setShowBulkPanel(false)}
+                              >
+                                取消
+                              </Button>
+                              <Button
+                                onClick={handleBulkGenerate}
+                                disabled={
+                                  bulkItems.length === 0 ||
+                                  bulkGenerateMutation.isPending
+                                }
+                              >
+                                {bulkGenerateMutation.isPending ? (
+                                  <>
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                    生成中...
+                                  </>
+                                ) : (
+                                  <>批量生成 ({bulkItems.length} 个)</>
+                                )}
+                              </Button>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+                ) : (
+                  <div className="rounded-lg border border-dashed bg-muted/30 p-8 text-center text-muted-foreground">
+                    <Sparkles className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                    <p className="mb-4">
+                      在左侧选择类型与项目，点击「一键生成爽文」后，结果将显示在此处。
+                    </p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        const ex =
+                          XIAOHONGSHU_EXAMPLES[
+                            Math.floor(
+                              Math.random() * XIAOHONGSHU_EXAMPLES.length
+                            )
+                          ];
+                        setEditedTitle(ex.title);
+                        setEditedContent(ex.content);
+                        setEditedTags(ex.tags);
+                        setPreviewMode("preview");
+                      }}
+                    >
+                      加载示例
+                    </Button>
+                  </div>
                 )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
         {/* 使用说明 */}
-        <Card>
+        <Card className="shadow-card">
           <CardHeader>
             <CardTitle>使用说明</CardTitle>
           </CardHeader>
           <CardContent className="prose prose-sm max-w-none">
             <ol className="space-y-2">
-              <li>选择内容类型：项目体验分享、效果对比、价格揭秘、避坑指南、节日营销</li>
-              <li>选择要推广的医美项目：超皮秒祛斑、水光针、热玛吉、冷光美白、隐形矫正</li>
-              <li>选择语气风格：热情洋溢、专业严谨、轻松随意</li>
+              <li>
+                选择内容类型：
+                {(Object.values(CONTENT_TYPE_LABELS) as string[]).join("、")}
+              </li>
+              <li>
+                选择要推广的医美项目：从下拉选择（需先运行{" "}
+                <code>npm run seed:medical-projects</code> 导入项目）
+              </li>
+              <li>
+                选择语气风格：
+                {(Object.values(TONE_TYPE_LABELS) as string[]).join("、")}
+              </li>
               <li>（可选）添加必须包含的关键词，让内容更贴合需求</li>
-              <li>点击"一键生成爽文"，AI 会基于知识库内容自动生成小红书风格文案</li>
-              <li>生成后可以点击"复制全部"一键复制到剪贴板，然后粘贴到小红书发布</li>
+              <li>
+                点击"一键生成爽文"，AI 会基于知识库内容自动生成小红书风格文案
+              </li>
+              <li>
+                生成后可以点击"复制全部"一键复制到剪贴板，然后粘贴到小红书发布
+              </li>
               <li>如果对生成的内容不满意，可以点击"重新生成"获取新的文案</li>
               <li>建议配合真实的术前术后对比照片，效果更佳</li>
             </ol>

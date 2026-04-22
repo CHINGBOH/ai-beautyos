@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { trpc } from "@/lib/trpc";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -21,15 +21,17 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, Plus, Edit, Trash2, BookOpen, Lock, Search } from "lucide-react";
+import { Loader2, Plus, Edit, Trash2, BookOpen, Lock, Search, ChevronLeft, ChevronRight } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { toast } from "sonner";
 
+const PAGE_SIZE = 50;
 type KnowledgeType = "customer" | "internal";
 
 export default function DashboardKnowledge() {
   const [activeTab, setActiveTab] = useState<KnowledgeType>("customer");
   const [searchTerm, setSearchTerm] = useState("");
+  const [page, setPage] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [formData, setFormData] = useState({
@@ -41,8 +43,22 @@ export default function DashboardKnowledge() {
   });
 
   const utils = trpc.useUtils();
-  const customerQuery = trpc.knowledge.getAll.useQuery({ type: "customer" });
-  const internalQuery = trpc.knowledge.getAll.useQuery({ type: "internal" });
+  const customerQuery = trpc.knowledge.getAll.useQuery({
+    type: "customer",
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+    searchTerm: searchTerm.trim() || undefined,
+  });
+  const internalQuery = trpc.knowledge.getAll.useQuery({
+    type: "internal",
+    limit: PAGE_SIZE,
+    offset: page * PAGE_SIZE,
+    searchTerm: searchTerm.trim() || undefined,
+  });
+  const getByIdQuery = trpc.knowledge.getById.useQuery(
+    { id: editingId! },
+    { enabled: !!editingId }
+  );
   const createMutation = trpc.knowledge.create.useMutation({
     onSuccess: () => {
       toast.success("知识库创建成功");
@@ -76,11 +92,37 @@ export default function DashboardKnowledge() {
   });
 
   const currentData = activeTab === "customer" ? customerQuery.data : internalQuery.data;
-  const filteredData = currentData?.filter(
-    (item) =>
-      item.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.content.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  const rawItems = currentData?.items ?? [];
+  // 不在列表中展示占位用「种子知识-xxx」，避免界面杂乱
+  const items = rawItems.filter((item) => !item.title?.startsWith("种子知识"));
+  const total = currentData?.total ?? 0;
+
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, activeTab]);
+
+  useEffect(() => {
+    if (!editingId || !getByIdQuery.data) return;
+    const d = getByIdQuery.data;
+    const tagsStr =
+      typeof d.tags === "string"
+        ? (() => {
+            try {
+              const arr = JSON.parse(d.tags);
+              return Array.isArray(arr) ? arr.join(", ") : "";
+            } catch {
+              return "";
+            }
+          })()
+        : "";
+    setFormData({
+      title: d.title ?? "",
+      content: d.content ?? "",
+      category: d.category ?? "",
+      tags: tagsStr,
+      isActive: d.isActive ?? 1,
+    });
+  }, [editingId, getByIdQuery.data]);
 
   const resetForm = () => {
     setFormData({
@@ -98,15 +140,8 @@ export default function DashboardKnowledge() {
     resetForm();
   };
 
-  const handleEdit = (item: any) => {
+  const handleEdit = (item: { id: number }) => {
     setEditingId(item.id);
-    setFormData({
-      title: item.title,
-      content: item.content,
-      category: item.category,
-      tags: item.tags ? JSON.parse(item.tags).join(", ") : "",
-      isActive: item.isActive,
-    });
     setDialogOpen(true);
   };
 
@@ -184,60 +219,102 @@ export default function DashboardKnowledge() {
             </div>
 
             <TabsContent value="customer" className="space-y-4 mt-0">
+              {customerQuery.isError && (
+                <div className="rounded-md bg-destructive/10 text-destructive px-4 py-3 text-sm">
+                  加载失败，请稍后重试
+                </div>
+              )}
               {customerQuery.isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : filteredData && filteredData.length > 0 ? (
-                filteredData.map((item) => (
-                  <Card key={item.id}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg">{item.title}</CardTitle>
-                          <CardDescription className="mt-2">
-                            <Badge variant="secondary" className="mr-2">
-                              {item.category}
-                            </Badge>
-                            {item.tags && JSON.parse(item.tags).map((tag: string, idx: number) => (
-                              <Badge key={idx} variant="outline" className="mr-1">
-                                {tag}
+              ) : items.length > 0 ? (
+                <>
+                  {rawItems.length > items.length && (
+                    <p className="text-sm text-muted-foreground">已隐藏 {rawItems.length - items.length} 条占位条目（标题以「种子知识」开头）</p>
+                  )}
+                  {items.map((item) => (
+                    <Card key={item.id}>
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">{item.title}</CardTitle>
+                            <CardDescription className="mt-2">
+                              <Badge variant="secondary" className="mr-2">
+                                {item.category}
                               </Badge>
-                            ))}
-                          </CardDescription>
+                              {item.tags && (() => {
+                                try {
+                                  const arr = JSON.parse(item.tags);
+                                  return Array.isArray(arr)
+                                    ? arr.map((tag: string, idx: number) => (
+                                        <Badge key={idx} variant="outline" className="mr-1">
+                                          {tag}
+                                        </Badge>
+                                      ))
+                                    : null;
+                                } catch {
+                                  return null;
+                                }
+                              })()}
+                            </CardDescription>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(item)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(item.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(item)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(item.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground line-clamp-3">
+                          {item.summary ?? "—"}
+                        </p>
+                        <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>使用次数: {item.usedCount}</span>
+                          <span>查看次数: {item.viewCount}</span>
+                          <span>
+                            状态: {item.isActive === 1 ? "启用" : "禁用"}
+                          </span>
                         </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {total > PAGE_SIZE && (
+                    <div className="flex items-center justify-between pt-4">
+                      <span className="text-sm text-muted-foreground">共 {total} 条</span>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={page === 0}
+                          onClick={() => setPage((p) => Math.max(0, p - 1))}
+                        >
+                          <ChevronLeft className="w-4 h-4" /> 上一页
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={(page + 1) * PAGE_SIZE >= total}
+                          onClick={() => setPage((p) => p + 1)}
+                        >
+                          下一页 <ChevronRight className="w-4 h-4" />
+                        </Button>
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground line-clamp-3">
-                        {item.content}
-                      </p>
-                      <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>使用次数: {item.usedCount}</span>
-                        <span>查看次数: {item.viewCount}</span>
-                        <span>
-                          状态: {item.isActive === 1 ? "启用" : "禁用"}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                    </div>
+                  )}
+                </>
               ) : (
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
@@ -248,60 +325,102 @@ export default function DashboardKnowledge() {
             </TabsContent>
 
             <TabsContent value="internal" className="space-y-4 mt-0">
+              {internalQuery.isError && (
+                <div className="rounded-md bg-destructive/10 text-destructive px-4 py-3 text-sm">
+                  加载失败，请稍后重试
+                </div>
+              )}
               {internalQuery.isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
-              ) : filteredData && filteredData.length > 0 ? (
-                filteredData.map((item) => (
-                  <Card key={item.id}>
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1">
-                          <CardTitle className="text-lg">{item.title}</CardTitle>
-                          <CardDescription className="mt-2">
-                            <Badge variant="secondary" className="mr-2">
-                              {item.category}
-                            </Badge>
-                            {item.tags && JSON.parse(item.tags).map((tag: string, idx: number) => (
-                              <Badge key={idx} variant="outline" className="mr-1">
-                                {tag}
+              ) : items.length > 0 ? (
+                <>
+                  {rawItems.length > items.length && (
+                    <p className="text-sm text-muted-foreground">已隐藏 {rawItems.length - items.length} 条占位条目（标题以「种子知识」开头）</p>
+                  )}
+                  {items.map((item) => (
+                    <Card key={item.id}>
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <CardTitle className="text-lg">{item.title}</CardTitle>
+                            <CardDescription className="mt-2">
+                              <Badge variant="secondary" className="mr-2">
+                                {item.category}
                               </Badge>
-                            ))}
-                          </CardDescription>
+                              {item.tags && (() => {
+                                try {
+                                  const arr = JSON.parse(item.tags);
+                                  return Array.isArray(arr)
+                                    ? arr.map((tag: string, idx: number) => (
+                                        <Badge key={idx} variant="outline" className="mr-1">
+                                          {tag}
+                                        </Badge>
+                                      ))
+                                    : null;
+                                } catch {
+                                  return null;
+                                }
+                              })()}
+                            </CardDescription>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleEdit(item)}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDelete(item.id)}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="flex gap-2">
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleEdit(item)}
-                          >
-                            <Edit className="w-4 h-4" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDelete(item.id)}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </Button>
+                      </CardHeader>
+                      <CardContent>
+                        <p className="text-sm text-muted-foreground line-clamp-3">
+                          {item.summary ?? "—"}
+                        </p>
+                        <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
+                          <span>使用次数: {item.usedCount}</span>
+                          <span>查看次数: {item.viewCount}</span>
+                          <span>
+                            状态: {item.isActive === 1 ? "启用" : "禁用"}
+                          </span>
                         </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                  {total > PAGE_SIZE && (
+                    <div className="flex items-center justify-between pt-4">
+                      <span className="text-sm text-muted-foreground">共 {total} 条</span>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={page === 0}
+                          onClick={() => setPage((p) => Math.max(0, p - 1))}
+                        >
+                          <ChevronLeft className="w-4 h-4" /> 上一页
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          disabled={(page + 1) * PAGE_SIZE >= total}
+                          onClick={() => setPage((p) => p + 1)}
+                        >
+                          下一页 <ChevronRight className="w-4 h-4" />
+                        </Button>
                       </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground line-clamp-3">
-                        {item.content}
-                      </p>
-                      <div className="mt-3 flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>使用次数: {item.usedCount}</span>
-                        <span>查看次数: {item.viewCount}</span>
-                        <span>
-                          状态: {item.isActive === 1 ? "启用" : "禁用"}
-                        </span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))
+                    </div>
+                  )}
+                </>
               ) : (
                 <Card>
                   <CardContent className="py-12 text-center text-muted-foreground">
@@ -324,6 +443,13 @@ export default function DashboardKnowledge() {
                   : "内部管理知识库用于销售人员参考，不对外展示"}
               </DialogDescription>
             </DialogHeader>
+            {editingId && getByIdQuery.isLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+              </div>
+            ) : editingId && getByIdQuery.isError ? (
+              <p className="text-destructive py-4">加载失败，请关闭后重试</p>
+            ) : (
             <div className="space-y-4">
               <div>
                 <label className="text-sm font-medium">标题</label>
@@ -396,6 +522,7 @@ export default function DashboardKnowledge() {
                 </Select>
               </div>
             </div>
+            )}
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 取消
@@ -407,7 +534,8 @@ export default function DashboardKnowledge() {
                   !formData.content ||
                   !formData.category ||
                   createMutation.isPending ||
-                  updateMutation.isPending
+                  updateMutation.isPending ||
+                  (!!editingId && getByIdQuery.isLoading)
                 }
               >
                 {createMutation.isPending || updateMutation.isPending ? (

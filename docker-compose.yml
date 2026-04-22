@@ -1,0 +1,117 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: medical_crm
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - medical-crm-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - medical-crm-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant_data:/qdrant/storage
+    networks:
+      - medical-crm-network
+    restart: unless-stopped
+
+  python-api:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    env_file:
+      - ./server/.env
+    environment:
+      - PYTHONUNBUFFERED=1
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=medical_crm
+      - REDIS_URL=redis://redis:6379/0
+      - QDRANT_URL=http://qdrant:6333
+    volumes:
+      - ./server:/app
+      - ./data:/data
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      qdrant:
+        condition: service_started
+    networks:
+      - medical-crm-network
+    restart: unless-stopped
+
+  node-server:
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/medical_crm
+      - LANGCHAIN_BACKEND_URL=http://python-api:8000
+      - REDIS_URL=redis://redis:6379/0
+      # WARNING: 生产环境必须替换为真正的密钥（至少 32 字符）
+      - JWT_SECRET=dev-secret-change-in-production
+      - DISABLE_AUTH=1
+    depends_on:
+      postgres:
+        condition: service_healthy
+      python-api:
+        condition: service_started
+    networks:
+      - medical-crm-network
+    restart: unless-stopped
+
+  nginx-landing:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "80:80"
+    depends_on:
+      - node-server
+    networks:
+      - medical-crm-network
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+  redis_data:
+  qdrant_data:
+
+networks:
+  medical-crm-network:
+    driver: bridge

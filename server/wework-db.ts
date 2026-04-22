@@ -1,5 +1,10 @@
 import { getDb } from "./db";
-import { weworkConfig, weworkContactWay, weworkCustomers, weworkMessages } from "../drizzle/schema";
+import {
+  weworkConfig,
+  weworkContactWay,
+  weworkCustomers,
+  weworkMessages,
+} from "../drizzle/schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -11,7 +16,11 @@ import { eq } from "drizzle-orm";
 export async function getWeworkConfig() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const configs = await db.select().from(weworkConfig).where(eq(weworkConfig.isActive, 1)).limit(1);
+  const configs = await db
+    .select()
+    .from(weworkConfig)
+    .where(eq(weworkConfig.isActive, 1))
+    .limit(1);
   return configs[0] || null;
 }
 
@@ -26,27 +35,39 @@ export async function saveWeworkConfig(data: {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const existing = await getWeworkConfig();
-  
+
   if (existing) {
-    await db.update(weworkConfig)
-      .set({ ...data, updatedAt: new Date() })
+    await db
+      .update(weworkConfig)
+      .set({ ...data, updatedAt: new Date().toISOString() })
       .where(eq(weworkConfig.id, existing.id));
     return { ...existing, ...data };
   } else {
-    const result = await db.insert(weworkConfig).values(data).returning({ id: weworkConfig.id });
+    const result = await db
+      .insert(weworkConfig)
+      .values(data)
+      .returning({ id: weworkConfig.id });
     return { id: result[0]?.id || 0, ...data };
   }
 }
 
-export async function updateAccessToken(accessToken: string, expiresIn: number) {
+export async function updateAccessToken(
+  accessToken: string,
+  expiresIn: number
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   const config = await getWeworkConfig();
   if (!config) throw new Error("企业微信配置不存在");
-  
-  const expiresAt = new Date(Date.now() + expiresIn * 1000);
-  await db.update(weworkConfig)
-    .set({ accessToken, tokenExpiresAt: expiresAt, updatedAt: new Date() })
+
+  const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+  await db
+    .update(weworkConfig)
+    .set({
+      accessToken,
+      tokenExpiresAt: expiresAt,
+      updatedAt: new Date().toISOString(),
+    })
     .where(eq(weworkConfig.id, config.id));
 }
 
@@ -64,14 +85,19 @@ export async function createContactWay(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(weworkContactWay).values(data).returning({ id: weworkContactWay.id });
+  const result = await db
+    .insert(weworkContactWay)
+    .values(data)
+    .returning({ id: weworkContactWay.id });
   return { id: result[0]?.id || 0, ...data };
 }
 
 export async function getContactWay(configId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const ways = await db.select().from(weworkContactWay)
+  const ways = await db
+    .select()
+    .from(weworkContactWay)
     .where(eq(weworkContactWay.configId, configId))
     .limit(1);
   return ways[0] || null;
@@ -80,15 +106,18 @@ export async function getContactWay(configId: string) {
 export async function listContactWays() {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  return await db.select().from(weworkContactWay)
+  return await db
+    .select()
+    .from(weworkContactWay)
     .where(eq(weworkContactWay.isActive, 1));
 }
 
 export async function deleteContactWay(configId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(weworkContactWay)
-    .set({ isActive: 0, updatedAt: new Date() })
+  await db
+    .update(weworkContactWay)
+    .set({ isActive: 0, updatedAt: new Date().toISOString() })
     .where(eq(weworkContactWay.configId, configId));
 }
 
@@ -108,7 +137,7 @@ export async function createWeworkCustomer(data: {
   followUserId?: string;
   remark?: string;
   description?: string;
-  createTime?: Date;
+  createTime?: string;
   tags?: string;
   state?: string;
   conversationId?: number;
@@ -116,14 +145,19 @@ export async function createWeworkCustomer(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(weworkCustomers).values(data).returning({ id: weworkCustomers.id });
+  const result = await db
+    .insert(weworkCustomers)
+    .values(data)
+    .returning({ id: weworkCustomers.id });
   return { id: result[0]?.id || 0, ...data };
 }
 
 export async function getWeworkCustomer(externalUserId: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const customers = await db.select().from(weworkCustomers)
+  const customers = await db
+    .select()
+    .from(weworkCustomers)
     .where(eq(weworkCustomers.externalUserId, externalUserId))
     .limit(1);
   return customers[0] || null;
@@ -135,11 +169,15 @@ export async function listWeworkCustomers() {
   return await db.select().from(weworkCustomers);
 }
 
-export async function updateWeworkCustomer(externalUserId: string, data: Partial<typeof weworkCustomers.$inferInsert>) {
+export async function updateWeworkCustomer(
+  externalUserId: string,
+  data: Partial<typeof weworkCustomers.$inferInsert>
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(weworkCustomers)
-    .set({ ...data, updatedAt: new Date() })
+  await db
+    .update(weworkCustomers)
+    .set({ ...data, updatedAt: new Date().toISOString() })
     .where(eq(weworkCustomers.externalUserId, externalUserId));
 }
 
@@ -154,15 +192,23 @@ export async function createWeworkMessage(data: {
 }) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  const result = await db.insert(weworkMessages).values(data).returning({ id: weworkMessages.id });
+  const result = await db
+    .insert(weworkMessages)
+    .values(data)
+    .returning({ id: weworkMessages.id });
   return { id: result[0]?.id || 0, ...data };
 }
 
-export async function updateMessageStatus(id: number, status: "sent" | "failed", errorMsg?: string) {
+export async function updateMessageStatus(
+  id: number,
+  status: "sent" | "failed",
+  errorMsg?: string
+) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
-  await db.update(weworkMessages)
-    .set({ status, errorMsg, sentAt: new Date() })
+  await db
+    .update(weworkMessages)
+    .set({ status, errorMsg, sentAt: new Date().toISOString() })
     .where(eq(weworkMessages.id, id));
 }
 
@@ -170,7 +216,9 @@ export async function listWeworkMessages(externalUserId?: string) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
   if (externalUserId) {
-    return await db.select().from(weworkMessages)
+    return await db
+      .select()
+      .from(weworkMessages)
       .where(eq(weworkMessages.externalUserId, externalUserId));
   }
   return await db.select().from(weworkMessages);

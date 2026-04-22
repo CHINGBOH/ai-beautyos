@@ -133,14 +133,14 @@ export default function DashboardWework() {
         <div className="flex items-center justify-between">
           <div>
             <div className="flex items-center gap-3 mb-2">
-              <Smartphone className="w-8 h-8 text-green-600" />
+              <Smartphone className="w-8 h-8 text-stone-600" />
               <h1 className="text-3xl font-bold text-gray-800">企业微信管理</h1>
             </div>
             <p className="text-gray-600">管理企业微信客户和消息推送</p>
           </div>
           
           {isMockMode && (
-            <Badge variant="outline" className="border-orange-500 text-orange-600 px-4 py-2">
+            <Badge variant="outline" className="border-stone-400 text-stone-600 px-4 py-2">
               <AlertCircle className="w-4 h-4 mr-2" />
               模拟模式
             </Badge>
@@ -158,7 +158,7 @@ export default function DashboardWework() {
                     {contactWays.data?.length || 0}
                   </p>
                 </div>
-                <QrCode className="w-10 h-10 text-green-600" />
+                <QrCode className="w-10 h-10 text-stone-600" />
               </div>
             </CardContent>
           </Card>
@@ -172,7 +172,7 @@ export default function DashboardWework() {
                     {customers.data?.length || 0}
                   </p>
                 </div>
-                <Users className="w-10 h-10 text-blue-600" />
+                <Users className="w-10 h-10 text-stone-600" />
               </div>
             </CardContent>
           </Card>
@@ -184,7 +184,7 @@ export default function DashboardWework() {
                   <p className="text-sm text-gray-600">今日新增</p>
                   <p className="text-2xl font-bold text-gray-800">0</p>
                 </div>
-                <MessageSquare className="w-10 h-10 text-purple-600" />
+                <MessageSquare className="w-10 h-10 text-stone-600" />
               </div>
             </CardContent>
           </Card>
@@ -223,17 +223,17 @@ export default function DashboardWework() {
                 </div>
 
                 {isMockMode ? (
-                  <div className="bg-green-50 border border-green-200 rounded-lg p-6">
+                  <div className="bg-stone-50 border border-stone-200 rounded-lg p-6">
                     <div className="flex items-start gap-3">
-                      <CheckCircle2 className="w-6 h-6 text-green-600 mt-1" />
+                      <CheckCircle2 className="w-6 h-6 text-stone-600 mt-1" />
                       <div className="flex-1">
-                        <h3 className="font-semibold text-green-900 mb-2">
+                        <h3 className="font-semibold text-stone-700 mb-2">
                           模拟模式已启用
                         </h3>
-                        <p className="text-sm text-green-800 mb-4">
+                        <p className="text-sm text-stone-600 mb-4">
                           在企业微信认证期间，您可以使用模拟模式测试所有功能。模拟模式会生成虚拟的二维码、客户和消息，帮助您提前熟悉系统操作。
                         </p>
-                        <div className="space-y-2 text-sm text-green-800">
+                        <div className="space-y-2 text-sm text-stone-600">
                           <p>✓ 可以创建"联系我"二维码</p>
                           <p>✓ 可以模拟客户添加事件</p>
                           <p>✓ 可以测试消息推送功能</p>
@@ -324,7 +324,7 @@ export default function DashboardWework() {
                   <Button 
                     onClick={handleSaveConfig}
                     disabled={saveConfig.isPending}
-                    className="bg-blue-600 hover:bg-blue-700"
+                    className="bg-[#B8A68D] hover:bg-[#A69479]"
                   >
                     {saveConfig.isPending ? (
                       <>
@@ -357,7 +357,7 @@ export default function DashboardWework() {
                   <Button
                     onClick={handleCreateContactWay}
                     disabled={createContactWay.isPending}
-                    className="bg-green-600 hover:bg-green-700"
+                    className="bg-[#B8A68D] hover:bg-[#A69479]"
                   >
                     {createContactWay.isPending ? (
                       <>
@@ -381,7 +381,7 @@ export default function DashboardWework() {
                 ) : contactWays.data && contactWays.data.length > 0 ? (
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                     {contactWays.data.map((way) => (
-                      <Card key={way.id} className="border-green-100">
+                      <Card key={way.id} className="border-stone-200">
                         <CardContent className="pt-6">
                           <div className="flex flex-col items-center gap-4">
                             {way.qrCode && (
@@ -402,7 +402,7 @@ export default function DashboardWework() {
                               </p>
                               <Badge
                                 variant="outline"
-                                className="mt-2 border-green-500 text-green-600"
+                                className="mt-2 border-stone-400 text-stone-600"
                               >
                                 {way.skipVerify ? "自动添加" : "需要验证"}
                               </Badge>
@@ -419,7 +419,7 @@ export default function DashboardWework() {
                     <Button
                       onClick={handleCreateContactWay}
                       variant="outline"
-                      className="border-green-600 text-green-600 hover:bg-green-50"
+                      className="border-stone-400 text-stone-600 hover:bg-stone-50"
                     >
                       <Plus className="w-4 h-4 mr-2" />
                       创建第一个二维码
@@ -446,7 +446,7 @@ export default function DashboardWework() {
                       onClick={handleMockAddCustomer}
                       disabled={mockAddCustomer.isPending}
                       variant="outline"
-                      className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                      className="border-stone-400 text-stone-600 hover:bg-stone-50"
                     >
                       {mockAddCustomer.isPending ? (
                         <>
@@ -471,7 +471,7 @@ export default function DashboardWework() {
                 ) : customers.data && customers.data.length > 0 ? (
                   <div className="space-y-3">
                     {customers.data.map((customer) => (
-                      <Card key={customer.id} className="border-blue-100">
+                      <Card key={customer.id} className="border-stone-200">
                         <CardContent className="pt-6">
                           <div className="flex items-center gap-4">
                             <img
@@ -517,7 +517,7 @@ export default function DashboardWework() {
                       <Button
                         onClick={handleMockAddCustomer}
                         variant="outline"
-                        className="border-orange-500 text-orange-600 hover:bg-orange-50"
+                        className="border-stone-400 text-stone-600 hover:bg-stone-50"
                       >
                         <Plus className="w-4 h-4 mr-2" />
                         模拟添加第一个客户

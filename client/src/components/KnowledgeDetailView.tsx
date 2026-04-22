@@ -23,9 +23,9 @@ export function KnowledgeDetailView({ knowledgeId }: { knowledgeId: number }) {
     <div className="space-y-6">
       {/* 标题和基本信息 */}
       <div>
-        <h2 className="text-2xl font-bold mb-2">{knowledge.title}</h2>
+        <h2 className="mb-2">{knowledge.title}</h2>
         {knowledge.summary && (
-          <p className="text-gray-600 mb-4">{knowledge.summary}</p>
+          <p className="text-muted-foreground mb-4 leading-relaxed">{knowledge.summary}</p>
         )}
         <div className="flex flex-wrap gap-2">
           <Badge variant="outline">层级 {knowledge.level}</Badge>
@@ -42,10 +42,10 @@ export function KnowledgeDetailView({ knowledgeId }: { knowledgeId: number }) {
       </div>
 
       {/* 完整内容 */}
-      <div>
-        <h3 className="text-lg font-semibold mb-3">内容</h3>
-        <div className="prose max-w-none">
-          <div className="whitespace-pre-wrap text-sm">{knowledge.content}</div>
+      <div className="rounded-lg shadow-card bg-card p-4">
+        <h3 className="mb-3">内容</h3>
+        <div className="prose max-w-none prose-p:leading-relaxed">
+          <div className="whitespace-pre-wrap text-sm leading-relaxed">{knowledge.content}</div>
         </div>
       </div>
 
@@ -60,7 +60,7 @@ export function KnowledgeDetailView({ knowledgeId }: { knowledgeId: number }) {
       {knowledge.practicalGuide && (
         <div>
           <h3 className="text-lg font-semibold mb-3">实践指导</h3>
-          <div className="bg-gray-50 border rounded-lg p-4">
+          <div className="bg-muted/50 border rounded-lg p-4 shadow-soft">
             <PracticalGuideView guide={knowledge.practicalGuide} />
           </div>
         </div>
@@ -70,7 +70,7 @@ export function KnowledgeDetailView({ knowledgeId }: { knowledgeId: number }) {
       {knowledge.caseStudies && (
         <div>
           <h3 className="text-lg font-semibold mb-3">案例研究</h3>
-          <div className="bg-gray-50 border rounded-lg p-4">
+          <div className="bg-muted/50 border rounded-lg p-4 shadow-soft">
             <CaseStudiesView cases={knowledge.caseStudies} />
           </div>
         </div>
@@ -80,7 +80,7 @@ export function KnowledgeDetailView({ knowledgeId }: { knowledgeId: number }) {
       {knowledge.expertOpinions && (
         <div>
           <h3 className="text-lg font-semibold mb-3">专家观点</h3>
-          <div className="bg-gray-50 border rounded-lg p-4">
+          <div className="bg-muted/50 border rounded-lg p-4 shadow-soft">
             <ExpertOpinionsView opinions={knowledge.expertOpinions} />
           </div>
         </div>
@@ -117,7 +117,7 @@ function PracticalGuideView({ guide }: { guide: string }) {
     return (
       <div className="space-y-4">
         {Array.isArray(steps) && steps.map((step: any, index: number) => (
-          <div key={index} className="border-l-4 border-blue-500 pl-4">
+          <div key={index} className="border-l-4 border-stone-400 pl-4">
             <div className="font-medium mb-1">
               步骤 {step.step || index + 1}: {step.title || step.description?.substring(0, 30)}
             </div>
@@ -129,7 +129,7 @@ function PracticalGuideView({ guide }: { guide: string }) {
               <div className="text-xs text-gray-500">时间: {step.duration}</div>
             )}
             {step.tips && (
-              <div className="text-xs text-amber-600 mt-1">💡 {step.tips}</div>
+              <div className="text-xs text-[#B8A68D] mt-1">💡 {step.tips}</div>
             )}
           </div>
         ))}
@@ -163,10 +163,10 @@ function CaseStudiesView({ cases }: { cases: string }) {
               <div className="text-xs text-gray-500 mt-2">持续时间: {caseItem.duration}</div>
             )}
             {caseItem.result && (
-              <div className="text-xs text-green-600 mt-2">结果: {caseItem.result}</div>
+              <div className="text-xs text-stone-600 mt-2">结果: {caseItem.result}</div>
             )}
             {caseItem.lessons && (
-              <div className="text-xs text-blue-600 mt-2">经验: {caseItem.lessons}</div>
+              <div className="text-xs text-stone-600 mt-2">经验: {caseItem.lessons}</div>
             )}
           </div>
         ))}
@@ -183,7 +183,7 @@ function ExpertOpinionsView({ opinions }: { opinions: string }) {
     return (
       <div className="space-y-4">
         {Array.isArray(opinionList) && opinionList.map((opinion: any, index: number) => (
-          <div key={index} className="border-l-4 border-purple-500 pl-4">
+          <div key={index} className="border-l-4 border-stone-400 pl-4">
             <div className="font-medium mb-1">
               {opinion.expert} - {opinion.title}
             </div>

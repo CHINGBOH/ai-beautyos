@@ -16,10 +16,13 @@ import { router, protectedProcedure } from "../_core/trpc";
 import { getDb } from "../db";
 import { knowledgeBase } from "../../drizzle/schema";
 import { eq, and, or, ilike, desc, sql } from "drizzle-orm";
-import { generateEmbedding, resolveEmbeddingProvider } from "../_core/embeddings";
+import {
+  generateEmbedding,
+  resolveEmbeddingProvider,
+} from "../_core/embeddings";
 
 const vectorSearchInput = z.object({
-  query: z.string().min(1, "搜索查询不能为空"),
+  query: z.string().min(1, "搜索查询不能为空").max(500),
   module: z.string().optional(),
   limit: z.number().min(1).max(50).default(10),
   threshold: z.number().min(0).max(1).default(0.7),
@@ -52,7 +55,10 @@ function toVectorLiteral(vec: number[]): string {
   return JSON.stringify(vec);
 }
 
-async function keywordSearch(db: any, input: z.infer<typeof vectorSearchInput>) {
+async function keywordSearch(
+  db: any,
+  input: z.infer<typeof vectorSearchInput>
+) {
   const searchTerm = `%${input.query}%`;
   const whereConditions: any[] = [
     eq(knowledgeBase.isActive, 1),
@@ -62,9 +68,12 @@ async function keywordSearch(db: any, input: z.infer<typeof vectorSearchInput>) 
       ilike(knowledgeBase.content, searchTerm)
     ),
   ];
-  if (input.module) whereConditions.push(eq(knowledgeBase.module, input.module));
+  if (input.module)
+    whereConditions.push(eq(knowledgeBase.module, input.module));
   if (input.filters?.difficulty) {
-    whereConditions.push(eq(knowledgeBase.difficulty, input.filters.difficulty));
+    whereConditions.push(
+      eq(knowledgeBase.difficulty, input.filters.difficulty)
+    );
   }
   if (input.filters?.credibility) {
     whereConditions.push(
@@ -100,7 +109,10 @@ async function keywordSearch(db: any, input: z.infer<typeof vectorSearchInput>) 
   };
 }
 
-async function semanticSearch(db: any, input: z.infer<typeof vectorSearchInput>) {
+async function semanticSearch(
+  db: any,
+  input: z.infer<typeof vectorSearchInput>
+) {
   const { embedding: queryVec } = await generateEmbedding(input.query);
   const q = toVectorLiteral(queryVec);
 
@@ -108,9 +120,12 @@ async function semanticSearch(db: any, input: z.infer<typeof vectorSearchInput>)
     eq(knowledgeBase.isActive, 1),
     sql`${knowledgeBase.embedding} IS NOT NULL`,
   ];
-  if (input.module) whereConditions.push(eq(knowledgeBase.module, input.module));
+  if (input.module)
+    whereConditions.push(eq(knowledgeBase.module, input.module));
   if (input.filters?.difficulty) {
-    whereConditions.push(eq(knowledgeBase.difficulty, input.filters.difficulty));
+    whereConditions.push(
+      eq(knowledgeBase.difficulty, input.filters.difficulty)
+    );
   }
   if (input.filters?.credibility) {
     whereConditions.push(
@@ -164,7 +179,9 @@ export const vectorSearchRouter = router({
       return {
         db: false,
         pgvector: false,
-        embeddingProvider: provider ? { provider: provider.provider, model: provider.model } : null,
+        embeddingProvider: provider
+          ? { provider: provider.provider, model: provider.model }
+          : null,
         mode: "keyword_only" as const,
       };
     }
@@ -173,7 +190,13 @@ export const vectorSearchRouter = router({
     return {
       db: true,
       pgvector,
-      embeddingProvider: provider ? { provider: provider.provider, model: provider.model, baseURL: provider.baseURL } : null,
+      embeddingProvider: provider
+        ? {
+            provider: provider.provider,
+            model: provider.model,
+            baseURL: provider.baseURL,
+          }
+        : null,
       mode: canVector ? ("vector" as const) : ("keyword_only" as const),
     };
   }),
@@ -181,66 +204,90 @@ export const vectorSearchRouter = router({
   /**
    * 检索：优先向量，失败/条件不足时降级关键词
    */
-  search: protectedProcedure.input(vectorSearchInput).query(async ({ input }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "数据库连接失败" });
+  search: protectedProcedure
+    .input(vectorSearchInput)
+    .query(async ({ input }) => {
+      const db = await getDb();
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "数据库连接失败",
+        });
 
-    const provider = resolveEmbeddingProvider();
-    const pgvector = await hasPgvector(db);
-    const canVector = Boolean(provider && pgvector);
+      const provider = resolveEmbeddingProvider();
+      const pgvector = await hasPgvector(db);
+      const canVector = Boolean(provider && pgvector);
 
-    const data = canVector
-      ? await semanticSearch(db, input).catch(() => keywordSearch(db, input))
-      : await keywordSearch(db, input);
+      const data = canVector
+        ? await semanticSearch(db, input).catch(() => keywordSearch(db, input))
+        : await keywordSearch(db, input);
 
-    return {
-      query: input.query,
-      threshold: input.threshold,
-      totalFound: data.results.length,
-      mode: data.mode,
-      results: data.results,
-    };
-  }),
+      return {
+        query: input.query,
+        threshold: input.threshold,
+        totalFound: data.results.length,
+        mode: data.mode,
+        results: data.results,
+      };
+    }),
 
   /**
    * 单条索引：生成 embedding 并写入 knowledge_base.embedding
    */
-  indexContent: protectedProcedure.input(indexContentInput).mutation(async ({ input }) => {
-    const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "数据库连接失败" });
-    if (!resolveEmbeddingProvider()) {
-      throw new TRPCError({ code: "PRECONDITION_FAILED", message: "未配置 embedding（请设置 QWEN_API_KEY 或 OPENAI_API_KEY）" });
-    }
+  indexContent: protectedProcedure
+    .input(indexContentInput)
+    .mutation(async ({ input }) => {
+      const db = await getDb();
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "数据库连接失败",
+        });
+      if (!resolveEmbeddingProvider()) {
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "未配置 embedding（请设置 QWEN_API_KEY 或 OPENAI_API_KEY）",
+        });
+      }
 
-    const rows = await db
-      .select({
-        id: knowledgeBase.id,
-        title: knowledgeBase.title,
-        summary: knowledgeBase.summary,
-        content: knowledgeBase.content,
-        embedding: knowledgeBase.embedding,
-      })
-      .from(knowledgeBase)
-      .where(eq(knowledgeBase.id, input.contentId))
-      .limit(1);
+      const rows = await db
+        .select({
+          id: knowledgeBase.id,
+          title: knowledgeBase.title,
+          summary: knowledgeBase.summary,
+          content: knowledgeBase.content,
+          embedding: knowledgeBase.embedding,
+        })
+        .from(knowledgeBase)
+        .where(eq(knowledgeBase.id, input.contentId))
+        .limit(1);
 
-    const item = rows[0];
-    if (!item) throw new TRPCError({ code: "NOT_FOUND", message: "内容不存在" });
-    if (item.embedding && !input.force) {
-      return { success: true, message: "内容已索引", contentId: input.contentId };
-    }
+      const item = rows[0];
+      if (!item)
+        throw new TRPCError({ code: "NOT_FOUND", message: "内容不存在" });
+      if (item.embedding && !input.force) {
+        return {
+          success: true,
+          message: "内容已索引",
+          contentId: input.contentId,
+        };
+      }
 
-    const text = `${item.title}\n${item.summary || ""}\n${item.content || ""}`;
-    const { embedding } = await generateEmbedding(text);
-    const literal = toVectorLiteral(embedding);
+      const text = `${item.title}\n${item.summary || ""}\n${item.content || ""}`;
+      const { embedding } = await generateEmbedding(text);
+      const literal = toVectorLiteral(embedding);
 
-    await db
-      .update(knowledgeBase)
-      .set({ embedding: literal, updatedAt: new Date() })
-      .where(eq(knowledgeBase.id, input.contentId));
+      await db
+        .update(knowledgeBase)
+        .set({ embedding: literal, updatedAt: new Date().toISOString() })
+        .where(eq(knowledgeBase.id, input.contentId));
 
-    return { success: true, message: "内容索引成功", contentId: input.contentId };
-  }),
+      return {
+        success: true,
+        message: "内容索引成功",
+        contentId: input.contentId,
+      };
+    }),
 
   /**
    * 批量索引：按模块/未索引筛选，逐条写入 embedding
@@ -255,14 +302,23 @@ export const vectorSearchRouter = router({
     )
     .mutation(async ({ input }) => {
       const db = await getDb();
-      if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "数据库连接失败" });
+      if (!db)
+        throw new TRPCError({
+          code: "INTERNAL_SERVER_ERROR",
+          message: "数据库连接失败",
+        });
       if (!resolveEmbeddingProvider()) {
-        throw new TRPCError({ code: "PRECONDITION_FAILED", message: "未配置 embedding（请设置 QWEN_API_KEY 或 OPENAI_API_KEY）" });
+        throw new TRPCError({
+          code: "PRECONDITION_FAILED",
+          message: "未配置 embedding（请设置 QWEN_API_KEY 或 OPENAI_API_KEY）",
+        });
       }
 
       const whereConditions: any[] = [eq(knowledgeBase.isActive, 1)];
-      if (input.module) whereConditions.push(eq(knowledgeBase.module, input.module));
-      if (!input.force) whereConditions.push(sql`${knowledgeBase.embedding} IS NULL`);
+      if (input.module)
+        whereConditions.push(eq(knowledgeBase.module, input.module));
+      if (!input.force)
+        whereConditions.push(sql`${knowledgeBase.embedding} IS NULL`);
 
       const items = await db
         .select({
@@ -283,7 +339,10 @@ export const vectorSearchRouter = router({
           const { embedding } = await generateEmbedding(text);
           await db
             .update(knowledgeBase)
-            .set({ embedding: toVectorLiteral(embedding), updatedAt: new Date() })
+            .set({
+              embedding: toVectorLiteral(embedding),
+              updatedAt: new Date().toISOString(),
+            })
             .where(eq(knowledgeBase.id, it.id));
           ok++;
         } catch {
@@ -291,7 +350,12 @@ export const vectorSearchRouter = router({
         }
       }
 
-      return { success: true, total: items.length, successful: ok, failed: fail };
+      return {
+        success: true,
+        total: items.length,
+        successful: ok,
+        failed: fail,
+      };
     }),
 
   /**
@@ -299,7 +363,11 @@ export const vectorSearchRouter = router({
    */
   getStats: protectedProcedure.query(async () => {
     const db = await getDb();
-    if (!db) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "数据库连接失败" });
+    if (!db)
+      throw new TRPCError({
+        code: "INTERNAL_SERVER_ERROR",
+        message: "数据库连接失败",
+      });
 
     const totals = await db
       .select({
@@ -312,8 +380,9 @@ export const vectorSearchRouter = router({
     return {
       total: totals[0]?.total || 0,
       indexed: totals[0]?.indexed || 0,
-      indexRate: totals[0]?.total ? (totals[0].indexed / totals[0].total) * 100 : 0,
+      indexRate: totals[0]?.total
+        ? (totals[0].indexed / totals[0].total) * 100
+        : 0,
     };
   }),
 });
-

@@ -9,7 +9,8 @@ import {
   getTriggerExecutions,
   createTriggerExecution,
 } from "../db";
-import { invokeLLM } from "../_core/llm";
+import { runBirthdayHolidayTrigger } from "../jobs/birthday-holiday";
+import { invokeLLM } from "../llm";
 
 export const triggersRouter = router({
   // 获取所有触发器
@@ -30,15 +31,29 @@ export const triggersRouter = router({
   create: protectedProcedure
     .input(
       z.object({
-        name: z.string(),
-        type: z.enum(["time", "behavior", "weather"]),
-        condition: z.string(),
-        action: z.string(),
+        name: z.string().max(200),
+        type: z.enum([
+          "time",
+          "behavior",
+          "weather",
+          "birthday_reminder",
+          "holiday_reminder",
+        ]),
+        condition: z.string().max(5000).optional(),
+        action: z.string().max(5000),
+        actionConfig: z.string().max(5000).optional(),
         enabled: z.boolean().default(true),
+        timeConfig: z.string().max(5000).optional(),
       })
     )
     .mutation(async ({ input }) => {
-      const trigger = await dbCreateTrigger(input);
+      const { condition, enabled, timeConfig, actionConfig, ...rest } = input;
+      const trigger = await dbCreateTrigger({
+        ...rest,
+        timeConfig: timeConfig ?? condition ?? null,
+        actionConfig: actionConfig ?? null,
+        isActive: enabled ? 1 : 0,
+      } as Parameters<typeof dbCreateTrigger>[0]);
       return trigger;
     }),
 
@@ -47,16 +62,35 @@ export const triggersRouter = router({
     .input(
       z.object({
         id: z.number(),
-        name: z.string().optional(),
-        type: z.enum(["time", "behavior", "weather"]).optional(),
-        condition: z.string().optional(),
-        action: z.string().optional(),
+        name: z.string().max(200).optional(),
+        type: z
+          .enum([
+            "time",
+            "behavior",
+            "weather",
+            "birthday_reminder",
+            "holiday_reminder",
+          ])
+          .optional(),
+        condition: z.string().max(5000).optional(),
+        action: z.string().max(5000).optional(),
+        actionConfig: z.string().max(5000).optional(),
         enabled: z.boolean().optional(),
+        timeConfig: z.string().max(5000).optional(),
       })
     )
     .mutation(async ({ input }) => {
-      const { id, ...data } = input;
-      const trigger = await dbUpdateTrigger(id, data);
+      const { id, enabled, condition, timeConfig, actionConfig, ...rest } =
+        input;
+      const data: Record<string, unknown> = { ...rest };
+      if (enabled !== undefined) data.isActive = enabled ? 1 : 0;
+      if (timeConfig !== undefined) data.timeConfig = timeConfig;
+      else if (condition !== undefined) data.timeConfig = condition;
+      if (actionConfig !== undefined) data.actionConfig = actionConfig;
+      const trigger = await dbUpdateTrigger(
+        id,
+        data as Parameters<typeof dbUpdateTrigger>[1]
+      );
       return trigger;
     }),
 
@@ -77,49 +111,137 @@ export const triggersRouter = router({
         throw new Error("触发器不存在");
       }
 
-      // 解析触发器动作
-      const action = JSON.parse(trigger.action);
+      // 生日/节日提醒：扫描 leads 并执行跟进
+      if (
+        trigger.type === "birthday_reminder" ||
+        trigger.type === "holiday_reminder"
+      ) {
+        try {
+          // 30s 超时保护，防止 DB 慢查询阻塞请求
+          const timeoutMs = 30_000;
+          const outcome = await Promise.race([
+            runBirthdayHolidayTrigger(trigger),
+            new Promise<never>((_, reject) =>
+              setTimeout(
+                () =>
+                  reject(new Error(`触发器执行超时（>${timeoutMs / 1000}s）`)),
+                timeoutMs
+              )
+            ),
+          ]);
+          await createTriggerExecution({
+            triggerId: trigger.id,
+            executedAt: new Date().toISOString(),
+            result: outcome.result,
+            status: outcome.success ? "success" : "failed",
+          });
+          return {
+            success: outcome.success,
+            result: outcome.result,
+            count: outcome.count,
+          };
+        } catch (error: unknown) {
+          const msg = error instanceof Error ? error.message : String(error);
+          await createTriggerExecution({
+            triggerId: trigger.id,
+            executedAt: new Date().toISOString(),
+            result: msg,
+            status: "failed",
+          });
+          throw error;
+        }
+      }
 
+      // 解析触发器动作（action 可能是 JSON 字符串或纯类型名如 "create_task"）
+      let action: Record<string, unknown> = {};
+      const rawAction = trigger.action;
+      if (typeof rawAction === "object" && rawAction !== null) {
+        action = rawAction as Record<string, unknown>;
+      } else if (typeof rawAction === "string") {
+        const trimmed = rawAction.trim();
+        if (trimmed.startsWith("{")) {
+          try {
+            action = JSON.parse(trimmed) as Record<string, unknown>;
+          } catch {
+            action = { type: trimmed || "create_task" };
+          }
+        } else {
+          action = { type: trimmed || "create_task" };
+          if (trigger.actionConfig) {
+            try {
+              const extra = JSON.parse(trigger.actionConfig) as Record<
+                string,
+                unknown
+              >;
+              action = { ...action, ...extra };
+            } catch {
+              // ignore
+            }
+          }
+        }
+      }
+      // 若未解析出 type，使用默认动作，避免“未知的动作类型”
+      if (action.type === undefined || action.type === null) {
+        if (trigger.actionConfig) {
+          try {
+            const a = JSON.parse(trigger.actionConfig) as Record<
+              string,
+              unknown
+            >;
+            if (a.type) action.type = a.type;
+          } catch {
+            // ignore
+          }
+        }
+        if (action.type === undefined || action.type === null)
+          action.type = "create_task";
+      }
       let result = "";
       let success = true;
 
       try {
-        // 根据动作类型执行不同的操作
         if (action.type === "send_message") {
-          // 发送消息（这里简化处理，实际应该调用消息发送 API）
-          result = `已向 ${action.target} 发送消息：${action.message}`;
-        } else if (action.type === "create_task") {
-          // 创建任务
-          result = `已创建任务：${action.taskName}`;
+          // send_message: 创建消息记录（需后续对接企业微信 API 实际发送）
+          const { createWeworkMessage } = await import("../wework-db");
+          await createWeworkMessage({
+            externalUserId: String(action.target || ""),
+            sendUserId: "system",
+            msgType: "text",
+            content: String(action.message || "触发器自动发送"),
+            status: "pending",
+          });
+          result = `已创建消息记录，目标：${action.target}`;
+        } else if (
+          action.type === "create_task" ||
+          action.type === "follow_up"
+        ) {
+          // create_task / follow_up: 创建一条跟进记录写入 trigger_executions
+          result = `已创建跟进任务${action.taskName ? `：${action.taskName}` : ""}，触发器 ID：${trigger.id}`;
         } else if (action.type === "send_notification") {
-          // 发送通知
-          result = `已发送通知：${action.message}`;
+          // send_notification: 记录通知内容到执行结果（后续对接 WebSocket/推送）
+          result = `通知已记录：${action.message}`;
         } else {
-          result = "未知的动作类型";
+          result = `未知的动作类型: ${action.type}`;
           success = false;
         }
 
-        // 记录执行历史
         await createTriggerExecution({
           triggerId: trigger.id,
-          executedAt: new Date(),
+          executedAt: new Date().toISOString(),
           result,
-          success,
+          status: success ? "success" : "failed",
         });
 
-        return {
-          success,
-          result,
-        };
-      } catch (error: any) {
-        // 记录执行失败
+        return { success, result };
+      } catch (error: unknown) {
+        const msg =
+          error instanceof Error ? (error as Error).message : String(error);
         await createTriggerExecution({
           triggerId: trigger.id,
-          executedAt: new Date(),
-          result: error.message,
-          success: false,
+          executedAt: new Date().toISOString(),
+          result: msg,
+          status: "failed",
         });
-
         throw error;
       }
     }),
@@ -137,7 +259,7 @@ export const triggersRouter = router({
     .input(
       z.object({
         type: z.enum(["time", "behavior", "weather"]),
-        description: z.string(),
+        description: z.string().max(5000),
       })
     )
     .mutation(async ({ input }) => {
@@ -208,7 +330,8 @@ export const triggersRouter = router({
       });
 
       const content = response.choices[0].message.content;
-      const condition = typeof content === "string" ? content : JSON.stringify(content);
+      const condition =
+        typeof content === "string" ? content : JSON.stringify(content);
 
       return {
         condition,

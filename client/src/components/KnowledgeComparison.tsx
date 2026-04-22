@@ -47,9 +47,9 @@ export function KnowledgeComparison({
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {/* 正面论证 */}
           {positive.length > 0 && (
-            <Card className="border-green-200 bg-green-50">
+            <Card className="border-stone-200 bg-stone-50">
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2 text-green-700">
+                <CardTitle className="text-lg flex items-center gap-2 text-stone-600">
                   <CheckCircle2 className="w-5 h-5" />
                   正面论证
                 </CardTitle>
@@ -57,7 +57,7 @@ export function KnowledgeComparison({
               <CardContent>
                 <div className="space-y-3">
                   {positive.map((item: any, index: number) => (
-                    <div key={index} className="border-l-4 border-green-500 pl-4">
+                    <div key={index} className="border-l-4 border-stone-400 pl-4">
                       {item.title && (
                         <div className="font-medium text-sm mb-1">{item.title}</div>
                       )}
@@ -79,9 +79,9 @@ export function KnowledgeComparison({
 
           {/* 反面论证 */}
           {negative.length > 0 && (
-            <Card className="border-red-200 bg-red-50">
+            <Card className="border-stone-200 bg-stone-50">
               <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2 text-red-700">
+                <CardTitle className="text-lg flex items-center gap-2 text-stone-600">
                   <XCircle className="w-5 h-5" />
                   反面论证
                 </CardTitle>
@@ -89,7 +89,7 @@ export function KnowledgeComparison({
               <CardContent>
                 <div className="space-y-3">
                   {negative.map((item: any, index: number) => (
-                    <div key={index} className="border-l-4 border-red-500 pl-4">
+                    <div key={index} className="border-l-4 border-stone-400 pl-4">
                       {item.title && (
                         <div className="font-medium text-sm mb-1">{item.title}</div>
                       )}
@@ -113,9 +113,9 @@ export function KnowledgeComparison({
 
       {/* 中立分析 */}
       {neutralAnalysis && (
-        <Card className="border-blue-200 bg-blue-50">
+        <Card className="border-stone-200 bg-stone-50">
           <CardHeader>
-            <CardTitle className="text-lg flex items-center gap-2 text-blue-700">
+            <CardTitle className="text-lg flex items-center gap-2 text-stone-600">
               <AlertCircle className="w-5 h-5" />
               中立分析
             </CardTitle>

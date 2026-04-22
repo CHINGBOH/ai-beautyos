@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE `knowledge_base` ADD `type` enum('customer','internal') DEFAULT 'customer' NOT NULL;",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RT9x8CnefpQZ1f.90a93e1e3c1a --database WxQZwxXtmPwQUu9473vYXR --execute ALTER TABLE `knowledge_base` ADD `type` enum('customer','internal') DEFAULT 'customer' NOT NULL;",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 5270
-}

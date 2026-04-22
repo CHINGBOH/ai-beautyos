@@ -22,6 +22,41 @@
       "when": 1770495465874,
       "tag": "0002_bizarre_meteorite",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1772303388080,
+      "tag": "0003_hot_eddie_brock",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1772314286584,
+      "tag": "0004_add_leads_hood_birthday_holidays",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1772353519219,
+      "tag": "0005_bored_hardball",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1775162235336,
+      "tag": "0006_nice_anthem",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1775202417135,
+      "tag": "0007_lively_namor",
+      "breakpoints": true
     }
   ]
 }

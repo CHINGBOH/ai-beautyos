@@ -13,36 +13,46 @@ import {
   searchKnowledge,
   incrementKnowledgeView,
 } from "../db";
-import { KNOWLEDGE_MODULES, MODULE_NAMES, DIFFICULTY_LEVELS } from "@shared/types";
+import {
+  KNOWLEDGE_MODULES,
+  MODULE_NAMES,
+  DIFFICULTY_LEVELS,
+} from "@shared/types";
 
 export const knowledgeRouter = router({
   /**
-   * 获取所有知识库（支持按类型、模块筛选）
+   * 获取知识库列表（分页 + 服务端搜索，仅返回轻量列）
    */
   getAll: protectedProcedure
     .input(
       z.object({
         type: z.enum(["customer", "internal"]).optional(),
         module: z.string().optional(),
+        limit: z.number().min(1).max(200).optional().default(50),
+        offset: z.number().min(0).optional().default(0),
+        searchTerm: z.string().max(500).optional(),
       })
     )
     .query(async ({ input }) => {
-      const knowledge = await getAllKnowledge(input.type, input.module);
-      return knowledge;
+      return getAllKnowledge({
+        type: input.type,
+        module: input.module,
+        limit: input.limit,
+        offset: input.offset,
+        searchTerm: input.searchTerm,
+      });
     }),
 
   /**
    * 获取单个知识库详情
    */
-  getById: publicProcedure
+  getById: protectedProcedure
     .input(z.object({ id: z.number() }))
     .query(async ({ input }) => {
       const knowledge = await getKnowledgeById(input.id);
       if (!knowledge) {
         throw new Error("Knowledge not found");
       }
-      // 增加查看次数
-      await incrementKnowledgeView(input.id);
       return knowledge;
     }),
 
@@ -59,6 +69,15 @@ export const knowledgeRouter = router({
       const knowledge = await getKnowledgeByParentId(input.parentId);
       return knowledge;
     }),
+
+  /**
+   * 获取知识库树形结构 (兼容前端调用)
+   */
+  getTree: publicProcedure.query(async () => {
+    // 默认获取 health_foundation 模块的树
+    const tree = await getKnowledgeTreeByModule("health_foundation");
+    return tree;
+  }),
 
   /**
    * 根据模块获取知识库树形结构
@@ -97,7 +116,7 @@ export const knowledgeRouter = router({
   search: publicProcedure
     .input(
       z.object({
-        keyword: z.string().min(1),
+        keyword: z.string().min(1).max(500),
         module: z.string().optional(),
         type: z.enum(["customer", "internal"]).optional(),
         limit: z.number().min(1).max(100).optional().default(20),
@@ -116,44 +135,57 @@ export const knowledgeRouter = router({
   /**
    * 创建知识库（支持6层嵌套）
    */
+  /**
+   * 记录知识库查看次数（显式调用，不在 getById 中自动增加）
+   */
+  incrementView: protectedProcedure
+    .input(z.object({ id: z.number() }))
+    .mutation(async ({ input }) => {
+      await incrementKnowledgeView(input.id);
+      return { success: true };
+    }),
+
   create: protectedProcedure
     .input(
       z.object({
         // 层级结构
         parentId: z.number().nullable().optional(),
         level: z.number().min(1).max(6).default(1),
-        path: z.string().optional(),
+        path: z.string().max(500).optional(),
         order: z.number().default(0),
-        
+
         // 模块和分类
-        module: z.string().min(1),
-        category: z.string().optional(),
-        subCategory: z.string().optional(),
-        
+        module: z.string().min(1).max(100).default("skin_care"),
+        category: z.string().max(100).optional(),
+        subCategory: z.string().max(100).optional(),
+
         // 内容
-        title: z.string().min(1),
-        summary: z.string().optional(),
-        content: z.string().min(1),
-        
+        title: z.string().min(1).max(200),
+        summary: z.string().max(10000).optional(),
+        content: z.string().min(1).max(100000),
+
         // 多维度内容（JSON格式）
-        positiveEvidence: z.string().optional(), // JSON数组
-        negativeEvidence: z.string().optional(), // JSON数组
-        neutralAnalysis: z.string().optional(),
-        practicalGuide: z.string().optional(), // JSON数组
-        caseStudies: z.string().optional(), // JSON数组
-        expertOpinions: z.string().optional(), // JSON数组
-        
+        positiveEvidence: z.string().max(50000).optional(), // JSON数组
+        negativeEvidence: z.string().max(50000).optional(), // JSON数组
+        neutralAnalysis: z.string().max(50000).optional(),
+        practicalGuide: z.string().max(50000).optional(), // JSON数组
+        caseStudies: z.string().max(50000).optional(), // JSON数组
+        expertOpinions: z.string().max(50000).optional(), // JSON数组
+
         // 多媒体
-        images: z.string().optional(), // JSON数组
-        videos: z.string().optional(), // JSON数组
-        audio: z.string().optional(), // JSON数组
-        
+        images: z.string().max(50000).optional(), // JSON数组
+        videos: z.string().max(50000).optional(), // JSON数组
+        audio: z.string().max(50000).optional(), // JSON数组
+
         // 元数据
-        tags: z.array(z.string()).optional(),
-        sources: z.string().optional(), // JSON数组
+        tags: z.array(z.string().max(100)).optional(),
+        sources: z.string().max(50000).optional(), // JSON数组
         credibility: z.number().min(1).max(10).optional().default(5),
-        difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional().default("beginner"),
-        
+        difficulty: z
+          .enum(["beginner", "intermediate", "advanced"])
+          .optional()
+          .default("beginner"),
+
         // 状态
         type: z.enum(["customer", "internal"]).default("customer"),
         isActive: z.number().optional().default(1),
@@ -161,12 +193,12 @@ export const knowledgeRouter = router({
     )
     .mutation(async ({ input }) => {
       const { tags, ...rest } = input;
-      
+
       const data: any = {
         ...rest,
         tags: tags ? JSON.stringify(tags) : null,
       };
-      
+
       await createKnowledge(data);
       return { success: true };
     }),
@@ -181,38 +213,38 @@ export const knowledgeRouter = router({
         // 层级结构
         parentId: z.number().nullable().optional(),
         level: z.number().min(1).max(6).optional(),
-        path: z.string().optional(),
+        path: z.string().max(500).optional(),
         order: z.number().optional(),
-        
+
         // 模块和分类
-        module: z.string().optional(),
-        category: z.string().optional(),
-        subCategory: z.string().optional(),
-        
+        module: z.string().max(100).optional(),
+        category: z.string().max(100).optional(),
+        subCategory: z.string().max(100).optional(),
+
         // 内容
-        title: z.string().min(1).optional(),
-        summary: z.string().optional(),
-        content: z.string().min(1).optional(),
-        
+        title: z.string().min(1).max(200).optional(),
+        summary: z.string().max(10000).optional(),
+        content: z.string().min(1).max(100000).optional(),
+
         // 多维度内容
-        positiveEvidence: z.string().optional(),
-        negativeEvidence: z.string().optional(),
-        neutralAnalysis: z.string().optional(),
-        practicalGuide: z.string().optional(),
-        caseStudies: z.string().optional(),
-        expertOpinions: z.string().optional(),
-        
+        positiveEvidence: z.string().max(50000).optional(),
+        negativeEvidence: z.string().max(50000).optional(),
+        neutralAnalysis: z.string().max(50000).optional(),
+        practicalGuide: z.string().max(50000).optional(),
+        caseStudies: z.string().max(50000).optional(),
+        expertOpinions: z.string().max(50000).optional(),
+
         // 多媒体
-        images: z.string().optional(),
-        videos: z.string().optional(),
-        audio: z.string().optional(),
-        
+        images: z.string().max(50000).optional(),
+        videos: z.string().max(50000).optional(),
+        audio: z.string().max(50000).optional(),
+
         // 元数据
-        tags: z.array(z.string()).optional(),
-        sources: z.string().optional(),
+        tags: z.array(z.string().max(100)).optional(),
+        sources: z.string().max(50000).optional(),
         credibility: z.number().min(1).max(10).optional(),
         difficulty: z.enum(["beginner", "intermediate", "advanced"]).optional(),
-        
+
         // 状态
         type: z.enum(["customer", "internal"]).optional(),
         isActive: z.number().optional(),
@@ -252,7 +284,11 @@ export const knowledgeRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const knowledge = await getActiveKnowledge(input.category, input.type, input.module);
+      const knowledge = await getActiveKnowledge(
+        input.category,
+        input.type,
+        input.module
+      );
       return knowledge;
     }),
 

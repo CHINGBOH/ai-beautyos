@@ -59,7 +59,7 @@ export const MODULE_DESCRIPTIONS: Record<KnowledgeModule, string> = {
   [KNOWLEDGE_MODULES.ETIQUETTE]: "基本礼仪、商务礼仪、社交场合、国际礼仪、形象管理",
   [KNOWLEDGE_MODULES.TIME_MANAGEMENT]: "时间规划、效率提升、工作生活平衡、习惯养成、时间与美容",
   [KNOWLEDGE_MODULES.ENVIRONMENT]: "居住环境、工作环境、自然环境、环境与健康、环境与美容",
-  [KNOWLEDGE_MODULES.TECH_BEAUTY]: "美容仪器、智能设备、美容APP、虚拟试妆、科技趋势",
+  [KNOWLEDGE_MODULES.TECH_BEAUTY]: "美容仪器、智能设备、美容应用、虚拟试妆、科技趋势",
 };
 
 /**
@@ -94,9 +94,9 @@ export const DIFFICULTY_NAMES: Record<DifficultyLevel, string> = {
 };
 
 /**
- * 内容类型
+ * 知识库内容类型（与 content-types 中小红书 CONTENT_TYPES 区分，避免 star export 冲突）
  */
-export const CONTENT_TYPES = {
+export const KNOWLEDGE_CONTENT_TYPES = {
   ARTICLE: "article", // 深度文章
   CARD: "card", // 知识卡片
   VIDEO: "video", // 视频
@@ -106,4 +106,4 @@ export const CONTENT_TYPES = {
   COMPARISON: "comparison", // 对比
 } as const;
 
-export type ContentType = typeof CONTENT_TYPES[keyof typeof CONTENT_TYPES];
+export type KnowledgeContentType = (typeof KNOWLEDGE_CONTENT_TYPES)[keyof typeof KNOWLEDGE_CONTENT_TYPES];

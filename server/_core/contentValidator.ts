@@ -96,9 +96,9 @@ function validateTitle(title: string): { errors: string[]; warnings: string[]; s
 }
 
 /**
- * Validate content
+ * Validate content body only
  */
-function validateContent(content: string): { errors: string[]; warnings: string[]; score: number } {
+function validateContentBody(content: string): { errors: string[]; warnings: string[]; score: number } {
   const errors: string[] = [];
   const warnings: string[] = [];
   let score = 100;
@@ -193,7 +193,7 @@ export function validateContent(
   tags: string[]
 ): ValidationResult {
   const titleValidation = validateTitle(title);
-  const contentValidation = validateContent(content);
+  const contentValidation = validateContentBody(content);
   const tagsValidation = validateTags(tags);
   const metrics = calculateMetrics(title, content, tags);
 

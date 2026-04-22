@@ -1,9 +1,0 @@
-{
-  "query": "ALTER TABLE `conversations` ADD `psychology_type` enum('恐惧型','贪婪型','安全型','敏感型');\nALTER TABLE `conversations` ADD `psychology_tags` text;\nALTER TABLE `conversations` ADD `budget_level` enum('低','中','高');\nALTER TABLE `conversations` ADD `customer_tier` enum('A','B','C','D');",
-  "command": "mysql --batch --raw --column-names --default-character-set=utf8mb4 --host gateway03.us-east-1.prod.aws.tidbcloud.com --port 4000 --user 4RT9x8CnefpQZ1f.90a93e1e3c1a --database WxQZwxXtmPwQUu9473vYXR --execute ALTER TABLE `conversations` ADD `psychology_type` enum('恐惧型','贪婪型','安全型','敏感型');\nALTER TABLE `conversations` ADD `psychology_tags` text;\nALTER TABLE `conversations` ADD `budget_level` enum('低','中','高');\nALTER TABLE `conversations` ADD `customer_tier` enum('A','B','C','D');",
-  "rows": [],
-  "messages": [],
-  "stdout": "",
-  "stderr": "",
-  "execution_time_ms": 4069
-}

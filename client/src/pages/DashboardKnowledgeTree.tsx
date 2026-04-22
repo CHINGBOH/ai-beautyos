@@ -1,6 +1,12 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { trpc } from "@/lib/trpc";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -12,10 +18,22 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Loader2, ChevronRight, ChevronDown, BookOpen, Search, Home } from "lucide-react";
+import {
+  Loader2,
+  ChevronRight,
+  ChevronDown,
+  BookOpen,
+  Search,
+  Home,
+  AlertCircle,
+} from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { toast } from "sonner";
-import { KNOWLEDGE_MODULES, MODULE_NAMES, MODULE_DESCRIPTIONS } from "@shared/types";
+import {
+  KNOWLEDGE_MODULES,
+  MODULE_NAMES,
+  MODULE_DESCRIPTIONS,
+} from "@shared/types";
 import { KnowledgeComparison } from "@/components/KnowledgeComparison";
 
 interface KnowledgeNode {
@@ -33,13 +51,19 @@ interface KnowledgeNode {
 }
 
 export default function DashboardKnowledgeTree() {
-  const [selectedModule, setSelectedModule] = useState<string>(KNOWLEDGE_MODULES.HEALTH_FOUNDATION);
+  const [selectedModule, setSelectedModule] = useState<string>(
+    KNOWLEDGE_MODULES.HEALTH_FOUNDATION
+  );
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [expandedNodes, setExpandedNodes] = useState<Set<number>>(new Set());
   const [searchKeyword, setSearchKeyword] = useState("");
 
   // 获取知识库树
-  const { data: knowledgeTree, isLoading } = trpc.knowledge.getTreeByModule.useQuery({
+  const {
+    data: knowledgeTree,
+    isLoading,
+    isError: treeError,
+  } = trpc.knowledge.getTreeByModule.useQuery({
     module: selectedModule,
   });
 
@@ -68,7 +92,10 @@ export default function DashboardKnowledgeTree() {
     setExpandedNodes(newExpanded);
   };
 
-  const renderTreeNode = (node: KnowledgeNode, depth: number = 0): JSX.Element => {
+  const renderTreeNode = (
+    node: KnowledgeNode,
+    depth: number = 0
+  ): React.ReactElement => {
     const isExpanded = expandedNodes.has(node.id);
     const hasChildren = node.children && node.children.length > 0;
     const indent = depth * 24;
@@ -76,8 +103,10 @@ export default function DashboardKnowledgeTree() {
     return (
       <div key={node.id} className="select-none">
         <div
-          className={`flex items-center gap-2 py-2 px-3 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors ${
-            selectedNodeId === node.id ? "bg-blue-50 border border-blue-200" : ""
+          className={`flex items-center gap-2 py-1.5 px-2 rounded-md hover:bg-muted/60 cursor-pointer transition-colors ${
+            selectedNodeId === node.id
+              ? "bg-primary/10 border border-primary/20"
+              : ""
           }`}
           style={{ paddingLeft: `${12 + indent}px` }}
           onClick={() => {
@@ -96,13 +125,14 @@ export default function DashboardKnowledgeTree() {
           ) : (
             <div className="w-4 h-4" />
           )}
-          
+
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2">
               <span className="font-medium text-sm">{node.title}</span>
               {node.level === 1 && (
                 <Badge variant="outline" className="text-xs">
-                  {MODULE_NAMES[node.module as keyof typeof MODULE_NAMES] || node.module}
+                  {MODULE_NAMES[node.module as keyof typeof MODULE_NAMES] ||
+                    node.module}
                 </Badge>
               )}
               {node.level > 1 && (
@@ -112,7 +142,9 @@ export default function DashboardKnowledgeTree() {
               )}
             </div>
             {node.summary && (
-              <p className="text-xs text-gray-500 mt-1 line-clamp-1">{node.summary}</p>
+              <p className="text-xs text-gray-500 mt-1 line-clamp-1">
+                {node.summary}
+              </p>
             )}
             <div className="flex items-center gap-3 mt-1 text-xs text-gray-400">
               <span>查看: {node.viewCount}</span>
@@ -123,7 +155,7 @@ export default function DashboardKnowledgeTree() {
 
         {hasChildren && isExpanded && (
           <div className="ml-4">
-            {node.children!.map((child) => renderTreeNode(child, depth + 1))}
+            {node.children!.map(child => renderTreeNode(child, depth + 1))}
           </div>
         )}
       </div>
@@ -132,107 +164,112 @@ export default function DashboardKnowledgeTree() {
 
   return (
     <DashboardLayout>
-      <div className="space-y-6">
-        <div className="flex items-center justify-between">
+      <div className="space-y-4">
+        {/* 标题行：标题 + 副标题 + 搜索 */}
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight">知识库管理</h1>
-            <p className="text-muted-foreground mt-2">
-              6层嵌套知识体系，让美成为女生一生的事业和陪伴
+            <h1 className="text-2xl font-bold tracking-tight">知识库管理</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              6 层嵌套 · 15 个模块
             </p>
+          </div>
+          <div className="relative w-full sm:w-64 shrink-0">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="搜索知识库..."
+              value={searchKeyword}
+              onChange={e => setSearchKeyword(e.target.value)}
+              className="pl-9 h-9"
+            />
           </div>
         </div>
 
-        {/* 模块选择 */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <BookOpen className="w-5 h-5" />
-              选择知识模块
-            </CardTitle>
-            <CardDescription>
-              15个知识模块，涵盖健康基础、皮肤管理、牙齿护理、中医养生、医美技术等
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
-              {modulesData?.modules.map((module) => (
-                <Button
-                  key={module.key}
-                  variant={selectedModule === module.key ? "default" : "outline"}
-                  className="h-auto py-3 flex flex-col items-start gap-1"
-                  onClick={() => {
-                    setSelectedModule(module.key);
-                    setSelectedNodeId(null);
-                    setExpandedNodes(new Set());
-                  }}
-                >
+        {/* 模块选择：下拉 + 当前模块说明 */}
+        <div className="flex flex-col gap-1">
+          <div className="flex items-center gap-2">
+            <BookOpen className="w-4 h-4 text-muted-foreground" />
+            <span className="text-sm font-medium text-muted-foreground">
+              知识模块
+            </span>
+          </div>
+          <Select
+            value={selectedModule}
+            onValueChange={key => {
+              setSelectedModule(key);
+              setSelectedNodeId(null);
+              setExpandedNodes(new Set());
+            }}
+          >
+            <SelectTrigger className="w-full max-w-md h-10">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {modulesData?.modules.map(module => (
+                <SelectItem key={module.key} value={module.key}>
                   <span className="font-medium">{module.name}</span>
-                  <span className="text-xs text-muted-foreground line-clamp-2">
-                    {MODULE_DESCRIPTIONS[module.key as keyof typeof MODULE_DESCRIPTIONS]}
-                  </span>
-                </Button>
+                </SelectItem>
               ))}
-            </div>
-          </CardContent>
-        </Card>
+            </SelectContent>
+          </Select>
+          <p className="text-xs text-muted-foreground max-w-md">
+            {
+              MODULE_DESCRIPTIONS[
+                selectedModule as keyof typeof MODULE_DESCRIPTIONS
+              ]
+            }
+          </p>
+        </div>
 
-        {/* 搜索 */}
-        <Card>
-          <CardContent className="pt-6">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="搜索知识库内容..."
-                value={searchKeyword}
-                onChange={(e) => setSearchKeyword(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* 知识库树 */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* 知识库树 + 详情 */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* 左侧：知识树 */}
           <Card className="lg:col-span-1">
-            <CardHeader>
-              <CardTitle className="text-lg">知识树</CardTitle>
-              <CardDescription>
-                {MODULE_NAMES[selectedModule as keyof typeof MODULE_NAMES]}
-              </CardDescription>
+            <CardHeader className="py-4">
+              <CardTitle className="text-base">
+                {MODULE_NAMES[selectedModule as keyof typeof MODULE_NAMES]} ·
+                知识树
+              </CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {isLoading ? (
                 <div className="flex items-center justify-center py-12">
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
+              ) : treeError ? (
+                <div className="text-center py-12 text-destructive">
+                  <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-80" />
+                  <p className="text-sm">加载失败，请稍后重试</p>
+                </div>
               ) : searchKeyword && searchResults ? (
                 <div className="space-y-2">
-                  <div className="text-sm text-muted-foreground mb-4">
-                    找到 {searchResults.length} 个结果
+                  <div className="text-xs text-muted-foreground mb-2">
+                    共 {searchResults.length} 条
                   </div>
-                  {searchResults.map((item) => (
-                    <div
-                      key={item.id}
-                      className="p-3 rounded-lg border hover:bg-gray-50 cursor-pointer"
-                      onClick={() => setSelectedNodeId(item.id)}
-                    >
-                      <div className="font-medium text-sm">{item.title}</div>
-                      {item.summary && (
-                        <p className="text-xs text-gray-500 mt-1 line-clamp-2">{item.summary}</p>
-                      )}
-                    </div>
-                  ))}
+                  <div className="space-y-1 max-h-[520px] overflow-y-auto">
+                    {searchResults.map(item => (
+                      <div
+                        key={item.id}
+                        className="p-2.5 rounded-md border hover:bg-muted/50 cursor-pointer transition-colors"
+                        onClick={() => setSelectedNodeId(item.id)}
+                      >
+                        <div className="font-medium text-sm">{item.title}</div>
+                        {item.summary && (
+                          <p className="text-xs text-muted-foreground mt-0.5 line-clamp-1">
+                            {item.summary}
+                          </p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ) : knowledgeTree && knowledgeTree.length > 0 ? (
-                <div className="space-y-1 max-h-[600px] overflow-y-auto">
-                  {knowledgeTree.map((node) => renderTreeNode(node))}
+                <div className="space-y-0.5 max-h-[520px] overflow-y-auto">
+                  {knowledgeTree.map(node => renderTreeNode(node))}
                 </div>
               ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  <BookOpen className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>该模块暂无知识内容</p>
-                  <p className="text-sm mt-2">开始添加知识库内容吧</p>
+                <div className="text-center py-10 text-muted-foreground text-sm">
+                  <BookOpen className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                  <p>该模块暂无内容</p>
                 </div>
               )}
             </CardContent>
@@ -240,21 +277,21 @@ export default function DashboardKnowledgeTree() {
 
           {/* 右侧：知识详情 */}
           <Card className="lg:col-span-2">
-            <CardHeader>
-              <CardTitle>知识详情</CardTitle>
-              <CardDescription>
-                {selectedNodeId
-                  ? "查看知识库详细内容"
-                  : "请从左侧选择知识节点"}
-              </CardDescription>
+            <CardHeader className="py-4">
+              <CardTitle className="text-base">知识详情</CardTitle>
+              {!selectedNodeId && (
+                <CardDescription className="text-xs">
+                  从左侧选择节点查看
+                </CardDescription>
+              )}
             </CardHeader>
-            <CardContent>
+            <CardContent className="pt-0">
               {selectedNodeId ? (
                 <KnowledgeDetail nodeId={selectedNodeId} />
               ) : (
-                <div className="text-center py-12 text-muted-foreground">
-                  <Home className="w-12 h-12 mx-auto mb-4 opacity-50" />
-                  <p>选择一个知识节点查看详情</p>
+                <div className="text-center py-10 text-muted-foreground text-sm">
+                  <Home className="w-10 h-10 mx-auto mb-3 opacity-50" />
+                  <p>在左侧选择节点查看详情</p>
                 </div>
               )}
             </CardContent>
@@ -267,7 +304,9 @@ export default function DashboardKnowledgeTree() {
 
 // 知识详情组件
 function KnowledgeDetail({ nodeId }: { nodeId: number }) {
-  const { data: knowledge, isLoading } = trpc.knowledge.getById.useQuery({ id: nodeId });
+  const { data: knowledge, isLoading } = trpc.knowledge.getById.useQuery({
+    id: nodeId,
+  });
 
   if (isLoading) {
     return (
@@ -278,36 +317,53 @@ function KnowledgeDetail({ nodeId }: { nodeId: number }) {
   }
 
   if (!knowledge) {
-    return <div className="text-center py-12 text-muted-foreground">知识内容未找到</div>;
+    return (
+      <div className="text-center py-12 text-muted-foreground">
+        知识内容未找到
+      </div>
+    );
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* 标题和基本信息 */}
       <div>
-        <h2 className="text-2xl font-bold mb-2">{knowledge.title}</h2>
+        <h2 className="text-xl font-bold mb-1.5">{knowledge.title}</h2>
         {knowledge.summary && (
-          <p className="text-gray-600 mb-4">{knowledge.summary}</p>
+          <p className="text-muted-foreground text-sm mb-3">
+            {knowledge.summary}
+          </p>
         )}
-        <div className="flex flex-wrap gap-2">
-          <Badge variant="outline">层级 {knowledge.level}</Badge>
+        <div className="flex flex-wrap gap-1.5">
+          <Badge variant="outline" className="text-xs">
+            L{knowledge.level}
+          </Badge>
           {knowledge.module && (
-            <Badge variant="secondary">
-              {MODULE_NAMES[knowledge.module as keyof typeof MODULE_NAMES] || knowledge.module}
+            <Badge variant="secondary" className="text-xs">
+              {MODULE_NAMES[knowledge.module as keyof typeof MODULE_NAMES] ||
+                knowledge.module}
             </Badge>
           )}
           {knowledge.difficulty && (
-            <Badge variant="outline">难度: {knowledge.difficulty}</Badge>
+            <Badge variant="outline" className="text-xs">
+              {knowledge.difficulty}
+            </Badge>
           )}
-          <Badge variant="outline">可信度: {knowledge.credibility}/10</Badge>
+          <Badge variant="outline" className="text-xs">
+            可信度 {knowledge.credibility}/10
+          </Badge>
         </div>
       </div>
 
       {/* 完整内容 */}
       <div>
-        <h3 className="text-lg font-semibold mb-3">内容</h3>
-        <div className="prose max-w-none">
-          <div className="whitespace-pre-wrap text-sm">{knowledge.content}</div>
+        <h3 className="text-sm font-semibold mb-2 text-muted-foreground">
+          内容
+        </h3>
+        <div className="rounded-md border bg-muted/30 p-3">
+          <div className="whitespace-pre-wrap text-sm leading-relaxed">
+            {knowledge.content}
+          </div>
         </div>
       </div>
 
@@ -321,9 +377,11 @@ function KnowledgeDetail({ nodeId }: { nodeId: number }) {
       {/* 实践指导 */}
       {knowledge.practicalGuide && (
         <div>
-          <h3 className="text-lg font-semibold mb-3">实践指导</h3>
-          <div className="bg-gray-50 border rounded-lg p-4">
-            <pre className="text-sm whitespace-pre-wrap">
+          <h3 className="text-sm font-semibold mb-2 text-muted-foreground">
+            实践指导
+          </h3>
+          <div className="rounded-md border bg-muted/30 p-3">
+            <pre className="text-xs whitespace-pre-wrap overflow-x-auto">
               {JSON.stringify(JSON.parse(knowledge.practicalGuide), null, 2)}
             </pre>
           </div>
@@ -333,9 +391,11 @@ function KnowledgeDetail({ nodeId }: { nodeId: number }) {
       {/* 案例研究 */}
       {knowledge.caseStudies && (
         <div>
-          <h3 className="text-lg font-semibold mb-3">案例研究</h3>
-          <div className="bg-gray-50 border rounded-lg p-4">
-            <pre className="text-sm whitespace-pre-wrap">
+          <h3 className="text-sm font-semibold mb-2 text-muted-foreground">
+            案例研究
+          </h3>
+          <div className="rounded-md border bg-muted/30 p-3">
+            <pre className="text-xs whitespace-pre-wrap overflow-x-auto">
               {JSON.stringify(JSON.parse(knowledge.caseStudies), null, 2)}
             </pre>
           </div>
@@ -345,9 +405,11 @@ function KnowledgeDetail({ nodeId }: { nodeId: number }) {
       {/* 专家观点 */}
       {knowledge.expertOpinions && (
         <div>
-          <h3 className="text-lg font-semibold mb-3">专家观点</h3>
-          <div className="bg-gray-50 border rounded-lg p-4">
-            <pre className="text-sm whitespace-pre-wrap">
+          <h3 className="text-sm font-semibold mb-2 text-muted-foreground">
+            专家观点
+          </h3>
+          <div className="rounded-md border bg-muted/30 p-3">
+            <pre className="text-xs whitespace-pre-wrap overflow-x-auto">
               {JSON.stringify(JSON.parse(knowledge.expertOpinions), null, 2)}
             </pre>
           </div>
@@ -355,23 +417,23 @@ function KnowledgeDetail({ nodeId }: { nodeId: number }) {
       )}
 
       {/* 统计信息 */}
-      <div className="border-t pt-4">
-        <div className="grid grid-cols-4 gap-4 text-sm">
+      <div className="border-t pt-3 mt-3">
+        <div className="grid grid-cols-4 gap-3 text-xs">
           <div>
-            <div className="text-muted-foreground">查看次数</div>
-            <div className="font-semibold">{knowledge.viewCount}</div>
+            <div className="text-muted-foreground">查看</div>
+            <div className="font-medium">{knowledge.viewCount}</div>
           </div>
           <div>
-            <div className="text-muted-foreground">使用次数</div>
-            <div className="font-semibold">{knowledge.usedCount}</div>
+            <div className="text-muted-foreground">使用</div>
+            <div className="font-medium">{knowledge.usedCount}</div>
           </div>
           <div>
-            <div className="text-muted-foreground">点赞数</div>
-            <div className="font-semibold">{knowledge.likeCount || 0}</div>
+            <div className="text-muted-foreground">点赞</div>
+            <div className="font-medium">{knowledge.likeCount || 0}</div>
           </div>
           <div>
-            <div className="text-muted-foreground">分享数</div>
-            <div className="font-semibold">{knowledge.shareCount || 0}</div>
+            <div className="text-muted-foreground">分享</div>
+            <div className="font-medium">{knowledge.shareCount || 0}</div>
           </div>
         </div>
       </div>

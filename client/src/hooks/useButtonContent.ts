@@ -1,16 +1,16 @@
-import { useState, useEffect } from 'react';
-import { trpc } from '@/lib/trpc';
+import { useState, useEffect } from "react";
+import { trpc } from "@/lib/trpc";
 
 interface ButtonContent {
   id: number | null;
   pageKey: string;
-  sectionKey: string;
+  sectionKey: string | null;
   contentType: string;
-  title: string;
+  title: string | null;
   content: string;
   imageUrl: string | null;
   linkUrl: string | null;
-  linkText: string;
+  linkText: string | null;
   sortOrder: number;
   isActive: number;
   metadata: any;
@@ -23,9 +23,14 @@ export const useButtonContent = (pageKey: string, buttonKey: string) => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  const { data, isLoading, isError, error: fetchError } = trpc.website.getButtonContent.useQuery({
+  const {
+    data,
+    isLoading,
+    isError,
+    error: fetchError,
+  } = trpc.website.getButtonContent.useQuery({
     pageKey,
-    buttonKey
+    buttonKey,
   });
 
   useEffect(() => {
@@ -35,7 +40,7 @@ export const useButtonContent = (pageKey: string, buttonKey: string) => {
     }
 
     if (isError) {
-      setError(fetchError?.message || 'Failed to fetch button content');
+      setError(fetchError?.message || "Failed to fetch button content");
       setLoading(false);
       return;
     }
@@ -52,6 +57,6 @@ export const useButtonContent = (pageKey: string, buttonKey: string) => {
     content,
     loading,
     error,
-    refetch: () => {} // Placeholder for refetch function
+    refetch: () => {}, // Placeholder for refetch function
   };
 };

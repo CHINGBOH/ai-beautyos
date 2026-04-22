@@ -3,10 +3,10 @@
  * 用于爬取返回JSON格式数据的API
  */
 
-import { BaseCrawler, CrawledData } from "./base-crawler";
+import { BaseCrawler, CrawledData, CrawlerConfig } from "./base-crawler";
 import { logger } from "../_core/logger";
 
-export interface JsonApiConfig {
+export interface JsonApiConfig extends Required<CrawlerConfig> {
   /** API基础URL */
   baseUrl: string;
   /** 请求头 */
@@ -18,11 +18,18 @@ export interface JsonApiConfig {
 }
 
 export class JsonApiCrawler extends BaseCrawler {
-  private config: JsonApiConfig;
-
   constructor(config: JsonApiConfig) {
-    super();
-    this.config = config;
+    const defaultConfig: Required<CrawlerConfig> = {
+      delay: 1000,
+      maxRetries: 3,
+      userAgent: "JsonApiCrawler/1.0",
+      timeout: 30000,
+    };
+    const mergedConfig = {
+      ...defaultConfig,
+      ...config,
+    } as Required<CrawlerConfig> & JsonApiConfig;
+    super(mergedConfig);
   }
 
   /**
@@ -32,13 +39,18 @@ export class JsonApiCrawler extends BaseCrawler {
     logger.info(`[JsonApiCrawler] 爬取API: ${url}`);
 
     try {
-      const fullUrl = url.startsWith("http") ? url : `${this.config.baseUrl}${url}`;
+      const fullUrl = url.startsWith("http")
+        ? url
+        : `${(this.config as JsonApiConfig).baseUrl}${url}`;
       const data = await this.fetchJson(fullUrl);
 
       // 提取数据（如果指定了路径）
       let extractedData = data;
-      if (this.config.dataPath) {
-        extractedData = this.extractByPath(data, this.config.dataPath);
+      if ((this.config as JsonApiConfig).dataPath) {
+        extractedData = this.extractByPath(
+          data,
+          (this.config as JsonApiConfig).dataPath!
+        );
       }
 
       // 转换为CrawledData格式
@@ -78,7 +90,10 @@ export class JsonApiCrawler extends BaseCrawler {
     if (data && typeof data === "object") {
       const obj = data as Record<string, unknown>;
       title = (obj.title as string) || (obj.name as string) || title;
-      content = (obj.content as string) || (obj.description as string) || JSON.stringify(data, null, 2);
+      content =
+        (obj.content as string) ||
+        (obj.description as string) ||
+        JSON.stringify(data, null, 2);
     } else {
       content = JSON.stringify(data, null, 2);
     }

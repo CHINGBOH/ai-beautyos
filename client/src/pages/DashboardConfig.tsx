@@ -154,12 +154,12 @@ export default function DashboardConfig() {
                   </>
                 ) : testStatus === "success" ? (
                   <>
-                    <CheckCircle2 className="w-4 h-4 mr-2 text-green-600" />
+                    <CheckCircle2 className="w-4 h-4 mr-2 text-stone-600" />
                     连接成功
                   </>
                 ) : testStatus === "error" ? (
                   <>
-                    <XCircle className="w-4 h-4 mr-2 text-red-600" />
+                    <XCircle className="w-4 h-4 mr-2 text-stone-600" />
                     连接失败
                   </>
                 ) : (

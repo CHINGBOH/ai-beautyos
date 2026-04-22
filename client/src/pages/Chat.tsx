@@ -15,6 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useAuth } from "@/_core/hooks/useAuth";
 
 type ChatMessage = {
   role: "system" | "user" | "assistant";
@@ -23,10 +24,12 @@ type ChatMessage = {
 
 export default function Chat() {
   const [, setLocation] = useLocation();
+  const { user } = useAuth();
   const [sessionId, setSessionId] = useState<string>("");
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showLeadForm, setShowLeadForm] = useState(false);
+  const [leadId, setLeadId] = useState<string | null>(null);
   const [leadData, setLeadData] = useState({
     name: "",
     phone: "",
@@ -41,17 +44,49 @@ export default function Chat() {
   const convertToLead = trpc.chat.convertToLead.useMutation();
 
   useEffect(() => {
-    // 初始化会话和欢迎消息
+    const params =
+      typeof window !== "undefined"
+        ? new URLSearchParams(window.location.search)
+        : null;
+    const fromBooking =
+      params?.get("fromBooking") === "1" ||
+      sessionStorage.getItem("fromBooking") === "1";
+    const leadIdFromUrl = params?.get("leadId") ?? null;
+    const kbIdFromUrl = params?.get("kbId") ?? null;
+    if (fromBooking) {
+      sessionStorage.removeItem("fromBooking");
+      if (leadIdFromUrl) sessionStorage.setItem("bookingLeadId", leadIdFromUrl);
+      else sessionStorage.removeItem("bookingLeadId");
+    }
+    const storedLeadId =
+      leadIdFromUrl || sessionStorage.getItem("bookingLeadId");
+    if (storedLeadId) {
+      setLeadId(storedLeadId);
+    } else {
+      setLeadId(null);
+    }
+
     const initSession = async () => {
       try {
         const result = await createSession.mutateAsync();
         setSessionId(result.sessionId);
-        
-        // 添加欢迎消息
-        setMessages([{
-          role: "assistant",
-          content: "您好！我是您的专属医美咨询顾问 😊\n\n很高兴为您服务！我们是一家专业的医美机构，拥有10年以上的临床经验，致力于帮助每一位客户安全、有效地变美。\n\n我可以为您提供：\n\n✨ 专业医美项目介绍（超皮秒、水光针、热玛吉等）\n✨ 个性化治疗方案推荐\n✨ 价格和优惠信息咨询\n✨ 免费面诊预约服务\n\n请随时告诉我您的需求，我会用专业和温暖的态度为您服务~"
-        }]);
+
+        const baseWelcome =
+          "您好！我是您的专属医美咨询顾问 😊\n\n很高兴为您服务！我们是一家专业的医美机构，拥有10年以上的临床经验，致力于帮助每一位客户安全、有效地变美。\n\n我可以为您提供：\n\n✨ 专业医美项目介绍（超皮秒、水光针、热玛吉等）\n✨ 个性化治疗方案推荐\n✨ 价格和优惠信息咨询\n✨ 免费面诊预约服务\n\n请随时告诉我您的需求，我会用专业和温暖的态度为您服务~";
+        const welcome = fromBooking
+          ? "您已提交预约，顾问将尽快联系您；您也可以在此补充需求或咨询项目。\n\n" +
+            baseWelcome
+          : baseWelcome;
+
+        const initialMessages: ChatMessage[] = [];
+        if (kbIdFromUrl) {
+          initialMessages.push({
+            role: "system",
+            content: `本次对话关联知识库条目 ID=${kbIdFromUrl}，请基于该知识为客户提供解释和建议。`,
+          });
+        }
+        initialMessages.push({ role: "assistant", content: welcome });
+        setMessages(initialMessages);
       } catch (error) {
         toast.error("连接失败，请检查网络后重试");
         console.error(error);
@@ -77,27 +112,38 @@ export default function Chat() {
       });
 
       // 添加 AI 回复
-      setMessages(prev => [...prev, { role: "assistant", content: result.response }]);
+      setMessages(prev => [
+        ...prev,
+        { role: "assistant", content: result.response },
+      ]);
 
       // 如果提取到客户信息，自动填充表单
       if (result.extractedInfo) {
         const info = result.extractedInfo;
-        setLeadData((prev) => ({
+        setLeadData(prev => ({
           ...prev,
           name: info.name || prev.name,
           phone: info.phone || prev.phone,
           wechat: info.wechat || prev.wechat,
-          interestedServices: info.services || prev.interestedServices,
+          interestedServices:
+            info.interestedServices || prev.interestedServices,
           budget: info.budget || prev.budget,
         }));
       }
-    } catch (error) {
-      toast.error("消息发送失败，请稍后再试，如持续出现问题请联系客服");
-      console.error(error);
-      setMessages(prev => [...prev, { 
-        role: "assistant", 
-        content: "抱歉，网络有点慢，请稍后再试。如果问题持续，您可以拨打客服热线或稍后重试。" 
-      }]);
+    } catch (error: unknown) {
+      const msg = error instanceof Error ? error.message : "网络异常";
+      const isBalanceError = /余额不足|Insufficient Balance|402/i.test(msg);
+      toast.error(
+        isBalanceError ? "AI 服务暂不可用（账户余额不足）" : `发送失败：${msg}`
+      );
+      console.error("[Chat sendMessage]", error);
+      const friendlyContent = isBalanceError
+        ? "抱歉，AI 顾问暂时无法回复（服务账户余额不足）。请联系客服或稍后再试。"
+        : `抱歉，暂时无法回复。请检查网络或稍后重试。`;
+      setMessages(prev => [
+        ...prev,
+        { role: "assistant", content: friendlyContent },
+      ]);
     } finally {
       setIsLoading(false);
     }
@@ -116,10 +162,15 @@ export default function Chat() {
       });
 
       if (result.success) {
-        toast.success("预约信息已提交成功！我们的顾问将在1小时内与您联系，请保持手机畅通 💝");
+        toast.success(
+          "预约信息已提交成功！我们的顾问将在1小时内与您联系，请保持手机畅通 💝"
+        );
         setShowLeadForm(false);
       } else {
-        toast.error(result.error || "提交失败，请检查网络连接或稍后重试。如问题持续，请联系客服");
+        toast.error(
+          result.error ||
+            "提交失败，请检查网络连接或稍后重试。如问题持续，请联系客服"
+        );
       }
     } catch (error) {
       toast.error("提交失败，请检查网络连接或稍后重试。如问题持续，请联系客服");
@@ -128,20 +179,57 @@ export default function Chat() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-amber-50 via-white to-orange-50">
-      <nav className="bg-white/80 backdrop-blur-sm border-b border-amber-100 sticky top-0 z-50">
+    <div className="min-h-screen bg-page-soft">
+      <nav className="bg-white/80 backdrop-blur-sm border-b border-stone-200 sticky top-0 z-50">
         <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <span className="text-lg font-semibold text-amber-800">在线咨询</span>
+              <span className="text-lg font-semibold text-stone-600">
+                在线咨询
+              </span>
             </div>
             <div className="flex gap-3">
-              <DatabaseButton variant="ghost" size="sm" pageKey="chat" buttonKey="back-to-home" fallbackText="返回前台" onClick={() => setLocation("/")}>
-              </DatabaseButton>
-              <DatabaseButton variant="ghost" size="sm" pageKey="chat" buttonKey="admin-panel" fallbackText="后台管理" onClick={() => setLocation("/dashboard/admin")}>
-              </DatabaseButton>
-              <DatabaseButton variant="ghost" size="sm" pageKey="chat" buttonKey="data-assistant" fallbackText="数据助手" onClick={() => setLocation("/dashboard/ai")}>
-              </DatabaseButton>
+              {leadId && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() =>
+                    setLocation(
+                      `/dashboard/customers?leadId=${encodeURIComponent(leadId)}&showDetail=1`
+                    )
+                  }
+                >
+                  查看客户详情
+                </Button>
+              )}
+              <DatabaseButton
+                variant="ghost"
+                size="sm"
+                pageKey="chat"
+                buttonKey="返回首页"
+                fallbackText="返回首页"
+                onClick={() => setLocation("/")}
+              ></DatabaseButton>
+              {user && (
+                <>
+                  <DatabaseButton
+                    variant="ghost"
+                    size="sm"
+                    pageKey="chat"
+                    buttonKey="后台管理"
+                    fallbackText="后台管理"
+                    onClick={() => setLocation("/dashboard/admin")}
+                  ></DatabaseButton>
+                  <DatabaseButton
+                    variant="ghost"
+                    size="sm"
+                    pageKey="chat"
+                    buttonKey="数据助手"
+                    fallbackText="数据助手"
+                    onClick={() => setLocation("/dashboard/ai")}
+                  ></DatabaseButton>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -150,28 +238,47 @@ export default function Chat() {
         <div className="max-w-4xl mx-auto">
           {/* 头部 */}
           <div className="text-center mb-8">
-            <h1 className="text-4xl font-bold text-gray-800 mb-2">
-              医美咨询顾问
-            </h1>
-            <p className="text-gray-600">
+            <h1 className="mb-2 text-foreground">医美咨询顾问</h1>
+            <p className="text-muted-foreground leading-relaxed">
               专业、温暖、耐心的医美咨询服务，为您解答任何疑问
             </p>
           </div>
 
-          {/* 留资按钮 */}
-          <div className="mb-4 text-center">
+          {/* 留资与预约入口 */}
+          <div className="mb-4 text-center flex flex-wrap items-center justify-center gap-3">
             <DatabaseButton
               size="lg"
               pageKey="chat"
               buttonKey="free-consultation"
               fallbackText="💝 免费咨询，专业顾问1对1服务"
               onClick={() => setShowLeadForm(true)}
-              className="bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-700 hover:to-orange-700 text-white px-8 py-4 text-base rounded-full shadow-lg hover:shadow-xl transition-all"
+              variant="brand"
+              className="px-8 py-4 text-base rounded-full shadow-lg hover:shadow-xl transition-all"
             />
+            <Button
+              variant="outline"
+              size="lg"
+              className="rounded-full"
+              onClick={() => {
+                try {
+                  sessionStorage.setItem(
+                    "bookingPrefill",
+                    JSON.stringify({
+                      name: leadData.name,
+                      phone: leadData.phone,
+                      message: leadData.message,
+                    })
+                  );
+                } catch (_) {}
+                setLocation("/#form-section");
+              }}
+            >
+              填写预约表单
+            </Button>
           </div>
 
           {/* 聊天界面 */}
-          <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
+          <div className="bg-card rounded-[var(--radius)] shadow-card overflow-hidden transition-[box-shadow] duration-[var(--motion-duration)] ease-[var(--motion-ease)] hover:shadow-elevated">
             <AIChatBox
               messages={messages}
               onSendMessage={handleSendMessage}
@@ -198,7 +305,7 @@ export default function Chat() {
               <Input
                 id="name"
                 value={leadData.name}
-                onChange={(e) =>
+                onChange={e =>
                   setLeadData({ ...leadData, name: e.target.value })
                 }
                 placeholder="请输入您的真实姓名，方便我们联系您"
@@ -209,7 +316,7 @@ export default function Chat() {
               <Input
                 id="phone"
                 value={leadData.phone}
-                onChange={(e) =>
+                onChange={e =>
                   setLeadData({ ...leadData, phone: e.target.value })
                 }
                 placeholder="请输入11位手机号码，用于接收预约确认"
@@ -220,7 +327,7 @@ export default function Chat() {
               <Input
                 id="wechat"
                 value={leadData.wechat}
-                onChange={(e) =>
+                onChange={e =>
                   setLeadData({ ...leadData, wechat: e.target.value })
                 }
                 placeholder="请输入您的微信号（选填）"
@@ -231,7 +338,7 @@ export default function Chat() {
               <Input
                 id="budget"
                 value={leadData.budget}
-                onChange={(e) =>
+                onChange={e =>
                   setLeadData({ ...leadData, budget: e.target.value })
                 }
                 placeholder="您的预算范围，如：5000-10000元（选填，帮助我们推荐合适方案）"
@@ -242,7 +349,7 @@ export default function Chat() {
               <Input
                 id="message"
                 value={leadData.message}
-                onChange={(e) =>
+                onChange={e =>
                   setLeadData({ ...leadData, message: e.target.value })
                 }
                 placeholder="还有什么想了解的？告诉我们您的具体需求（选填）"

@@ -94,7 +94,7 @@ export default function DashboardXiaohongshu() {
             <CardDescription>待回复评论</CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-orange-600">{stats?.pendingComments || 0}</div>
+            <div className="text-2xl font-bold text-stone-600">{stats?.pendingComments || 0}</div>
           </CardContent>
         </Card>
       </div>

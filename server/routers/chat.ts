@@ -1,203 +1,296 @@
 import { z } from "zod";
-import { publicProcedure, router } from "../_core/trpc";
-import { generateChatResponse, MEDICAL_BEAUTY_SYSTEM_PROMPT, extractCustomerInfo } from "../deepseek";
-import { 
-  createConversation, 
-  getConversationBySessionId, 
+import { publicProcedure, protectedProcedure, router } from "../_core/trpc";
+import {
+  generateChatResponse,
+  MEDICAL_BEAUTY_SYSTEM_PROMPT,
+  extractCustomerInfo,
+  stripCustomerInfoJson,
+} from "../llm";
+import {
+  createConversation,
+  getConversationBySessionId,
   updateConversation,
   getAllConversations,
   createMessage,
   getMessagesByConversationId,
-  getActiveKnowledge,
   incrementKnowledgeUsage,
-  createLead
+  createLead,
+  createChatMessageTransaction,
+  withTransaction,
 } from "../db";
-import { createLeadInAirtable, syncConversationToAirtable, getCustomerHistoryFromAirtable } from "../airtable";
-import { analyzePsychology, shouldAnalyzePsychology } from "../psychology-analyzer";
+import { getCustomerHistoryFromAirtable } from "../airtable";
+import {
+  createLeadReliable,
+  syncConversationReliable,
+} from "../airtable-reliable";
+import {
+  analyzePsychology,
+  shouldAnalyzePsychology,
+} from "../psychology-analyzer";
+import {
+  searchKnowledgeForChat,
+  searchKnowledgeForChatEnhanced,
+  shouldUseKnowledge,
+} from "../knowledge-retrieval";
 import { nanoid } from "nanoid";
+import { logger } from "../_core/logger";
 
 export const chatRouter = router({
   /**
    * 创建新会话
    */
-  createSession: publicProcedure.mutation(async () => {
-    const sessionId = nanoid();
-    
-    await createConversation({
-      sessionId,
-      source: "web",
-      status: "active",
-    });
-    
-    return { sessionId };
-  }),
+  createSession: publicProcedure
+    .output(z.object({ sessionId: z.string() }))
+    .mutation(async () => {
+      const sessionId = nanoid();
+
+      await createConversation({
+        sessionId,
+        source: "web",
+        status: "active",
+      });
+
+      return { sessionId };
+    }),
 
   /**
-   * 发送消息并获取 AI 回复
+   * 发送消息并获取 AI 回复（事务安全版本）
+   * 修复：使用事务确保数据一致性，修复心理分析触发逻辑
    */
   sendMessage: publicProcedure
     .input(
       z.object({
         sessionId: z.string(),
-        message: z.string(),
+        message: z.string().max(10000),
+      })
+    )
+    .output(
+      z.object({
+        response: z.string(),
+        extractedInfo: z
+          .object({
+            name: z.string().optional(),
+            phone: z.string().optional(),
+            wechat: z.string().optional(),
+            interestedServices: z.array(z.string()).optional(),
+            budget: z.string().optional(),
+          })
+          .nullable(),
       })
     )
     .mutation(async ({ input }) => {
       const { sessionId, message } = input;
-      
-      // 获取或创建会话
-      let conversation = await getConversationBySessionId(sessionId);
-      if (!conversation) {
-        await createConversation({
-          sessionId,
-          source: "web",
-          status: "active",
-        });
-        conversation = await getConversationBySessionId(sessionId);
-      }
-      
-      if (!conversation) {
-        throw new Error("Failed to create conversation");
-      }
-      
-      // 保存用户消息
-      await createMessage({
-        conversationId: conversation.id,
-        role: "user",
-        content: message,
-      });
-      
-      // 获取历史消息
-      const history = await getMessagesByConversationId(conversation.id);
-      
-      // 如果有客户手机号，从 Airtable 读取客户历史记录
-      let customerHistoryContext = "";
-      if (conversation.visitorPhone) {
-        const customerHistory = await getCustomerHistoryFromAirtable(conversation.visitorPhone);
-        if (customerHistory && (customerHistory.leads.length > 0 || customerHistory.conversations.length > 0)) {
-          customerHistoryContext = "\n\n客户历史记录：\n";
-          
-          if (customerHistory.leads.length > 0) {
-            const lead = customerHistory.leads[0]!;
-            customerHistoryContext += `- 客户姓名：${lead.fields["姓名"] || "未知"}\n`;
-            customerHistoryContext += `- 线索状态：${lead.fields["线索状态"] || "未知"}\n`;
-            customerHistoryContext += `- 意向项目：${lead.fields["意向项目"] || "未知"}\n`;
-            customerHistoryContext += `- 预算区间：${lead.fields["预算区间"] || "未知"}\n`;
-          }
-          
-          if (customerHistory.conversations.length > 0) {
-            customerHistoryContext += `- 历史对话次数：${customerHistory.conversations.length}\n`;
-          }
-        }
-      }
-      
-      // 检索相关知识库内容
-      const knowledgeItems = await getActiveKnowledge();
-      let knowledgeContext = "";
-      const usedKnowledgeIds: number[] = [];
-      
-      if (knowledgeItems.length > 0) {
-        // 简单的关键词匹配（实际应用中可以用向量搜索）
-        const relevantKnowledge = knowledgeItems.filter(k => {
-          const keywords = ["超皮秒", "祛斑", "水光", "热玛吉", "价格", "效果", "恢复", "疼痛"];
-          return keywords.some(kw => message.includes(kw) || k.title.includes(kw) || k.content.includes(kw));
-        }).slice(0, 3);
-        
-        if (relevantKnowledge.length > 0) {
-          knowledgeContext = "\n\n参考知识库：\n" + relevantKnowledge.map(k => {
-            usedKnowledgeIds.push(k.id);
-            return `【${k.title}】\n${k.content}`;
-          }).join("\n\n");
-        }
-      }
-      
-      // 构建消息历史
-      const messages = [
-        { role: "system" as const, content: MEDICAL_BEAUTY_SYSTEM_PROMPT + customerHistoryContext + knowledgeContext },
-        ...history.slice(-10).map(h => ({
-          role: h.role as "user" | "assistant",
-          content: h.content,
-        })),
-      ];
-      
-      // 调用 LLM 生成回复
-      const aiResponse = await generateChatResponse(messages);
-      
-      // 提取客户信息
-      const extractedInfo = extractCustomerInfo(aiResponse);
-      
-      // 保存 AI 回复
-      await createMessage({
-        conversationId: conversation.id,
-        role: "assistant",
-        content: aiResponse,
-        knowledgeUsed: usedKnowledgeIds.length > 0 ? JSON.stringify(usedKnowledgeIds) : null,
-        extractedInfo: extractedInfo ? JSON.stringify(extractedInfo) : null,
-      });
-      
-      // 更新知识库使用次数
-      for (const id of usedKnowledgeIds) {
-        await incrementKnowledgeUsage(id);
-      }
-      
-      // 如果提取到客户信息，更新会话
-      if (extractedInfo) {
-        await updateConversation(sessionId, {
-          visitorName: extractedInfo.name || conversation.visitorName,
-          visitorPhone: extractedInfo.phone || conversation.visitorPhone,
-          visitorWechat: extractedInfo.wechat || conversation.visitorWechat,
-        });
-        
-        // 同步对话到 Airtable
-        const updatedConversation = await getConversationBySessionId(sessionId);
-        if (updatedConversation) {
-          await syncConversationToAirtable({
-            sessionId: updatedConversation.sessionId,
-            visitorName: updatedConversation.visitorName || undefined,
-            visitorPhone: updatedConversation.visitorPhone || undefined,
-            visitorWechat: updatedConversation.visitorWechat || undefined,
-            messages: history.map(h => ({
-              role: h.role,
-              content: h.content,
-              createdAt: h.createdAt,
-            })),
-            source: updatedConversation.source,
+      const startTime = Date.now();
+
+      try {
+        // 获取或创建会话（事务外，因为需要先获取历史消息）
+        let conversation = await getConversationBySessionId(sessionId);
+        if (!conversation) {
+          await createConversation({
+            sessionId,
+            source: "web",
+            status: "active",
           });
+          conversation = await getConversationBySessionId(sessionId);
         }
-      }
-      
-      // 心理标签自动识别：当对话消息达到一定数量时触发
-      const messageCount = history.length + 1; // +1 因为刚才保存了新消息
-      if (shouldAnalyzePsychology(messageCount)) {
-        try {
-          const analysisResult = await analyzePsychology(
-            history.map(h => ({
-              role: h.role,
-              content: h.content,
-            }))
-          );
-          
-          // 如果置信度足够高，更新客户画像
-          if (analysisResult.confidence > 0.6) {
-            // 更新对话记录中的客户画像信息
-            await updateConversation(sessionId, {
-              psychologyType: analysisResult.psychologyType,
-              psychologyTags: JSON.stringify(analysisResult.psychologyTags),
-              budgetLevel: analysisResult.budgetLevel,
-              customerTier: analysisResult.customerTier,
-            });
-            
-            console.log(`[心理分析] 会话 ${sessionId} 的客户画像已更新：${analysisResult.psychologyType}，置信度 ${analysisResult.confidence}`);
+
+        if (!conversation) {
+          throw new Error("Failed to create conversation");
+        }
+
+        // 获取历史消息
+        const history = await getMessagesByConversationId(conversation.id);
+
+        // 如果有客户手机号，从 Airtable 读取客户历史记录
+        let customerHistoryContext = "";
+        if (conversation.visitorPhone) {
+          try {
+            const customerHistory = await getCustomerHistoryFromAirtable(
+              conversation.visitorPhone
+            );
+            if (
+              customerHistory &&
+              (customerHistory.leads.length > 0 ||
+                customerHistory.conversations.length > 0)
+            ) {
+              customerHistoryContext = "\n\n客户历史记录：\n";
+
+              if (customerHistory.leads.length > 0) {
+                const lead = customerHistory.leads[0]!;
+                customerHistoryContext += `- 客户姓名：${lead.fields["姓名"] || "未知"}\n`;
+                customerHistoryContext += `- 线索状态：${lead.fields["线索状态"] || "未知"}\n`;
+                customerHistoryContext += `- 意向项目：${lead.fields["意向项目"] || "未知"}\n`;
+                customerHistoryContext += `- 预算区间：${lead.fields["预算区间"] || "未知"}\n`;
+              }
+
+              if (customerHistory.conversations.length > 0) {
+                customerHistoryContext += `- 历史对话次数：${customerHistory.conversations.length}\n`;
+              }
+            }
+          } catch (e) {
+            logger.warn("[Chat] Failed to fetch customer history:", e);
           }
-        } catch (error) {
-          console.error("[心理分析] 分析失败：", error);
         }
+
+        // 检索相关知识库内容（使用增强的向量语义检索）
+        let knowledgeContext = "";
+        let usedKnowledgeIds: number[] = [];
+        let searchStrategy = "skipped";
+
+        if (shouldUseKnowledge(message)) {
+          try {
+            const searchResult = await searchKnowledgeForChatEnhanced(
+              message,
+              history.map(h => ({ role: h.role, content: h.content })),
+              { limit: 3 }
+            );
+            knowledgeContext = searchResult.context;
+            usedKnowledgeIds = searchResult.usedKnowledgeIds;
+            searchStrategy = searchResult.searchStrategy;
+            
+            logger.debug(`[Chat] Knowledge search completed with strategy: ${searchStrategy}, found ${usedKnowledgeIds.length} items`);
+          } catch (e) {
+            logger.warn(
+              "[Chat] Enhanced knowledge retrieval failed, trying fallback:",
+              e
+            );
+            
+            // 兜底到原来的搜索方式
+            try {
+              const fallbackResult = await searchKnowledgeForChat(
+                message,
+                history.map(h => ({ role: h.role, content: h.content })),
+                { limit: 3 }
+              );
+              knowledgeContext = fallbackResult.context;
+              usedKnowledgeIds = fallbackResult.usedKnowledgeIds;
+              searchStrategy = "fallback-text";
+            } catch (fallbackError) {
+              logger.error("[Chat] Both enhanced and fallback knowledge retrieval failed:", fallbackError);
+            }
+          }
+        } else {
+          logger.debug(
+            "[Chat] Skipping knowledge retrieval for simple greeting"
+          );
+        }
+
+        // 构建消息历史
+        const messages = [
+          {
+            role: "system" as const,
+            content:
+              MEDICAL_BEAUTY_SYSTEM_PROMPT +
+              customerHistoryContext +
+              knowledgeContext,
+          },
+          ...history.slice(-10).map(h => ({
+            role: h.role as "user" | "assistant",
+            content: h.content,
+          })),
+          { role: "user" as const, content: message },
+        ];
+
+        // 调用 LLM 生成回复
+        const rawAiResponse = await generateChatResponse(messages);
+
+        // 提取客户信息（从原始文本提取，再清除 JSON 标注）
+        const extractedInfo = extractCustomerInfo(rawAiResponse);
+        const aiResponse = stripCustomerInfoJson(rawAiResponse);
+
+        // 计算消息数量（包括本次用户消息和AI回复）
+        const messageCount = history.length + 2;
+
+        // 判断是否需要进行心理分析
+        let psychologyInfo: {
+          psychologyType?: string;
+          psychologyTags?: string[];
+          budgetLevel?: string;
+          customerTier?: string;
+        } | null = null;
+
+        if (shouldAnalyzePsychology(messageCount)) {
+          try {
+            const analysisResult = await analyzePsychology([
+              ...history.map(h => ({ role: h.role, content: h.content })),
+              { role: "user", content: message },
+            ]);
+
+            if (analysisResult.confidence > 0.6) {
+              psychologyInfo = {
+                psychologyType: analysisResult.psychologyType,
+                psychologyTags: analysisResult.psychologyTags,
+                budgetLevel: analysisResult.budgetLevel,
+                customerTier: analysisResult.customerTier,
+              };
+              logger.info(
+                `[心理分析] 会话 ${sessionId}: ${analysisResult.psychologyType}, 置信度 ${analysisResult.confidence}`
+              );
+            }
+          } catch (error) {
+            logger.error("[心理分析] 分析失败:", error);
+          }
+        }
+
+        // 使用事务保存所有数据（核心修复：确保数据一致性）
+        const { conversationId } = await createChatMessageTransaction({
+          sessionId,
+          userMessage: { content: message, role: "user" },
+          aiMessage: {
+            content: aiResponse,
+            role: "assistant",
+            knowledgeUsed: usedKnowledgeIds,
+            extractedInfo,
+          },
+          visitorInfo: extractedInfo
+            ? {
+                visitorName: extractedInfo.name || conversation.visitorName || undefined,
+                visitorPhone: extractedInfo.phone || conversation.visitorPhone || undefined,
+                visitorWechat:
+                  extractedInfo.wechat || conversation.visitorWechat || undefined,
+              }
+            : undefined,
+          psychologyInfo,
+        });
+
+        // 异步同步到 Airtable（可靠版本：带重试，非阻塞）
+        if (extractedInfo && extractedInfo.phone) {
+          const updatedConversation =
+            await getConversationBySessionId(sessionId);
+          if (updatedConversation) {
+            syncConversationReliable({
+              sessionId: updatedConversation.sessionId,
+              visitorName: updatedConversation.visitorName || undefined,
+              visitorPhone: updatedConversation.visitorPhone || undefined,
+              visitorWechat: updatedConversation.visitorWechat || undefined,
+              messages: [
+                ...history,
+                { role: "user", content: message, createdAt: new Date() },
+              ].map(h => ({
+                role: h.role,
+                content: h.content,
+                createdAt: new Date(h.createdAt),
+              })),
+              source: updatedConversation.source,
+            }).catch(e => {
+              logger.error("[Chat] Airtable sync failed (data may be lost):", e instanceof Error ? e.message : String(e));
+            });
+          }
+        }
+
+        const duration = Date.now() - startTime;
+        logger.info(
+          `[Chat] Message processed in ${duration}ms, convId=${conversationId}`
+        );
+
+        return {
+          response: aiResponse,
+          extractedInfo,
+        };
+      } catch (error) {
+        logger.error("[Chat] sendMessage failed:", error);
+        throw error;
       }
-      
-      return {
-        response: aiResponse,
-        extractedInfo,
-      };
     }),
 
   /**
@@ -210,7 +303,7 @@ export const chatRouter = router({
       if (!conversation) {
         return { messages: [] };
       }
-      
+
       const messages = await getMessagesByConversationId(conversation.id);
       return {
         messages: messages.map(m => ({
@@ -224,7 +317,7 @@ export const chatRouter = router({
   /**
    * 获取所有对话
    */
-  getConversations: publicProcedure.query(async () => {
+  getConversations: protectedProcedure.query(async () => {
     const conversations = await getAllConversations();
     return conversations;
   }),
@@ -232,7 +325,7 @@ export const chatRouter = router({
   /**
    * 获取对话消息
    */
-  getMessages: publicProcedure
+  getMessages: protectedProcedure
     .input(z.object({ conversationId: z.number() }))
     .query(async ({ input }) => {
       const messages = await getMessagesByConversationId(input.conversationId);
@@ -246,12 +339,21 @@ export const chatRouter = router({
     .input(
       z.object({
         sessionId: z.string(),
-        name: z.string(),
-        phone: z.string(),
-        wechat: z.string().optional(),
-        interestedServices: z.array(z.string()).optional(),
-        budget: z.string().optional(),
-        message: z.string().optional(),
+        name: z.string().max(200),
+        phone: z.string().max(50),
+        wechat: z.string().max(100).optional(),
+        interestedServices: z.array(z.string().max(100)).optional(),
+        budget: z.string().max(50).optional(),
+        message: z.string().max(10000).optional(),
+        source: z.string().max(50).optional(),
+      })
+    )
+    .output(
+      z.object({
+        success: z.boolean(),
+        leadId: z.string(),
+        airtableSynced: z.boolean(),
+        error: z.string().optional(),
       })
     )
     .mutation(async ({ input }) => {
@@ -259,48 +361,47 @@ export const chatRouter = router({
       if (!conversation) {
         throw new Error("Conversation not found");
       }
-      
+
       // 创建本地线索记录
-      await createLead({
+      const created = await createLead({
         name: input.name,
         phone: input.phone,
         wechat: input.wechat,
-        interestedServices: input.interestedServices ? JSON.stringify(input.interestedServices) : null,
+        interestedServices: input.interestedServices
+          ? JSON.stringify(input.interestedServices)
+          : null,
+        budget: input.budget,
+        message: input.message,
+        source: input.source || "chat",
+        sourceContent: `会话ID: ${input.sessionId}`,
+        status: "new",
+        conversationId: conversation.id,
+      });
+      const localLeadId = created?.id;
+
+      // 同步到 Airtable（可靠版本）
+      const airtableId = await createLeadReliable({
+        name: input.name,
+        phone: input.phone,
+        wechat: input.wechat,
+        interestedServices: input.interestedServices,
         budget: input.budget,
         message: input.message,
         source: "AI客服对话",
         sourceContent: `会话ID: ${input.sessionId}`,
-        status: "新线索",
-        conversationId: conversation.id,
       });
-      
-      // 同步到 Airtable
-      try {
-        const airtableId = await createLeadInAirtable({
-          name: input.name,
-          phone: input.phone,
-          wechat: input.wechat,
-          interestedServices: input.interestedServices,
-          budget: input.budget,
-          message: input.message,
-          source: "AI客服对话",
-          sourceContent: `会话ID: ${input.sessionId}`,
-        });
+
+      if (airtableId) {
         await updateConversation(input.sessionId, {
           status: "converted",
           leadId: airtableId,
         });
-        
-        return {
-          success: true,
-          leadId: airtableId,
-        };
-      } catch (error) {
-        console.error("Failed to sync to Airtable:", error);
-        return {
-          success: false,
-          error: "同步到 Airtable 失败，但本地记录已保存",
-        };
       }
+
+      return {
+        success: true,
+        leadId: String(localLeadId ?? airtableId ?? "pending"),
+        airtableSynced: !!airtableId,
+      } as const;
     }),
 });
