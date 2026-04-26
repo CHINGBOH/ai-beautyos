@@ -1,0 +1,1635 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>妍美·AI美肤顾问</title>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+:root {
+  --rose: #e8698a;
+  --rose-light: #f5a7bc;
+  --rose-pale: #fdf0f4;
+  --gold: #c9a96e;
+  --gold-light: #f0e4cc;
+  --text: #3d2b35;
+  --text-light: #9c7f89;
+  --white: #fff;
+  --bg: #faf6f8;
+}
+
+body { font-family: 'PingFang SC', 'Helvetica Neue', sans-serif; background: var(--bg); color: var(--text); max-width: 480px; margin: 0 auto; height: 100dvh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── 顶部栏 ── */
+.header { background: linear-gradient(135deg, #e8698a, #c9527a); color: #fff; padding: 12px 16px; display: flex; align-items: center; gap: 10px; flex-shrink: 0; position: relative; box-shadow: 0 2px 12px rgba(232,105,138,.3); }
+.header-avatar { width: 40px; height: 40px; border-radius: 50%; background: #fff; display: flex; align-items: center; justify-content: center; font-size: 20px; flex-shrink: 0; border: 2px solid rgba(255,255,255,.5); }
+.header-info { flex: 1; }
+.header-name { font-size: 15px; font-weight: 600; }
+.header-status { font-size: 11px; opacity: .85; display: flex; align-items: center; gap: 4px; margin-top: 2px; }
+.dot-online { width: 6px; height: 6px; border-radius: 50%; background: #7fff7f; animation: pulse 2s infinite; }
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.4} }
+.header-tags { display: flex; gap: 4px; }
+.tag { background: rgba(255,255,255,.2); font-size: 10px; padding: 2px 7px; border-radius: 10px; }
+
+/* ── 页面切换 ── */
+.pages { flex: 1; overflow: hidden; position: relative; }
+.page { position: absolute; inset: 0; overflow-y: auto; display: none; flex-direction: column; }
+.page.active { display: flex; }
+.page::-webkit-scrollbar { display: none; }
+
+/* ── Landing 页 ── */
+.landing { background: linear-gradient(160deg, #fdf0f4 0%, #fff5e6 100%); }
+.landing-hero { padding: 30px 20px 20px; text-align: center; }
+.landing-badge { display: inline-block; background: var(--gold-light); color: var(--gold); font-size: 11px; padding: 4px 12px; border-radius: 20px; margin-bottom: 16px; font-weight: 500; }
+.landing-title { font-size: 26px; font-weight: 700; color: var(--text); line-height: 1.3; margin-bottom: 8px; }
+.landing-title span { color: var(--rose); }
+.landing-sub { font-size: 13px; color: var(--text-light); line-height: 1.6; }
+.landing-img { width: 100%; height: 180px; background: linear-gradient(135deg, #f5a7bc, #e8698a); border-radius: 16px; margin: 16px 20px; width: calc(100% - 40px); display: flex; align-items: center; justify-content: center; font-size: 60px; position: relative; overflow: hidden; }
+.landing-img::after { content: '✨'; position: absolute; right: 20px; top: 20px; font-size: 24px; animation: float 3s ease-in-out infinite; }
+@keyframes float { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-8px)} }
+.landing-features { padding: 0 20px; display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+.feature-item { background: #fff; border-radius: 12px; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 2px 8px rgba(232,105,138,.08); }
+.feature-icon { width: 36px; height: 36px; border-radius: 10px; background: var(--rose-pale); display: flex; align-items: center; justify-content: center; font-size: 18px; flex-shrink: 0; }
+.feature-text { font-size: 13px; }
+.feature-text strong { display: block; color: var(--text); font-size: 14px; }
+.feature-text span { color: var(--text-light); font-size: 12px; }
+.reviews { padding: 0 20px 16px; }
+.reviews-title { font-size: 13px; color: var(--text-light); margin-bottom: 10px; text-align: center; }
+.review-cards { display: flex; gap: 10px; overflow-x: auto; padding-bottom: 4px; }
+.review-cards::-webkit-scrollbar { display: none; }
+.review-card { background: #fff; border-radius: 12px; padding: 12px; min-width: 160px; box-shadow: 0 2px 8px rgba(0,0,0,.06); flex-shrink: 0; }
+.review-stars { color: #ffb800; font-size: 11px; margin-bottom: 6px; }
+.review-text { font-size: 12px; color: var(--text); line-height: 1.5; margin-bottom: 6px; }
+.review-user { font-size: 11px; color: var(--text-light); }
+.cta-area { padding: 0 20px 30px; }
+.countdown { text-align: center; font-size: 12px; color: var(--text-light); margin-bottom: 10px; }
+.countdown span { color: var(--rose); font-weight: 600; font-size: 14px; }
+.btn-main { width: 100%; background: linear-gradient(135deg, #e8698a, #c9527a); color: #fff; border: none; border-radius: 50px; padding: 16px; font-size: 16px; font-weight: 600; cursor: pointer; box-shadow: 0 4px 20px rgba(232,105,138,.4); transition: transform .15s; display: flex; align-items: center; justify-content: center; gap: 8px; }
+.btn-main:active { transform: scale(.97); }
+.btn-sub { width: 100%; background: transparent; border: 1px solid var(--rose-light); color: var(--rose); border-radius: 50px; padding: 13px; font-size: 14px; cursor: pointer; margin-top: 10px; }
+
+/* ── 对话页 ── */
+.chat-page { background: var(--bg); }
+.chat-messages { flex: 1; padding: 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto; }
+.chat-messages::-webkit-scrollbar { display: none; }
+
+/* 气泡 */
+.bubble-row { display: flex; gap: 8px; align-items: flex-end; }
+.bubble-row.user { flex-direction: row-reverse; }
+.bubble-avatar { width: 32px; height: 32px; border-radius: 50%; background: var(--rose-pale); display: flex; align-items: center; justify-content: center; font-size: 16px; flex-shrink: 0; }
+.bubble { max-width: 72%; padding: 10px 14px; border-radius: 18px; font-size: 14px; line-height: 1.6; }
+.bubble.ai { background: #fff; border-bottom-left-radius: 4px; box-shadow: 0 2px 8px rgba(0,0,0,.06); color: var(--text); }
+.bubble.user { background: linear-gradient(135deg, #e8698a, #c9527a); color: #fff; border-bottom-right-radius: 4px; }
+.bubble-time { font-size: 10px; color: var(--text-light); text-align: center; margin: 4px 0; }
+
+/* 快捷问题 */
+.quick-btns { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 8px; }
+.quick-btn { background: #fff; border: 1px solid var(--rose-light); color: var(--rose); border-radius: 20px; padding: 7px 14px; font-size: 13px; cursor: pointer; transition: all .15s; white-space: nowrap; }
+.quick-btn:active { background: var(--rose-pale); }
+
+/* 产品卡片 */
+.product-card { background: #fff; border-radius: 16px; padding: 14px; box-shadow: 0 2px 12px rgba(0,0,0,.08); margin: 4px 0; border: 1px solid var(--rose-pale); }
+.product-card-header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; }
+.product-badge { background: var(--rose); color: #fff; font-size: 10px; padding: 2px 8px; border-radius: 10px; }
+.product-name { font-size: 15px; font-weight: 600; color: var(--text); }
+.product-desc { font-size: 12px; color: var(--text-light); margin-bottom: 10px; line-height: 1.5; }
+.product-price { display: flex; align-items: baseline; gap: 8px; margin-bottom: 10px; }
+.price-new { font-size: 22px; font-weight: 700; color: var(--rose); }
+.price-old { font-size: 13px; color: var(--text-light); text-decoration: line-through; }
+.price-tag { background: var(--gold-light); color: var(--gold); font-size: 11px; padding: 2px 8px; border-radius: 10px; }
+.product-stars { font-size: 12px; color: var(--text-light); margin-bottom: 10px; }
+.product-btns { display: flex; gap: 8px; }
+.btn-book { flex: 1; background: linear-gradient(135deg, #e8698a, #c9527a); color: #fff; border: none; border-radius: 20px; padding: 10px; font-size: 13px; cursor: pointer; font-weight: 500; }
+.btn-detail { flex: 1; background: #fff; border: 1px solid var(--rose); color: var(--rose); border-radius: 20px; padding: 10px; font-size: 13px; cursor: pointer; }
+
+/* 私域转化卡片 */
+.wechat-card { background: linear-gradient(135deg, #f0fff0, #e8f8e8); border: 1px solid #c8e6c9; border-radius: 16px; padding: 16px; margin: 4px 0; }
+.wechat-card-title { font-size: 14px; font-weight: 600; color: #2e7d32; margin-bottom: 10px; display: flex; align-items: center; gap: 6px; }
+.wechat-benefits { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.wechat-benefit { font-size: 12px; color: #388e3c; display: flex; align-items: center; gap: 6px; }
+.btn-wechat { width: 100%; background: #07c160; color: #fff; border: none; border-radius: 20px; padding: 11px; font-size: 14px; cursor: pointer; font-weight: 500; display: flex; align-items: center; justify-content: center; gap: 6px; }
+
+/* 打字动画 */
+.typing { display: flex; align-items: center; gap: 4px; padding: 12px 16px; }
+.typing-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--rose-light); animation: typing 1.2s infinite; }
+.typing-dot:nth-child(2) { animation-delay: .2s; }
+.typing-dot:nth-child(3) { animation-delay: .4s; }
+@keyframes typing { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+/* 图片上传区 */
+.skin-upload { background: var(--rose-pale); border: 2px dashed var(--rose-light); border-radius: 16px; padding: 20px; text-align: center; margin: 8px 16px; cursor: pointer; transition: all .15s; }
+.skin-upload:active { background: #fde8ef; }
+.skin-upload-icon { font-size: 32px; margin-bottom: 8px; }
+.skin-upload-text { font-size: 13px; color: var(--rose); font-weight: 500; }
+.skin-upload-sub { font-size: 11px; color: var(--text-light); margin-top: 4px; }
+
+/* 皮肤报告卡片 */
+.skin-report { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 2px 12px rgba(0,0,0,.08); margin: 4px 0; }
+.skin-report-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; gap: 6px; }
+.skin-type-badge { display: inline-block; background: var(--rose-pale); color: var(--rose); padding: 4px 12px; border-radius: 20px; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+.skin-problems { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.problem-tag { background: var(--gold-light); color: var(--gold); font-size: 11px; padding: 3px 10px; border-radius: 10px; }
+.skin-areas { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.skin-area { background: var(--bg); border-radius: 10px; padding: 8px 10px; }
+.skin-area-name { font-size: 11px; color: var(--text-light); margin-bottom: 2px; }
+.skin-area-val { font-size: 12px; color: var(--text); }
+
+/* 输入区 */
+.chat-input-area { background: #fff; border-top: 1px solid #f0e4ea; padding: 10px 12px; padding-bottom: max(10px, env(safe-area-inset-bottom)); flex-shrink: 0; }
+.input-tools { display: flex; gap: 10px; margin-bottom: 8px; }
+.tool-btn { background: var(--rose-pale); border: none; border-radius: 20px; padding: 6px 12px; font-size: 12px; color: var(--rose); cursor: pointer; display: flex; align-items: center; gap: 4px; }
+.input-row { display: flex; gap: 8px; align-items: flex-end; }
+.chat-input { flex: 1; background: var(--bg); border: 1px solid #f0e4ea; border-radius: 20px; padding: 10px 16px; font-size: 14px; font-family: inherit; resize: none; max-height: 100px; color: var(--text); outline: none; line-height: 1.5; }
+.chat-input:focus { border-color: var(--rose-light); }
+.send-btn { width: 40px; height: 40px; border-radius: 50%; background: linear-gradient(135deg, #e8698a, #c9527a); border: none; color: #fff; font-size: 18px; cursor: pointer; flex-shrink: 0; display: flex; align-items: center; justify-content: center; box-shadow: 0 2px 10px rgba(232,105,138,.4); }
+.send-btn:disabled { background: #ddd; box-shadow: none; }
+
+/* ── 皮肤测试页 ── */
+.test-page { background: #fff; }
+.test-header { padding: 20px 20px 10px; }
+.test-title { font-size: 18px; font-weight: 700; margin-bottom: 6px; }
+.test-progress { height: 6px; background: #f0e4ea; border-radius: 3px; overflow: hidden; }
+.test-progress-bar { height: 100%; background: linear-gradient(90deg, #e8698a, #c9527a); border-radius: 3px; transition: width .4s; }
+.test-step { font-size: 11px; color: var(--text-light); margin-top: 6px; }
+.test-question { padding: 20px; }
+.test-q { font-size: 16px; font-weight: 600; margin-bottom: 16px; line-height: 1.5; }
+.test-options { display: flex; flex-direction: column; gap: 10px; }
+.test-option { background: var(--bg); border: 1.5px solid transparent; border-radius: 12px; padding: 14px 16px; font-size: 14px; cursor: pointer; transition: all .15s; display: flex; align-items: center; gap: 10px; }
+.test-option.selected { background: var(--rose-pale); border-color: var(--rose); color: var(--rose); }
+.test-option-icon { font-size: 20px; }
+.test-nav { display: flex; gap: 10px; padding: 0 20px 20px; margin-top: auto; }
+.btn-prev { flex: 1; background: #fff; border: 1px solid #ddd; color: var(--text-light); border-radius: 50px; padding: 13px; font-size: 14px; cursor: pointer; }
+.btn-next { flex: 2; background: linear-gradient(135deg, #e8698a, #c9527a); color: #fff; border: none; border-radius: 50px; padding: 13px; font-size: 14px; font-weight: 600; cursor: pointer; }
+
+/* ── 底部导航 ── */
+.bottom-nav { background: #fff; border-top: 1px solid #f0e4ea; display: flex; padding-bottom: max(0px, env(safe-area-inset-bottom)); flex-shrink: 0; }
+.nav-item { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 8px 4px; cursor: pointer; gap: 3px; transition: color .15s; color: var(--text-light); font-size: 10px; border: none; background: none; }
+.nav-item.active { color: var(--rose); }
+.nav-icon { font-size: 22px; }
+
+/* ── 会员页 ── */
+.member-page { background: var(--bg); }
+.member-hero { background: linear-gradient(135deg, #e8698a, #c9527a); padding: 24px 20px 40px; color: #fff; }
+.member-user { display: flex; align-items: center; gap: 12px; margin-bottom: 20px; }
+.member-avatar { width: 56px; height: 56px; border-radius: 50%; background: rgba(255,255,255,.3); display: flex; align-items: center; justify-content: center; font-size: 28px; border: 2px solid rgba(255,255,255,.5); }
+.member-name { font-size: 17px; font-weight: 600; }
+.member-level { font-size: 12px; opacity: .85; margin-top: 3px; }
+.member-points { display: flex; gap: 20px; }
+.point-item { text-align: center; }
+.point-num { font-size: 22px; font-weight: 700; }
+.point-label { font-size: 11px; opacity: .8; margin-top: 2px; }
+.member-cards { padding: 16px; margin-top: -20px; display: flex; flex-direction: column; gap: 12px; }
+.member-card { background: #fff; border-radius: 16px; padding: 16px; box-shadow: 0 2px 12px rgba(0,0,0,.06); }
+.member-card-title { font-size: 13px; color: var(--text-light); margin-bottom: 12px; display: flex; justify-content: space-between; }
+.member-card-title span { color: var(--rose); font-size: 12px; }
+.consultant { display: flex; align-items: center; gap: 12px; }
+.consultant-avatar { width: 44px; height: 44px; border-radius: 50%; background: var(--rose-pale); display: flex; align-items: center; justify-content: center; font-size: 22px; }
+.consultant-info { flex: 1; }
+.consultant-name { font-size: 14px; font-weight: 600; }
+.consultant-status { font-size: 12px; color: var(--text-light); margin-top: 2px; }
+.btn-consult { background: var(--rose); color: #fff; border: none; border-radius: 20px; padding: 8px 16px; font-size: 13px; cursor: pointer; }
+.plan-progress { margin-top: 4px; }
+.plan-name { font-size: 14px; font-weight: 500; margin-bottom: 8px; }
+.plan-bar { height: 8px; background: var(--bg); border-radius: 4px; overflow: hidden; margin-bottom: 4px; }
+.plan-bar-fill { height: 100%; background: linear-gradient(90deg, #e8698a, #c9527a); border-radius: 4px; }
+.plan-meta { font-size: 12px; color: var(--text-light); display: flex; justify-content: space-between; }
+.coupons { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; }
+.coupons::-webkit-scrollbar { display: none; }
+.coupon { background: linear-gradient(135deg, #fdf0f4, #fff5e6); border: 1px solid var(--rose-light); border-radius: 12px; padding: 12px; min-width: 110px; text-align: center; flex-shrink: 0; }
+.coupon-val { font-size: 20px; font-weight: 700; color: var(--rose); }
+.coupon-val span { font-size: 13px; }
+.coupon-name { font-size: 11px; color: var(--text-light); margin-top: 3px; }
+.coupon-expire { font-size: 10px; color: var(--text-light); margin-top: 2px; }
+
+/* 阶段指示器 */
+.stage-indicator { display: flex; align-items: center; justify-content: center; gap: 6px; padding: 6px 16px; font-size: 11px; color: var(--text-light); }
+.stage-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--rose-light); }
+.stage-dot.active { background: var(--rose); }
+
+/* 连接状态条 */
+.conn-bar.online  { background: #e8f5e9; color: #2e7d32; }
+.conn-bar.offline { background: #fff3e0; color: #e65100; }
+.conn-bar.checking{ background: #f3f3f3; color: #888; }
+</style>
+</head>
+<body>
+
+<!-- 顶部栏 -->
+<div class="header">
+  <div class="header-avatar">🌸</div>
+  <div class="header-info">
+    <div class="header-name">妍美·AI美肤顾问</div>
+    <div class="header-status"><div class="dot-online"></div>小美在线 · 快速响应</div>
+  </div>
+  <div class="header-tags">
+    <span class="tag">专业</span>
+    <span class="tag">免费</span>
+    <button class="tag" id="configBtn" style="background:var(--gold-light);color:var(--gold);border:none;cursor:pointer;font-size:10px;padding:2px 7px;" onclick="goPage('config')">⚙️ 配置</button>
+  </div>
+</div>
+
+<!-- 连接状态提示条 -->
+<div class="conn-bar checking" id="connBar" style="font-size:11px;text-align:center;padding:4px;transition:all .3s">⏳ 正在连接AI服务...</div>
+
+<!-- 页面容器 -->
+<div class="pages">
+
+  <!-- 页面1：Landing 落地页 -->
+  <div class="page active" id="page-landing">
+    <div class="landing">
+      <div class="landing-hero">
+        <div class="landing-badge">✨ 10000+ 姐妹信赖选择</div>
+        <div class="landing-title">让<span>AI顾问</span>帮你<br>定制专属美丽方案</div>
+        <div class="landing-sub">上传照片，AI秒测肤质<br>精准匹配最适合你的美肤项目</div>
+      </div>
+      <div class="landing-img" style="margin:0 20px;width:calc(100%-40px)">
+        <span style="font-size:48px">🌺</span>
+      </div>
+      <div class="landing-features" style="margin-top:16px">
+        <div class="feature-item">
+          <div class="feature-icon">🤖</div>
+          <div class="feature-text">
+            <strong>AI智能测肤</strong>
+            <span>拍张照片，AI精准分析你的肤质问题</span>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">💎</div>
+          <div class="feature-text">
+            <strong>专属方案定制</strong>
+            <span>根据肤质匹配最适合的美肤项目</span>
+          </div>
+        </div>
+        <div class="feature-item">
+          <div class="feature-icon">🎁</div>
+          <div class="feature-text">
+            <strong>新客专属体验价</strong>
+            <span>首次咨询可领取超值体验优惠</span>
+          </div>
+        </div>
+      </div>
+      <div class="reviews">
+        <div class="reviews-title">真实客户反馈 ⭐⭐⭐⭐⭐</div>
+        <div class="review-cards">
+          <div class="review-card">
+            <div class="review-stars">⭐⭐⭐⭐⭐</div>
+            <div class="review-text">AI分析超准！推荐的水光针做完皮肤真的水润了很多</div>
+            <div class="review-user">— 张小姐 · 3天前</div>
+          </div>
+          <div class="review-card">
+            <div class="review-stars">⭐⭐⭐⭐⭐</div>
+            <div class="review-text">顾问小美好贴心，一点不强迫，做了光子嫩肤效果很好</div>
+            <div class="review-user">— 李女士 · 1周前</div>
+          </div>
+          <div class="review-card">
+            <div class="review-stars">⭐⭐⭐⭐⭐</div>
+            <div class="review-text">体验价真的很划算，皮肤状态改善了很多，还会再来</div>
+            <div class="review-user">— 王小姐 · 2周前</div>
+          </div>
+        </div>
+      </div>
+      <div class="cta-area">
+        <div class="countdown">限时优惠，剩余 <span id="countdown">02:45:33</span></div>
+        <button class="btn-main" onclick="goPage('chat')">
+          🌸 立即免费咨询 →
+        </button>
+        <button class="btn-sub" onclick="goPage('test')">先做皮肤测试</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 页面2：AI对话 -->
+  <div class="page" id="page-chat">
+    <div class="chat-messages" id="chatMessages">
+      <!-- 欢迎消息 -->
+      <div class="bubble-time">刚刚</div>
+      <div class="bubble-row">
+        <div class="bubble-avatar">🌸</div>
+        <div style="display:flex;flex-direction:column;gap:8px;max-width:72%">
+          <div class="bubble ai">您好呀～我是妍美的AI顾问小美🌸 很高兴认识您！想让我帮您做个专属皮肤分析吗？</div>
+          <div class="bubble ai">您可以直接告诉我皮肤烦恼，或者上传一张素颜照片，我来帮您AI测肤✨</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 阶段指示器 -->
+    <div class="stage-indicator" id="stageIndicator">
+      <div class="stage-dot active" id="dot1"></div>
+      <span id="stageText">了解需求中</span>
+      <div class="stage-dot" id="dot2"></div>
+    </div>
+
+    <!-- 快捷按钮 -->
+    <div class="quick-btns" id="quickBtns">
+      <button class="quick-btn" onclick="sendQuick('我皮肤好干，老是脱皮')">😮 皮肤干燥</button>
+      <button class="quick-btn" onclick="sendQuick('脸上痘痘很多，控油')">😣 油痘困扰</button>
+      <button class="quick-btn" onclick="sendQuick('想美白祛斑')">✨ 美白祛斑</button>
+      <button class="quick-btn" onclick="sendQuick('皮肤松弛想抗衰')">💆 抗衰紧致</button>
+    </div>
+
+    <!-- 图片上传区 -->
+    <div class="skin-upload" id="uploadArea" onclick="triggerUpload()">
+      <div class="skin-upload-icon">📷</div>
+      <div class="skin-upload-text">上传素颜照，AI秒测肤质</div>
+      <div class="skin-upload-sub">支持拍照或相册选取 · 隐私保护</div>
+    </div>
+    <input type="file" id="fileInput" accept="image/*" style="display:none" onchange="handleUpload(event)">
+
+    <!-- 输入区 -->
+    <div class="chat-input-area">
+      <div class="input-tools">
+        <button class="tool-btn" onclick="triggerUpload()">📷 皮肤照片</button>
+        <button class="tool-btn" onclick="goPage('test')">🔬 皮肤测试</button>
+        <button class="tool-btn" onclick="showWechat()">🎁 领优惠</button>
+      </div>
+      <div class="input-row">
+        <textarea class="chat-input" id="chatInput" placeholder="告诉我你的皮肤烦恼..." rows="1"
+          oninput="autoResize(this)" onkeydown="handleEnter(event)"></textarea>
+        <button class="send-btn" id="sendBtn" onclick="sendMessage()">➤</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 页面3：皮肤测试 -->
+  <div class="page" id="page-test">
+    <div class="test-page" style="display:flex;flex-direction:column;height:100%">
+      <div class="test-header">
+        <div class="test-title">🔬 AI智能肤质检测</div>
+        <div class="test-progress">
+          <div class="test-progress-bar" id="testProgress" style="width:20%"></div>
+        </div>
+        <div class="test-step" id="testStep">第 1 题 / 共 5 题</div>
+      </div>
+      <div class="test-question" id="testQuestion"></div>
+      <div class="test-nav" style="margin-top:auto">
+        <button class="btn-prev" onclick="prevQ()" id="prevBtn">← 上一题</button>
+        <button class="btn-next" onclick="nextQ()" id="nextBtn">下一题 →</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 页面4：会员中心 -->
+  <div class="page" id="page-member">
+    <div class="member-page">
+      <div class="member-hero">
+        <div class="member-user">
+          <div class="member-avatar">👸</div>
+          <div>
+            <div class="member-name">张小姐</div>
+            <div class="member-level">💎 妍美 VIP 银卡会员</div>
+          </div>
+        </div>
+        <div class="member-points">
+          <div class="point-item"><div class="point-num">2580</div><div class="point-label">积分</div></div>
+          <div class="point-item"><div class="point-num">3</div><div class="point-label">张优惠券</div></div>
+          <div class="point-item"><div class="point-num">5</div><div class="point-label">次到店</div></div>
+        </div>
+      </div>
+      <div class="member-cards">
+        <div class="member-card">
+          <div class="member-card-title">我的专属顾问 <span>在线咨询 →</span></div>
+          <div class="consultant">
+            <div class="consultant-avatar">👩‍⚕️</div>
+            <div class="consultant-info">
+              <div class="consultant-name">王顾问</div>
+              <div class="consultant-status">🟢 在线 · 从业8年美业经验</div>
+            </div>
+            <button class="btn-consult" onclick="goPage('chat')">立即咨询</button>
+          </div>
+        </div>
+        <div class="member-card">
+          <div class="member-card-title">我的美肤计划</div>
+          <div class="plan-progress">
+            <div class="plan-name">💧 深层补水焕亮计划</div>
+            <div class="plan-bar"><div class="plan-bar-fill" style="width:67%"></div></div>
+            <div class="plan-meta"><span>已完成 2/3 次</span><span>下次到店：3天后</span></div>
+          </div>
+        </div>
+        <div class="member-card">
+          <div class="member-card-title">我的优惠券 <span>去使用</span></div>
+          <div class="coupons">
+            <div class="coupon"><div class="coupon-val"><span>¥</span>100</div><div class="coupon-name">全场通用券</div><div class="coupon-expire">7天后到期</div></div>
+            <div class="coupon"><div class="coupon-val">9<span>折</span></div><div class="coupon-name">项目专属折扣</div><div class="coupon-expire">30天后到期</div></div>
+            <div class="coupon"><div class="coupon-val">赠</div><div class="coupon-name">补水面膜1片</div><div class="coupon-expire">随时可用</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  
+    <!-- 页面5：API配置 -->
+    <div class="page" id="page-config">
+      <div class="member-page" style="background:#fff">
+        <div class="member-hero" style="background:linear-gradient(135deg, #4a6fa5, #2c5282)">
+          <div class="member-user">
+            <div class="member-avatar">⚙️</div>
+            <div>
+              <div class="member-name">API配置中心</div>
+              <div class="member-level">🔐 安全存储于浏览器本地</div>
+            </div>
+          </div>
+          <div class="member-points">
+            <div class="point-item"><div class="point-num" id="apiStatus">❓</div><div class="point-label">API状态</div></div>
+            <div class="point-item"><div class="point-num" id="dbStatus">❓</div><div class="point-label">数据库</div></div>
+            <div class="point-item"><div class="point-num" id="kbStatus">❓</div><div class="point-label">知识库</div></div>
+          </div>
+        </div>
+        <div class="member-cards">
+          <div class="member-card">
+            <div class="member-card-title">LLM API密钥配置</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">DeepSeek API Key</label>
+                <input type="password" id="deepseekKey" placeholder="sk-..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">Kimi API Key</label>
+                <input type="password" id="kimiKey" placeholder="sk-..." style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">OpenAI兼容API地址</label>
+                <input type="text" id="apiBaseUrl" placeholder="https://api.deepseek.com/v1" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <button class="btn-book" onclick="saveApiKeys()" style="margin-top:8px">💾 保存API密钥</button>
+            </div>
+          </div>
+          
+          <div class="member-card">
+            <div class="member-card-title">数据库连接配置</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">数据库API端点</label>
+                <input type="text" id="dbApiUrl" placeholder="/api/yanmei/db" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">数据库名称</label>
+                <input type="text" id="dbName" placeholder="yanmei_db" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <button class="btn-book" onclick="testDbConnection()" style="background:var(--gold);margin-top:8px">🔗 测试数据库连接</button>
+            </div>
+          </div>
+          
+          <div class="member-card">
+            <div class="member-card-title">知识库API配置</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">知识库API端点</label>
+                <input type="text" id="kbApiUrl" placeholder="/api/yanmei/kb" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">知识库集合</label>
+                <input type="text" id="kbCollection" placeholder="skin_knowledge" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <button class="btn-book" onclick="testKbConnection()" style="background:#4caf50;margin-top:8px">📚 测试知识库连接</button>
+            </div>
+          </div>
+          
+          <!-- API调用窗口 -->
+          <div class="member-card">
+            <div class="member-card-title">LLM API调用窗口</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">测试消息</label>
+                <textarea id="llmTestMessage" placeholder="输入测试消息，例如：我的皮肤很干燥，有什么建议？" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px;min-height:80px;resize:vertical"></textarea>
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">会话ID</label>
+                <input type="text" id="llmSessionId" placeholder="session_123456" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn-book" onclick="testLlmApi()" style="background:#2196f3">🤖 测试LLM API</button>
+                <button class="btn-detail" onclick="clearLlmResponse()">🗑️ 清空响应</button>
+              </div>
+              <div id="llmResponseContainer" style="display:none;margin-top:12px">
+                <div style="font-size:12px;color:var(--text-light);margin-bottom:4px">API响应：</div>
+                <div id="llmResponse" style="background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:13px;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="member-card">
+            <div class="member-card-title">数据库API调用窗口</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">查询语句</label>
+                <input type="text" id="dbQuery" placeholder="SELECT * FROM users LIMIT 5" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn-book" onclick="testDbApi()" style="background:var(--gold)">🗃️ 测试数据库API</button>
+                <button class="btn-detail" onclick="clearDbResponse()">🗑️ 清空响应</button>
+              </div>
+              <div id="dbResponseContainer" style="display:none;margin-top:12px">
+                <div style="font-size:12px;color:var(--text-light);margin-bottom:4px">API响应：</div>
+                <div id="dbResponse" style="background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:13px;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="member-card">
+            <div class="member-card-title">知识库API调用窗口</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">搜索查询</label>
+                <input type="text" id="kbQuery" placeholder="深圳妍美医疗美容门诊部" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">返回结果数量</label>
+                <input type="number" id="kbLimit" value="3" min="1" max="10" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+              </div>
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">
+                  <input type="checkbox" id="useClinicApi" style="margin-right:6px">
+                  使用门诊部专用API (查询真实医美门诊部信息)
+                </label>
+                <div style="font-size:11px;color:#666;margin-top:2px">
+                  勾选后调用 /api/clinic/search 端点，查询深圳妍美医疗美容门诊部等真实数据
+                </div>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn-book" onclick="testKbApi()" style="background:#4caf50">📚 测试知识库API</button>
+                <button class="btn-detail" onclick="clearKbResponse()">🗑️ 清空响应</button>
+              </div>
+              <div id="kbResponseContainer" style="display:none;margin-top:12px">
+                <div style="font-size:12px;color:var(--text-light);margin-bottom:4px">API响应：</div>
+                <div id="kbResponse" style="background:#f5f5f5;border:1px solid #ddd;border-radius:8px;padding:12px;font-size:13px;max-height:200px;overflow-y:auto;white-space:pre-wrap"></div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="member-card">
+            <div class="member-card-title">日志与监控</div>
+            <div style="display:flex;flex-direction:column;gap:12px">
+              <div>
+                <label style="font-size:12px;color:var(--text-light);display:block;margin-bottom:4px">日志级别</label>
+                <select id="logLevel" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;font-size:13px">
+                  <option value="debug">Debug - 详细</option>
+                  <option value="info" selected>Info - 一般</option>
+                  <option value="warn">Warn - 警告</option>
+                  <option value="error">Error - 错误</option>
+                </select>
+              </div>
+              <div style="display:flex;gap:8px">
+                <button class="btn-detail" onclick="clearLogs()">🗑️ 清空日志</button>
+                <button class="btn-detail" onclick="exportLogs()">📥 导出日志</button>
+                <button class="btn-detail" onclick="showLogPanel()">📊 实时日志面板</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  
+  </div>
+</div>
+
+<!-- 底部导航 -->
+<div class="bottom-nav">
+  <button class="nav-item active" id="nav-landing" onclick="goPage('landing')">
+    <span class="nav-icon">🏠</span>首页
+  </button>
+  <button class="nav-item" id="nav-chat" onclick="goPage('chat')">
+    <span class="nav-icon">💬</span>咨询
+  </button>
+  <button class="nav-item" id="nav-test" onclick="goPage('test')">
+    <span class="nav-icon">🔬</span>测肤
+  </button>
+  <button class="nav-item" id="nav-member" onclick="goPage('member')">
+    <span class="nav-icon">👸</span>会员
+  </button>
+  <button class="nav-item" id="nav-config" onclick="goPage('config')">
+    <span class="nav-icon">⚙️</span>配置
+  </button>
+</div>
+
+<script>
+const API = '/api/yanmei';
+let sessionId = 'session_' + Date.now();
+let chatHistory = [];
+let currentStage = '共情';
+let isTyping = false;
+let skinReport = null;
+let msgCount = 0;
+let backendOK = false;
+
+// 🆕 配置管理
+const CONFIG_STORAGE_KEY = 'yanmei_ai_config';
+const LOG_STORAGE_KEY = 'yanmei_ai_logs';
+const SESSION_STORAGE_KEY = 'yanmei_ai_session';
+
+// 默认配置
+const defaultConfig = {
+  apiKeys: {
+    deepseek: '',
+    kimi: '',
+    apiBaseUrl: 'https://api.deepseek.com/v1'
+  },
+  database: {
+    apiUrl: `${API}/db`,
+    name: 'yanmei_db'
+  },
+  knowledgeBase: {
+    apiUrl: `${API}/kb`,
+    collection: 'skin_knowledge'
+  },
+  logging: {
+    level: 'info',
+    enabled: true
+  }
+};
+
+// 加载配置
+function loadConfig() {
+  try {
+    const saved = localStorage.getItem(CONFIG_STORAGE_KEY);
+    if (saved) {
+      return JSON.parse(saved);
+    }
+  } catch (e) {
+    console.error('加载配置失败:', e);
+  }
+  return defaultConfig;
+}
+
+// 保存配置
+function saveConfig(config) {
+  try {
+    localStorage.setItem(CONFIG_STORAGE_KEY, JSON.stringify(config));
+    return true;
+  } catch (e) {
+    console.error('保存配置失败:', e);
+    return false;
+  }
+}
+
+// 初始化配置
+let config = loadConfig();
+
+// 日志系统
+const logLevels = { debug: 0, info: 1, warn: 2, error: 3 };
+let logs = [];
+
+function log(level, message, data = null) {
+  const currentLevel = logLevels[config.logging.level] || 1;
+  const msgLevel = logLevels[level] || 1;
+  
+  if (msgLevel >= currentLevel) {
+    const timestamp = new Date().toISOString();
+    const logEntry = { timestamp, level, message, data };
+    logs.push(logEntry);
+    
+    // 限制日志数量
+    if (logs.length > 1000) {
+      logs = logs.slice(-500);
+    }
+    
+    // 保存到本地存储
+    try {
+      localStorage.setItem(LOG_STORAGE_KEY, JSON.stringify(logs.slice(-100)));
+    } catch (e) {
+      console.error('保存日志失败:', e);
+    }
+    
+    // 实时日志反馈（如果日志面板可见）
+    updateLogPanel(logEntry);
+    
+    console[level](`[${timestamp}] ${level.toUpperCase()}: ${message}`, data || '');
+  }
+}
+
+// 更新日志面板
+function updateLogPanel(entry) {
+  const panel = document.getElementById('logPanel');
+  if (panel && panel.style.display !== 'none') {
+    const div = document.createElement('div');
+    div.className = `log-entry log-${entry.level}`;
+    div.innerHTML = `<span class="log-time">${new Date(entry.timestamp).toLocaleTimeString()}</span>
+                     <span class="log-level">${entry.level.toUpperCase()}</span>
+                     <span class="log-msg">${entry.message}</span>`;
+    panel.appendChild(div);
+    panel.scrollTop = panel.scrollHeight;
+  }
+}
+
+// 🆕 后端健康检测
+async function checkBackend() {
+  const bar = document.getElementById('connBar');
+  try {
+    const res = await fetch(`${API}/health`, { signal: AbortSignal.timeout(3000) });
+    if (res.ok) {
+      backendOK = true;
+      bar.className = 'conn-bar online';
+      bar.textContent = '✅ AI服务已连接 · DeepSeek + Kimi 双引擎';
+      setTimeout(() => bar.style.display = 'none', 3000);
+    } else throw new Error();
+  } catch {
+    backendOK = false;
+    bar.className = 'conn-bar offline';
+    bar.textContent = '⚠️ AI服务未启动，当前为演示模式';
+  }
+}
+checkBackend();
+
+// ── 页面切换 ──
+function goPage(name) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  document.getElementById('page-' + name).classList.add('active');
+  document.getElementById('nav-' + name)?.classList.add('active');
+}
+
+// ── 倒计时 ──
+let secs = 9933;
+setInterval(() => {
+  secs--;
+  const h = String(Math.floor(secs/3600)).padStart(2,'0');
+  const m = String(Math.floor((secs%3600)/60)).padStart(2,'0');
+  const s = String(secs%60).padStart(2,'0');
+  const el = document.getElementById('countdown');
+  if(el) el.textContent = `${h}:${m}:${s}`;
+}, 1000);
+
+// ── 聊天功能 ──
+function autoResize(el) {
+  el.style.height = 'auto';
+  el.style.height = Math.min(el.scrollHeight, 100) + 'px';
+}
+
+function handleEnter(e) {
+  if(e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+}
+
+function sendQuick(text) {
+  document.getElementById('chatInput').value = text;
+  sendMessage();
+}
+
+function addBubble(role, content, extra = null) {
+  const box = document.getElementById('chatMessages');
+  const row = document.createElement('div');
+  row.className = 'bubble-row' + (role === 'user' ? ' user' : '');
+
+  if(role === 'ai') {
+    row.innerHTML = `<div class="bubble-avatar">🌸</div><div style="display:flex;flex-direction:column;gap:8px;max-width:72%"><div class="bubble ai">${content}</div></div>`;
+    if(extra) row.querySelector('div > div').appendChild(extra);
+  } else {
+    row.innerHTML = `<div class="bubble user">${content}</div><div class="bubble-avatar" style="background:var(--rose-pale)">👤</div>`;
+  }
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+  return row;
+}
+
+function showTyping() {
+  const box = document.getElementById('chatMessages');
+  const div = document.createElement('div');
+  div.className = 'bubble-row';
+  div.id = 'typing-indicator';
+  div.innerHTML = `<div class="bubble-avatar">🌸</div><div class="bubble ai typing"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+  box.appendChild(div);
+  box.scrollTop = box.scrollHeight;
+}
+
+function removeTyping() {
+  document.getElementById('typing-indicator')?.remove();
+}
+
+function updateStage(stage) {
+  currentStage = stage;
+  const map = {'共情':'了解需求中','推荐':'为您匹配项目','转化':'专属方案已就绪'};
+  document.getElementById('stageText').textContent = map[stage] || stage;
+  const d1 = document.getElementById('dot1'), d2 = document.getElementById('dot2');
+  if(stage === '转化') { d1.classList.add('active'); d2.classList.add('active'); }
+  else if(stage === '推荐') { d1.classList.add('active'); d2.classList.remove('active'); }
+}
+
+// 🆕 显示产品卡片（修复了原来缺失的函数）
+function showProductCard(product) {
+  if (!product) return;
+  const div = document.createElement('div');
+  div.className = 'product-card';
+  div.innerHTML = `
+    <div class="product-card-header">
+      <span class="product-badge">AI推荐</span>
+      <span class="product-name">${product.name}</span>
+    </div>
+    <div class="product-desc">${(product.description || '').slice(0,60)}...</div>
+    <div class="product-price">
+      <span class="price-new">¥${product.price_activity}</span>
+      <span class="price-old">¥${product.price_original}</span>
+      <span class="price-tag">限时特惠</span>
+    </div>
+    <div class="product-stars">⭐${product.rating} · ${product.review_count}人体验</div>
+    <div class="product-btns">
+      <button class="btn-book" onclick="showWechat()">立即预约</button>
+      <button class="btn-detail" onclick="sendQuick('告诉我更多关于${product.name}的信息')">了解更多</button>
+    </div>`;
+  const box = document.getElementById('chatMessages');
+  const row = document.createElement('div');
+  row.className = 'bubble-row';
+  row.innerHTML = '<div class="bubble-avatar">🌸</div><div style="max-width:85%"></div>';
+  row.querySelector('div:last-child').appendChild(div);
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+}
+
+function showWechat() {
+  const div = document.createElement('div');
+  div.className = 'wechat-card';
+  div.innerHTML = `
+    <div class="wechat-card-title">🎁 专属顾问福利已为您准备好</div>
+    <div class="wechat-benefits">
+      <div class="wechat-benefit">✅ 免费皮肤检测报告（价值¥298）</div>
+      <div class="wechat-benefit">✅ 新客专属9折优惠券</div>
+      <div class="wechat-benefit">✅ 专属美丽方案定制</div>
+    </div>
+    <button class="btn-wechat" onclick="alert('扫码加微信功能，请替换为实际二维码')">💚 添加专属顾问微信</button>`;
+  const box = document.getElementById('chatMessages');
+  const row = document.createElement('div');
+  row.className = 'bubble-row';
+  row.innerHTML = '<div class="bubble-avatar">🌸</div><div style="max-width:85%"></div>';
+  row.querySelector('div:last-child').appendChild(div);
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+}
+
+async function sendMessage() {
+  const input = document.getElementById('chatInput');
+  const text = input.value.trim();
+  if(!text || isTyping) return;
+
+  // 记录用户消息
+  log('info', '用户发送消息', { text, sessionId, msgCount });
+
+  input.value = '';
+  input.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+  isTyping = true;
+
+  // 隐藏上传区和快捷按钮
+  document.getElementById('uploadArea').style.display = 'none';
+  document.getElementById('quickBtns').style.display = 'none';
+
+  addBubble('user', text);
+  showTyping();
+
+  try {
+    const res = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({message: text, session_id: sessionId}),
+      signal: AbortSignal.timeout(15000)
+    });
+    removeTyping();
+    if(res.ok) {
+      const data = await res.json();
+      updateStage(data.stage || '共情');
+      addBubble('ai', data.reply);
+      
+      // 记录AI回复
+      log('info', 'AI回复消息', {
+        stage: data.stage,
+        replyLength: data.reply?.length || 0,
+        hasProduct: !!data.product
+      });
+      
+      // 推荐阶段 → 显示产品卡片
+      if(data.stage === '推荐' && data.product) {
+        setTimeout(() => {
+          showProductCard(data.product);
+          log('info', '显示产品卡片', { product: data.product.name });
+        }, 600);
+      }
+      // 转化阶段 → 显示微信卡片
+      if(data.stage === '转化') {
+        setTimeout(() => {
+          showWechat();
+          log('info', '显示微信转化卡片');
+        }, 1200);
+      }
+    } else {
+      log('warn', '后端API返回错误状态', { status: res.status, statusText: res.statusText });
+      addBubble('ai', mockReply(text, msgCount));
+    }
+  } catch(e) {
+    log('error', '发送消息失败', { error: e.message, text });
+    removeTyping();
+    addBubble('ai', mockReply(text, msgCount));
+  }
+
+  chatHistory.push({role:'user', content:text});
+  msgCount++;
+  isTyping = false;
+  document.getElementById('sendBtn').disabled = false;
+}
+
+// 演示模式（后端未连接时）
+function mockReply(msg, turn) {
+  if(turn === 0) return '您好呀～听起来您有皮肤烦恼呢，我完全理解那种感受！能告诉我具体是哪方面让您困扰吗？是干燥、出油、还是有斑点呢？🌸';
+  if(msg.includes('干') || msg.includes('缺水')) {
+    updateStage('推荐');
+    setTimeout(() => showProductCard({
+      name: '水光针补水套餐', description: '采用韩国进口水光仪，将精华液直接注入真皮层，即时补水效果显著',
+      price_activity: 199, price_original: 2800, rating: 4.9, review_count: 328
+    }), 800);
+    return '听到您说皮肤干燥我真的很心疼😢 干皮最怕的就是季节变换和缺水！根据您的情况，我觉得水光针补水套餐特别适合您，很多干皮姐妹做完3天就感觉皮肤水润了很多✨';
+  }
+  if(msg.includes('痘') || msg.includes('油')) {
+    updateStage('推荐');
+    setTimeout(() => showProductCard({
+      name: '刷酸焕肤控油套餐', description: '专业医美级刷酸，精准控制浓度，加速角质更新',
+      price_activity: 169, price_original: 1800, rating: 4.7, review_count: 189
+    }), 800);
+    return '油痘肌真的太难了！😣 不过别担心，我们的刷酸焕肤套餐专门针对这个问题，很多姐妹做完一次就感觉出油少了很多～';
+  }
+  if(msg.includes('多少') || msg.includes('价格') || msg.includes('钱')) {
+    updateStage('转化');
+    return '体验价只需要¥199！原价¥2800，现在活动价超级划算～而且效果不满意是可以退款的，零风险！您想预约哪天来体验呢？我帮您留个名额🎁';
+  }
+  return '嗯嗯，我明白您的感受～根据您说的情况，我觉得我们有个项目特别适合您，要不要听我介绍一下？😊';
+}
+
+// ── 图片上传 ──
+function triggerUpload() { document.getElementById('fileInput').click(); }
+
+async function handleUpload(e) {
+  const file = e.target.files[0];
+  if(!file) return;
+  e.target.value = ''; // 允许重复上传
+
+  // 显示用户上传的图片
+  const url = URL.createObjectURL(file);
+  const box = document.getElementById('chatMessages');
+  const row = document.createElement('div');
+  row.className = 'bubble-row user';
+  row.innerHTML = `<div style="max-width:72%"><img src="${url}" style="width:100%;border-radius:12px;max-height:200px;object-fit:cover"></div><div class="bubble-avatar" style="background:var(--rose-pale)">👤</div>`;
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+
+  document.getElementById('uploadArea').style.display = 'none';
+  showTyping();
+
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    const res = await fetch(`${API}/analyze_skin?session_id=${sessionId}`, {
+      method: 'POST',
+      body: formData,
+      signal: AbortSignal.timeout(20000)
+    });
+    removeTyping();
+    if(res.ok) {
+      const data = await res.json();
+      skinReport = data.skin_report;
+      showSkinReport(skinReport);
+      setTimeout(() => {
+        updateStage(data.stage || '推荐');
+        addBubble('ai', data.reply);
+      }, 400);
+    } else throw new Error();
+  } catch {
+    removeTyping();
+    const mock = {
+      skin_type:'混合性肌肤', severity:'中度',
+      problems:['T区出油','两颊偏干','轻微暗沉'],
+      areas:{额头:'轻微出油',鼻子:'毛孔较明显',脸颊:'偏干燥',下巴:'有小痘痘'},
+      summary:'混合性肌肤，T区控油+两颊补水是关键'
+    };
+    showSkinReport(mock);
+    setTimeout(() => {
+      updateStage('推荐');
+      addBubble('ai','根据您的照片，您是典型混合性肌肤🔍 T区容易出油，两颊偏干。我特别推荐我们的定制套餐，针对混合肌分区护理，效果超好的！✨');
+    }, 500);
+  }
+}
+
+function showSkinReport(report) {
+  const div = document.createElement('div');
+  div.className = 'skin-report';
+  const areas = report.areas || {};
+  div.innerHTML = `
+    <div class="skin-report-title">🔬 AI皮肤分析报告</div>
+    <div class="skin-type-badge">${report.skin_type}</div>
+    <div class="skin-problems">${(report.problems||[]).map(p=>`<span class="problem-tag">${p}</span>`).join('')}</div>
+    <div class="skin-areas">
+      ${Object.entries(areas).map(([k,v])=>`<div class="skin-area"><div class="skin-area-name">${k}</div><div class="skin-area-val">${v}</div></div>`).join('')}
+    </div>`;
+  const box = document.getElementById('chatMessages');
+  const row = document.createElement('div');
+  row.className = 'bubble-row';
+  row.innerHTML = '<div class="bubble-avatar">🌸</div><div style="max-width:85%"></div>';
+  row.querySelector('div:last-child').appendChild(div);
+  box.appendChild(row);
+  box.scrollTop = box.scrollHeight;
+}
+
+// ── 皮肤测试 ──
+const questions = [
+  { q: '洗完脸不擦任何东西，您的皮肤感觉是？', opts: [
+    {icon:'😣', text:'很紧绷，想快点涂东西'},
+    {icon:'😊', text:'稍微有点紧，还好'},
+    {icon:'😌', text:'没什么感觉'},
+    {icon:'😅', text:'T区很快就出油了'},
+  ]},
+  { q: '下午三四点，您的皮肤出油情况？', opts: [
+    {icon:'💦', text:'全脸都在出油'},
+    {icon:'🙂', text:'只有T区出油'},
+    {icon:'😐', text:'基本没什么油'},
+    {icon:'😮', text:'皮肤反而更干了'},
+  ]},
+  { q: '您最困扰的皮肤问题是？', opts: [
+    {icon:'💧', text:'干燥脱皮，上妆卡粉'},
+    {icon:'🌊', text:'出油严重，毛孔粗大'},
+    {icon:'⭐', text:'色斑暗沉，肤色不均'},
+    {icon:'✨', text:'细纹松弛，想抗衰老'},
+  ]},
+  { q: '换季或使用新产品后，皮肤的反应？', opts: [
+    {icon:'😰', text:'容易泛红、刺痛、过敏'},
+    {icon:'😊', text:'偶尔有点不适，很快恢复'},
+    {icon:'😄', text:'皮肤状态很稳定'},
+    {icon:'🤔', text:'说不准，时好时坏'},
+  ]},
+  { q: '您的年龄段和主要诉求？', opts: [
+    {icon:'🌸', text:'20-25岁，控油祛痘'},
+    {icon:'💆', text:'25-35岁，补水美白'},
+    {icon:'👑', text:'35-45岁，抗衰紧致'},
+    {icon:'💎', text:'45岁+，深度抗衰'},
+  ]},
+];
+
+// 🆕 配置页面函数
+function loadConfigPage() {
+  // 加载保存的配置到表单
+  document.getElementById('deepseekKey').value = config.apiKeys.deepseek || '';
+  document.getElementById('kimiKey').value = config.apiKeys.kimi || '';
+  document.getElementById('apiBaseUrl').value = config.apiKeys.apiBaseUrl || 'https://api.deepseek.com/v1';
+  document.getElementById('dbApiUrl').value = config.database.apiUrl || `${API}/db`;
+  document.getElementById('dbName').value = config.database.name || 'yanmei_db';
+  document.getElementById('kbApiUrl').value = config.knowledgeBase.apiUrl || `${API}/kb`;
+  document.getElementById('kbCollection').value = config.knowledgeBase.collection || 'skin_knowledge';
+  document.getElementById('logLevel').value = config.logging.level || 'info';
+  
+  // 更新状态指示器
+  updateStatusIndicators();
+}
+
+function saveApiKeys() {
+  config.apiKeys.deepseek = document.getElementById('deepseekKey').value.trim();
+  config.apiKeys.kimi = document.getElementById('kimiKey').value.trim();
+  config.apiKeys.apiBaseUrl = document.getElementById('apiBaseUrl').value.trim();
+  
+  if (saveConfig(config)) {
+    alert('✅ API密钥已保存到本地存储');
+    log('info', 'API密钥已保存', { hasDeepseek: !!config.apiKeys.deepseek, hasKimi: !!config.apiKeys.kimi });
+    updateStatusIndicators();
+  } else {
+    alert('❌ 保存失败，请检查控制台');
+  }
+}
+
+async function testDbConnection() {
+  const apiUrl = document.getElementById('dbApiUrl').value.trim();
+  const dbName = document.getElementById('dbName').value.trim();
+  
+  if (!apiUrl) {
+    alert('请输入数据库API端点');
+    return;
+  }
+  
+  log('info', '测试数据库连接', { apiUrl, dbName });
+  
+  try {
+    const response = await fetch(`${apiUrl}/status`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      alert(`✅ 数据库连接成功\n状态: ${data.status || '正常'}\n集合数: ${data.collections || '未知'}`);
+      log('info', '数据库连接测试成功', data);
+      document.getElementById('dbStatus').textContent = '✅';
+      document.getElementById('dbStatus').style.color = '#2e7d32';
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (error) {
+    alert(`❌ 数据库连接失败: ${error.message}`);
+    log('error', '数据库连接测试失败', { error: error.message, apiUrl });
+    document.getElementById('dbStatus').textContent = '❌';
+    document.getElementById('dbStatus').style.color = '#d32f2f';
+  }
+}
+
+async function testKbConnection() {
+  const apiUrl = document.getElementById('kbApiUrl').value.trim();
+  const collection = document.getElementById('kbCollection').value.trim();
+  
+  if (!apiUrl) {
+    alert('请输入知识库API端点');
+    return;
+  }
+  
+  log('info', '测试知识库连接', { apiUrl, collection });
+  
+  try {
+    const response = await fetch(`${apiUrl}/search?query=test&collection=${collection}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+      signal: AbortSignal.timeout(5000)
+    });
+    
+    if (response.ok) {
+      const data = await response.json();
+      alert(`✅ 知识库连接成功\n结果数: ${data.results?.length || 0}\n集合: ${collection}`);
+      log('info', '知识库连接测试成功', { collection, resultCount: data.results?.length || 0 });
+      document.getElementById('kbStatus').textContent = '✅';
+      document.getElementById('kbStatus').style.color = '#2e7d32';
+    } else {
+      throw new Error(`HTTP ${response.status}`);
+    }
+  } catch (error) {
+    alert(`❌ 知识库连接失败: ${error.message}`);
+    log('error', '知识库连接测试失败', { error: error.message, apiUrl, collection });
+    document.getElementById('kbStatus').textContent = '❌';
+    document.getElementById('kbStatus').style.color = '#d32f2f';
+  }
+}
+
+function updateStatusIndicators() {
+  // API状态
+  const hasApiKeys = config.apiKeys.deepseek || config.apiKeys.kimi;
+  document.getElementById('apiStatus').textContent = hasApiKeys ? '✅' : '⚠️';
+  document.getElementById('apiStatus').style.color = hasApiKeys ? '#2e7d32' : '#ff9800';
+  
+  // 数据库状态（默认为未知）
+  document.getElementById('dbStatus').textContent = '❓';
+  document.getElementById('dbStatus').style.color = '#757575';
+  
+  // 知识库状态（默认为未知）
+  document.getElementById('kbStatus').textContent = '❓';
+  document.getElementById('kbStatus').style.color = '#757575';
+}
+
+function clearLogs() {
+  if (confirm('确定要清空所有日志吗？')) {
+    logs = [];
+    localStorage.removeItem(LOG_STORAGE_KEY);
+    const panel = document.getElementById('logPanel');
+    if (panel) {
+      panel.innerHTML = '';
+    }
+    alert('日志已清空');
+    log('info', '日志已清空');
+  }
+}
+
+function exportLogs() {
+  const dataStr = JSON.stringify(logs, null, 2);
+  const dataUri = 'data:application/json;charset=utf-8,'+ encodeURIComponent(dataStr);
+  const exportFileDefaultName = `yanmei_logs_${new Date().toISOString().slice(0,10)}.json`;
+  
+  const linkElement = document.createElement('a');
+  linkElement.setAttribute('href', dataUri);
+  linkElement.setAttribute('download', exportFileDefaultName);
+  linkElement.click();
+  
+  log('info', '日志已导出', { count: logs.length });
+}
+
+function showLogPanel() {
+  // 创建或显示日志面板
+  let panel = document.getElementById('logPanel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'logPanel';
+    panel.style.cssText = `
+      position: fixed; top: 100px; right: 20px; width: 400px; height: 500px;
+      background: white; border: 2px solid #e8698a; border-radius: 12px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15); z-index: 1000;
+      display: flex; flex-direction: column; overflow: hidden;
+    `;
+    
+    panel.innerHTML = `
+      <div style="background:#e8698a;color:white;padding:12px;font-weight:bold;display:flex;justify-content:space-between">
+        <span>📊 实时日志</span>
+        <button onclick="document.getElementById('logPanel').style.display='none'" style="background:none;border:none;color:white;cursor:pointer">✕</button>
+      </div>
+      <div style="flex:1;overflow-y:auto;padding:10px;font-family:monospace;font-size:11px" id="logContent"></div>
+      <div style="padding:8px;background:#f5f5f5;display:flex;gap:8px">
+        <button onclick="clearLogs()" style="flex:1;padding:6px;font-size:11px">清空</button>
+        <button onclick="exportLogs()" style="flex:1;padding:6px;font-size:11px">导出</button>
+        <button onclick="document.getElementById('logPanel').style.display='none'" style="flex:1;padding:6px;font-size:11px">关闭</button>
+      </div>
+    `;
+    
+    document.body.appendChild(panel);
+  }
+  
+  panel.style.display = 'block';
+  const logContent = document.getElementById('logContent');
+  logContent.innerHTML = '';
+  
+  // 显示最近的日志
+  logs.slice(-50).forEach(entry => {
+    const div = document.createElement('div');
+    div.className = `log-entry log-${entry.level}`;
+    div.style.cssText = `margin:4px 0;padding:4px;border-left:3px solid ${
+      entry.level === 'error' ? '#d32f2f' :
+      entry.level === 'warn' ? '#ff9800' :
+      entry.level === 'info' ? '#2196f3' : '#4caf50'
+    }`;
+    div.innerHTML = `<span style="color:#666">${new Date(entry.timestamp).toLocaleTimeString()}</span>
+                     <span style="color:${
+                       entry.level === 'error' ? '#d32f2f' :
+                       entry.level === 'warn' ? '#ff9800' :
+                       entry.level === 'info' ? '#2196f3' : '#4caf50'
+                     };font-weight:bold;margin:0 6px">${entry.level.toUpperCase()}</span>
+                     <span>${entry.message}</span>`;
+    logContent.appendChild(div);
+  });
+  
+  logContent.scrollTop = logContent.scrollHeight;
+  log('info', '日志面板已打开');
+}
+
+// API调用窗口函数
+async function testLlmApi() {
+  const message = document.getElementById('llmTestMessage').value.trim();
+  const sessionId = document.getElementById('llmSessionId').value.trim() || 'test_session_' + Date.now();
+  
+  if (!message) {
+    alert('请输入测试消息');
+    return;
+  }
+  
+  log('info', `测试LLM API: ${message.substring(0, 50)}...`);
+  
+  try {
+    const response = await fetch(`${API}/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: message,
+        session_id: sessionId
+      })
+    });
+    
+    const data = await response.json();
+    
+    // 检查响应中是否包含API错误提示
+    let responseText = JSON.stringify(data, null, 2);
+    let apiKeyWarning = '';
+    
+    // 检查是否是模拟回复（API密钥未配置时的降级回复）
+    if (data.reply && data.reply.includes('嗯嗯，我明白了～')) {
+      apiKeyWarning = '\n\n⚠️ API密钥配置提示:\n' +
+        '检测到系统使用模拟回复，可能是因为DeepSeek API密钥未正确配置。\n' +
+        '请在配置页面设置真实的API密钥以获得完整的LLM功能。\n' +
+        '当前使用的API密钥: ' + (document.getElementById('deepseekKey').value ? '已配置' : '未配置');
+    }
+    
+    // 显示响应
+    document.getElementById('llmResponse').textContent = responseText + apiKeyWarning;
+    document.getElementById('llmResponseContainer').style.display = 'block';
+    
+    log('info', `LLM API测试成功: ${data.reply ? '收到回复' : '无回复'}`);
+    
+    // 如果检测到API密钥问题，在日志中记录警告
+    if (apiKeyWarning) {
+      log('warn', '检测到API密钥可能未正确配置，系统使用模拟回复');
+    }
+  } catch (error) {
+    const errorMsg = `LLM API测试失败: ${error.message}`;
+    const fullErrorMsg = errorMsg + '\n\n🔧 故障排除建议:\n' +
+      '1. 检查后端服务是否运行 (端口8766)\n' +
+      '2. 检查API密钥是否在配置页面正确设置\n' +
+      '3. 查看浏览器控制台获取详细错误信息\n' +
+      '4. 检查网络连接和CORS设置';
+    
+    document.getElementById('llmResponse').textContent = fullErrorMsg;
+    document.getElementById('llmResponseContainer').style.display = 'block';
+    log('error', errorMsg);
+  }
+}
+
+function clearLlmResponse() {
+  document.getElementById('llmResponse').textContent = '';
+  document.getElementById('llmResponseContainer').style.display = 'none';
+  document.getElementById('llmTestMessage').value = '';
+  log('info', '已清空LLM API测试响应');
+}
+
+async function testDbApi() {
+  const query = document.getElementById('dbQuery').value.trim();
+  
+  if (!query) {
+    alert('请输入查询语句');
+    return;
+  }
+  
+  log('info', `测试数据库API: ${query}`);
+  
+  try {
+    // 调用真实的数据库API端点
+    const response = await fetch(`${API}/api/db/query`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query: query,
+        collection: 'products',  // 默认查询产品集合
+        limit: 5
+      })
+    });
+    
+    const data = await response.json();
+    
+    // 显示响应
+    let responseText = JSON.stringify(data, null, 2);
+    
+    // 如果查询成功，添加友好的结果摘要
+    if (data.status === 'success') {
+      const summary = `\n\n📊 查询结果摘要:\n` +
+        `• 查询语句: "${data.query}"\n` +
+        `• 目标集合: ${data.collection}\n` +
+        `• 返回结果: ${data.total_results} 条\n` +
+        `• 查询状态: ✅ 成功`;
+      
+      responseText += summary;
+      
+      // 如果有结果，显示前几个结果的预览
+      if (data.results && data.results.length > 0) {
+        const preview = `\n\n🔍 结果预览 (前${Math.min(2, data.results.length)}条):\n`;
+        let previewContent = '';
+        
+        for (let i = 0; i < Math.min(2, data.results.length); i++) {
+          const result = data.results[i];
+          previewContent += `\n[${i+1}] ${result.metadata.name || result.id}\n`;
+          previewContent += `   文档: ${result.document.substring(0, 80)}...\n`;
+          previewContent += `   相似度: ${(1 - result.distance).toFixed(3)}\n`;
+        }
+        
+        responseText += preview + previewContent;
+      }
+    }
+    
+    document.getElementById('dbResponse').textContent = responseText;
+    document.getElementById('dbResponseContainer').style.display = 'block';
+    
+    log('info', `数据库API测试成功: 查询"${query}"返回${data.total_results || 0}条结果`);
+  } catch (error) {
+    const errorMsg = `数据库API测试失败: ${error.message}`;
+    const fullErrorMsg = errorMsg + '\n\n🔧 故障排除建议:\n' +
+      '1. 检查后端服务是否运行 (端口8766)\n' +
+      '2. 检查数据库API端点是否可用 (/api/db/query)\n' +
+      '3. 查看浏览器控制台获取详细错误信息\n' +
+      '4. 检查网络连接和CORS设置';
+    
+    document.getElementById('dbResponse').textContent = fullErrorMsg;
+    document.getElementById('dbResponseContainer').style.display = 'block';
+    log('error', errorMsg);
+  }
+}
+
+function clearDbResponse() {
+  document.getElementById('dbResponse').textContent = '';
+  document.getElementById('dbResponseContainer').style.display = 'none';
+  document.getElementById('dbQuery').value = '';
+  log('info', '已清空数据库API测试响应');
+}
+
+async function testKbApi() {
+  const query = document.getElementById('kbQuery').value.trim();
+  const limit = parseInt(document.getElementById('kbLimit').value) || 3;
+  const useClinicApi = document.getElementById('useClinicApi')?.checked || false;
+  
+  if (!query) {
+    alert('请输入搜索查询');
+    return;
+  }
+  
+  log('info', `测试知识库API: "${query}" (limit: ${limit}, 使用门诊部API: ${useClinicApi})`);
+  
+  try {
+    let apiEndpoint, requestBody;
+    
+    if (useClinicApi) {
+      // 调用专门的门诊部搜索API
+      apiEndpoint = `${API}/api/clinic/search`;
+      requestBody = {
+        query: query,
+        limit: limit,
+        include_metadata: true
+      };
+    } else {
+      // 调用通用的知识库API，查询医美知识库
+      apiEndpoint = `${API}/api/kb/search`;
+      requestBody = {
+        query: query,
+        collection: 'medical_beauty_knowledge',  // 查询医美知识库
+        limit: limit,
+        include_metadata: true
+      };
+    }
+    
+    const response = await fetch(apiEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(requestBody)
+    });
+    
+    const data = await response.json();
+    
+    // 显示响应
+    let responseText = JSON.stringify(data, null, 2);
+    
+    // 如果查询成功，添加友好的知识库结果摘要
+    if (data.status === 'success') {
+      const apiType = useClinicApi ? '门诊部搜索API' : '医美知识库API';
+      const summary = `\n\n📚 ${apiType} 查询结果摘要:\n` +
+        `• 查询主题: "${data.query}"\n` +
+        `• 知识类型: ${data.knowledge_type || '医美知识'}\n` +
+        `• 返回条目: ${data.total_results} 条\n` +
+        `• 查询状态: ✅ 成功`;
+      
+      responseText += summary;
+      
+      // 如果有结果，显示知识条目详情
+      if (data.results && data.results.length > 0) {
+        const knowledgePreview = `\n\n🔬 知识条目详情:\n`;
+        let knowledgeContent = '';
+        
+        for (let i = 0; i < Math.min(3, data.results.length); i++) {
+          const result = data.results[i];
+          const title = result.metadata?.name || result.metadata?.topic || `知识条目 ${i+1}`;
+          const relevancePercent = Math.round((result.relevance_score || (1 - (result.distance || 0))) * 100);
+          const itemType = result.metadata?.type || '未知';
+          
+          knowledgeContent += `\n[${i+1}] ${title} [${itemType}]\n`;
+          knowledgeContent += `   相关度: ${relevancePercent}%\n`;
+          knowledgeContent += `   摘要: ${result.summary || result.content.substring(0, 80)}...\n`;
+          
+          // 显示关键词（如果有）
+          if (result.keywords && result.keywords.length > 0) {
+            knowledgeContent += `   关键词: ${result.keywords.join(', ')}\n`;
+          }
+        }
+        
+        responseText += knowledgePreview + knowledgeContent;
+        
+        // 添加知识应用建议
+        const suggestion = `\n\n💡 知识应用建议:\n` +
+          `• 这些知识条目可以用于:\n` +
+          `  1. 回答用户关于皮肤护理的问题\n` +
+          `  2. 提供专业的护肤建议\n` +
+          `  3. 解释皮肤问题的成因和解决方案\n` +
+          `  4. 推荐适合的护肤产品或治疗方案`;
+        
+        responseText += suggestion;
+      }
+    }
+    
+    document.getElementById('kbResponse').textContent = responseText;
+    document.getElementById('kbResponseContainer').style.display = 'block';
+    
+    log('info', `知识库API测试成功: 查询"${query}"返回${data.total_results || 0}条知识条目`);
+  } catch (error) {
+    const errorMsg = `知识库API测试失败: ${error.message}`;
+    const fullErrorMsg = errorMsg + '\n\n🔧 故障排除建议:\n' +
+      '1. 检查后端服务是否运行 (端口8766)\n' +
+      '2. 检查知识库API端点是否可用 (/api/kb/search)\n' +
+      '3. 查看浏览器控制台获取详细错误信息\n' +
+      '4. 检查网络连接和CORS设置';
+    
+    document.getElementById('kbResponse').textContent = fullErrorMsg;
+    document.getElementById('kbResponseContainer').style.display = 'block';
+    log('error', errorMsg);
+  }
+}
+
+function clearKbResponse() {
+  document.getElementById('kbResponse').textContent = '';
+  document.getElementById('kbResponseContainer').style.display = 'none';
+  document.getElementById('kbQuery').value = '';
+  log('info', '已清空知识库API测试响应');
+}
+
+// 修改goPage函数以支持配置页面加载
+const originalGoPage = goPage;
+goPage = function(name) {
+  originalGoPage(name);
+  if (name === 'config') {
+    setTimeout(loadConfigPage, 100);
+  }
+};
+
+// 🆕 恢复或创建会话ID
+let savedSessionId = localStorage.getItem(SESSION_STORAGE_KEY);
+if (savedSessionId) {
+  sessionId = savedSessionId;
+  console.log('恢复会话:', sessionId);
+} else {
+  sessionId = 'session_' + Date.now();
+  localStorage.setItem(SESSION_STORAGE_KEY, sessionId);
+  console.log('创建新会话:', sessionId);
+}
+
+// 初始化日志
+try {
+  const savedLogs = localStorage.getItem(LOG_STORAGE_KEY);
+  if (savedLogs) {
+    logs = JSON.parse(savedLogs);
+  }
+} catch (e) {
+  console.error('加载日志失败:', e);
+}
+
+log('info', '妍美AI前端已初始化', { sessionId, api: API });
+
+// 🆕 恢复聊天历史记录
+async function restoreChatHistory() {
+  try {
+    const response = await fetch(`${API}/api/sessions/${sessionId}/messages`);
+    if (response.ok) {
+      const data = await response.json();
+      if (data.messages && data.messages.length > 0) {
+        // 清空当前聊天界面
+        document.getElementById('chatMessages').innerHTML = '';
+        
+        // 恢复历史消息
+        data.messages.forEach(msg => {
+          if (msg.role === 'user') {
+            addBubble('user', msg.content);
+          } else if (msg.role === 'assistant') {
+            addBubble('ai', msg.content);
+          }
+        });
+        
+        // 更新聊天历史变量
+        chatHistory = data.messages;
+        msgCount = chatHistory.length;
+        
+        log('info', '聊天历史恢复成功', { count: data.messages.length });
+        console.log('已恢复', data.messages.length, '条聊天记录');
+      }
+    } else {
+      // 会话不存在，创建新会话
+      console.log('新会话，无需恢复历史');
+      log('info', '新会话，开始聊天');
+    }
+  } catch (e) {
+    console.error('恢复聊天历史失败:', e);
+    log('warn', '恢复聊天历史失败', { error: e.message });
+  }
+}
+
+// 页面加载时自动恢复聊天历史
+window.addEventListener('load', () => {
+  setTimeout(restoreChatHistory, 500);
+});
+
+let curQ = 0, answers = [];
+
+function renderQ() {
+  const q = questions[curQ];
+  document.getElementById('testProgress').style.width = ((curQ+1)/questions.length*100)+'%';
+  document.getElementById('testStep').textContent = `第 ${curQ+1} 题 / 共 ${questions.length} 题`;
+  document.getElementById('testQuestion').innerHTML = `
+    <div class="test-q">${q.q}</div>
+    <div class="test-options">
+      ${q.opts.map((o,i)=>`
+        <div class="test-option ${answers[curQ]===i?'selected':''}" onclick="selectOption(${i})">
+          <span class="test-option-icon">${o.icon}</span>${o.text}
+        </div>`).join('')}
+    </div>`;
+  document.getElementById('prevBtn').style.visibility = curQ===0?'hidden':'visible';
+  document.getElementById('nextBtn').textContent = curQ===questions.length-1?'查看结果 ✨':'下一题 →';
+}
+
+function selectOption(i) {
+  answers[curQ] = i;
+  renderQ();
+}
+
+function nextQ() {
+  if(answers[curQ] === undefined) { alert('请选择一个答案'); return; }
+  if(curQ < questions.length-1) { curQ++; renderQ(); }
+  else {
+    goPage('chat');
+    setTimeout(() => {
+      addBubble('ai', '太棒了！您完成了皮肤测试🎉 根据您的回答，我来为您分析专属肤质和推荐最适合的方案～');
+      setTimeout(() => {
+        updateStage('推荐');
+        addBubble('ai', '根据测试结果，您的皮肤属于混合偏干型，最需要的是深层补水+均匀肤色。我推荐您先体验一下我们的水光针补水套餐，很多跟您类似肤质的姐妹做完效果都很好💧');
+      }, 1500);
+    }, 500);
+  }
+}
+
+function prevQ() { if(curQ>0) { curQ--; renderQ(); } }
+
+// 初始化
+renderQ();
+</script>
+</body>
+</html>

@@ -30,6 +30,7 @@ const DashboardWework = lazy(() => import("./pages/DashboardWework"));
 const DashboardTriggers = lazy(() => import("./pages/DashboardTriggers"));
 const DashboardBoss = lazy(() => import("./pages/DashboardBoss"));
 const DashboardMarketing = lazy(() => import("./pages/DashboardMarketing"));
+const YanmeiAI = lazy(() => import("./pages/YanmeiAI"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 
 /** 与 index.html 占位一致的加载态，避免样式闪烁 */
@@ -55,6 +56,7 @@ function Router() {
   return (
     <Switch>
       {/* 落地页路由 */}
+      <Route path={"/dashboard/yanmei-ai"} component={YanmeiAI} />
       <Route path={"/"} component={Home} />
       <Route path={"/services"} component={Services} />
       <Route path={"/cases"} component={Cases} />
