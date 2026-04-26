@@ -278,8 +278,8 @@ export const crawlerRouter = router({
       z.object({
         url: z.string().url(),
         baseUrl: z.string().url().optional(),
-        headers: z.record(z.string()).optional(),
-        params: z.record(z.string()).optional(),
+        headers: z.record(z.string(), z.string()).optional(),
+        params: z.record(z.string(), z.string()).optional(),
         dataPath: z.string().optional(),
       })
     )

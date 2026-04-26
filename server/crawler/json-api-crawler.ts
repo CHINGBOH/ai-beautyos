@@ -6,7 +6,7 @@
 import { BaseCrawler, CrawledData, CrawlerConfig } from "./base-crawler";
 import { logger } from "../_core/logger";
 
-export interface JsonApiConfig extends Required<CrawlerConfig> {
+export interface JsonApiConfig extends CrawlerConfig {
   /** API基础URL */
   baseUrl: string;
   /** 请求头 */
@@ -18,18 +18,18 @@ export interface JsonApiConfig extends Required<CrawlerConfig> {
 }
 
 export class JsonApiCrawler extends BaseCrawler {
+  private readonly apiConfig: Pick<JsonApiConfig, "baseUrl" | "headers" | "params" | "dataPath">;
+
   constructor(config: JsonApiConfig) {
-    const defaultConfig: Required<CrawlerConfig> = {
+    const { baseUrl, headers, params, dataPath, ...crawlerConfig } = config;
+    super({
       delay: 1000,
       maxRetries: 3,
       userAgent: "JsonApiCrawler/1.0",
       timeout: 30000,
-    };
-    const mergedConfig = {
-      ...defaultConfig,
-      ...config,
-    } as Required<CrawlerConfig> & JsonApiConfig;
-    super(mergedConfig);
+      ...crawlerConfig,
+    });
+    this.apiConfig = { baseUrl, headers, params, dataPath };
   }
 
   /**
@@ -41,16 +41,13 @@ export class JsonApiCrawler extends BaseCrawler {
     try {
       const fullUrl = url.startsWith("http")
         ? url
-        : `${(this.config as JsonApiConfig).baseUrl}${url}`;
+        : `${this.apiConfig.baseUrl}${url}`;
       const data = await this.fetchJson(fullUrl);
 
       // 提取数据（如果指定了路径）
       let extractedData = data;
-      if ((this.config as JsonApiConfig).dataPath) {
-        extractedData = this.extractByPath(
-          data,
-          (this.config as JsonApiConfig).dataPath!
-        );
+      if (this.apiConfig.dataPath) {
+        extractedData = this.extractByPath(data, this.apiConfig.dataPath);
       }
 
       // 转换为CrawledData格式

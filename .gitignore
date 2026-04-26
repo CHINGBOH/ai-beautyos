@@ -102,6 +102,22 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+_trash/
+
+# Local backup snapshots from consolidation work
+*-backup-*/
+server-backup-*/
+shared-backup-*/
+scripts-backup-*/
+drizzle-backup-*/
+data-backup-*/
+
+# Local legacy or auxiliary projects not part of the mainline app
+client/dist_crm/
+llama.cpp/
+ymsai/
+.claude/
+.manus-logs/
 
 # Database
 *.db
