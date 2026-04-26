@@ -14,6 +14,8 @@ const PROJECT_ROOT = import.meta.dirname;
 const LOG_DIR = path.join(PROJECT_ROOT, ".manus-logs");
 const MAX_LOG_SIZE_BYTES = 1 * 1024 * 1024; // 1MB per log file
 const TRIM_TARGET_BYTES = Math.floor(MAX_LOG_SIZE_BYTES * 0.6); // Trim to 60% to avoid constant re-trimming
+const TRPC_PROXY_TARGET = process.env.TRPC_PROXY_TARGET ?? "http://127.0.0.1:3000";
+const API_PROXY_TARGET = process.env.API_PROXY_TARGET ?? "http://127.0.0.1:8000";
 
 type LogSource = "browserConsole" | "networkRequests" | "sessionReplay";
 
@@ -171,11 +173,11 @@ export default defineConfig({
     host: true,
     proxy: {
       "/api/trpc": {
-        target: "http://127.0.0.1:3000",
+        target: TRPC_PROXY_TARGET,
         changeOrigin: true,
       },
       "/api": {
-        target: "http://127.0.0.1:8000",
+        target: API_PROXY_TARGET,
         changeOrigin: true,
       },
     },

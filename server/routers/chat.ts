@@ -35,6 +35,108 @@ import {
 import { nanoid } from "nanoid";
 import { logger } from "../_core/logger";
 
+type PreviewConversation = {
+  id: number;
+  sessionId: string;
+  source: string;
+  status: string;
+  visitorName?: string | null;
+  visitorPhone?: string | null;
+  visitorWechat?: string | null;
+};
+
+type PreviewMessage = {
+  role: "user" | "assistant";
+  content: string;
+  createdAt: Date;
+};
+
+const previewConversations = new Map<string, PreviewConversation>();
+const previewMessages = new Map<string, PreviewMessage[]>();
+let previewConversationId = 1;
+
+function isDatabaseUnavailable(error: unknown): error is Error {
+  return error instanceof Error && error.message === "Database not available";
+}
+
+function ensurePreviewConversation(sessionId: string): PreviewConversation {
+  const existing = previewConversations.get(sessionId);
+  if (existing) return existing;
+
+  const created: PreviewConversation = {
+    id: previewConversationId++,
+    sessionId,
+    source: "web-preview",
+    status: "active",
+  };
+  previewConversations.set(sessionId, created);
+  return created;
+}
+
+function getPreviewHistory(sessionId: string): PreviewMessage[] {
+  return previewMessages.get(sessionId) ?? [];
+}
+
+function appendPreviewMessage(
+  sessionId: string,
+  role: PreviewMessage["role"],
+  content: string
+) {
+  const history = getPreviewHistory(sessionId);
+  previewMessages.set(sessionId, [
+    ...history,
+    { role, content, createdAt: new Date() },
+  ]);
+}
+
+function updatePreviewConversation(
+  sessionId: string,
+  visitorInfo: {
+    name?: string;
+    phone?: string;
+    wechat?: string;
+  } | null
+) {
+  if (!visitorInfo) return;
+  const conversation = ensurePreviewConversation(sessionId);
+  previewConversations.set(sessionId, {
+    ...conversation,
+    visitorName: visitorInfo.name || conversation.visitorName,
+    visitorPhone: visitorInfo.phone || conversation.visitorPhone,
+    visitorWechat: visitorInfo.wechat || conversation.visitorWechat,
+  });
+}
+
+async function handlePreviewChat(sessionId: string, message: string) {
+  ensurePreviewConversation(sessionId);
+  const history = getPreviewHistory(sessionId);
+  const rawAiResponse = await generateChatResponse([
+    {
+      role: "system",
+      content:
+        MEDICAL_BEAUTY_SYSTEM_PROMPT +
+        "\n\n当前处于无数据库预览模式。请继续提供咨询建议，但不要假设客户资料已经保存到正式系统。",
+    },
+    ...history.slice(-10).map(item => ({
+      role: item.role,
+      content: item.content,
+    })),
+    { role: "user", content: message },
+  ]);
+
+  const extractedInfo = extractCustomerInfo(rawAiResponse);
+  const aiResponse = stripCustomerInfoJson(rawAiResponse);
+
+  appendPreviewMessage(sessionId, "user", message);
+  appendPreviewMessage(sessionId, "assistant", aiResponse);
+  updatePreviewConversation(sessionId, extractedInfo);
+
+  return {
+    response: aiResponse,
+    extractedInfo,
+  };
+}
+
 export const chatRouter = router({
   /**
    * 创建新会话
@@ -44,11 +146,21 @@ export const chatRouter = router({
     .mutation(async () => {
       const sessionId = nanoid();
 
-      await createConversation({
-        sessionId,
-        source: "web",
-        status: "active",
-      });
+      try {
+        await createConversation({
+          sessionId,
+          source: "web",
+          status: "active",
+        });
+      } catch (error) {
+        if (!isDatabaseUnavailable(error)) {
+          throw error;
+        }
+        ensurePreviewConversation(sessionId);
+        logger.warn(
+          `[Chat] createSession falling back to preview memory mode for ${sessionId}`
+        );
+      }
 
       return { sessionId };
     }),
@@ -83,23 +195,36 @@ export const chatRouter = router({
       const startTime = Date.now();
 
       try {
-        // 获取或创建会话（事务外，因为需要先获取历史消息）
-        let conversation = await getConversationBySessionId(sessionId);
-        if (!conversation) {
-          await createConversation({
-            sessionId,
-            source: "web",
-            status: "active",
-          });
+        let conversation;
+        let history;
+
+        try {
+          // 获取或创建会话（事务外，因为需要先获取历史消息）
           conversation = await getConversationBySessionId(sessionId);
-        }
+          if (!conversation) {
+            await createConversation({
+              sessionId,
+              source: "web",
+              status: "active",
+            });
+            conversation = await getConversationBySessionId(sessionId);
+          }
 
-        if (!conversation) {
-          throw new Error("Failed to create conversation");
-        }
+          if (!conversation) {
+            throw new Error("Failed to create conversation");
+          }
 
-        // 获取历史消息
-        const history = await getMessagesByConversationId(conversation.id);
+          // 获取历史消息
+          history = await getMessagesByConversationId(conversation.id);
+        } catch (error) {
+          if (!isDatabaseUnavailable(error)) {
+            throw error;
+          }
+          logger.warn(
+            `[Chat] Database unavailable, using preview memory mode for ${sessionId}`
+          );
+          return await handlePreviewChat(sessionId, message);
+        }
 
         // 如果有客户手机号，从 Airtable 读取客户历史记录
         let customerHistoryContext = "";
@@ -299,19 +424,32 @@ export const chatRouter = router({
   getHistory: publicProcedure
     .input(z.object({ sessionId: z.string() }))
     .query(async ({ input }) => {
-      const conversation = await getConversationBySessionId(input.sessionId);
-      if (!conversation) {
-        return { messages: [] };
-      }
+      try {
+        const conversation = await getConversationBySessionId(input.sessionId);
+        if (!conversation) {
+          return { messages: [] };
+        }
 
-      const messages = await getMessagesByConversationId(conversation.id);
-      return {
-        messages: messages.map(m => ({
-          role: m.role,
-          content: m.content,
-          createdAt: m.createdAt,
-        })),
-      };
+        const messages = await getMessagesByConversationId(conversation.id);
+        return {
+          messages: messages.map(m => ({
+            role: m.role,
+            content: m.content,
+            createdAt: m.createdAt,
+          })),
+        };
+      } catch (error) {
+        if (!isDatabaseUnavailable(error)) {
+          throw error;
+        }
+        return {
+          messages: getPreviewHistory(input.sessionId).map(message => ({
+            role: message.role,
+            content: message.content,
+            createdAt: message.createdAt,
+          })),
+        };
+      }
     }),
 
   /**
