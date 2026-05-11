@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1770416888825,
+      "tag": "0000_cooing_union_jack",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1770493669432,
+      "tag": "0001_tan_stellaris",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1770495465874,
+      "tag": "0002_bizarre_meteorite",
+      "breakpoints": true
+    }
+  ]
+}

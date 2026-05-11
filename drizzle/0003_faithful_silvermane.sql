@@ -1,0 +1,1 @@
+ALTER TABLE `knowledge_base` ADD `type` enum('customer','internal') DEFAULT 'customer' NOT NULL;
