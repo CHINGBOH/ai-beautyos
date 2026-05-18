@@ -128,3 +128,35 @@ Open:
 ```text
 http://localhost:3000
 ```
+
+> Note: the canonical package name is `ai-beauty-crm`. The GitHub
+> repository rename to `ai-beauty-crm` is an admin-only operation; once
+> done, update the clone URL above accordingly.
+
+---
+
+# Screenshots
+
+SaaS product screenshots live in [`docs/screenshots/`](docs/screenshots/).
+See the capture checklist and visual style guide in
+[SCREENSHOT_GUIDE.md](SCREENSHOT_GUIDE.md).
+
+| View | File |
+| --- | --- |
+| Login page | `docs/screenshots/01-login.png` |
+| Dashboard overview | `docs/screenshots/02-dashboard.png` |
+| Customer management | `docs/screenshots/03-customers.png` |
+| AI analysis interface | `docs/screenshots/04-ai-analysis.png` |
+| Follow-up workflow | `docs/screenshots/05-followup.png` |
+| Analytics dashboard | `docs/screenshots/06-analytics.png` |
+| Mobile UI | `docs/screenshots/07-mobile.png` |
+
+---
+
+# Documentation
+
+- [Business Positioning](BUSINESS_POSITIONING.md)
+- [Branding & Naming Strategy](GITHUB_PROFILE_BRANDING.md)
+- [GitHub Profile README Template](PROFILE_README_TEMPLATE.md)
+- [Demo Recording Script](DEMO_SCRIPT.md)
+- [Screenshot Guide](SCREENSHOT_GUIDE.md)

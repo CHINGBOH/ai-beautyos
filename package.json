@@ -1,6 +1,7 @@
 {
-  "name": "medical-beauty-crm-landing",
+  "name": "ai-beauty-crm",
   "version": "1.0.0",
+  "description": "AI Beauty CRM - AI customer management system for beauty & wellness businesses",
   "type": "module",
   "license": "MIT",
   "scripts": {
