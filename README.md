@@ -1,37 +1,130 @@
-# Medical Beauty CRM Landing — 医美客户关系管理落地页系统
+# AI Beauty CRM
 
-面向医美机构的全栈 CRM 系统，集成客户线索管理、知识库 RAG、AI 智能客服与管理仪表盘，助力高效获客与精细化运营。
+AI customer management system for:
 
-## 核心功能
-- **客户管理** — 线索跟踪、客户画像、跟进记录，全生命周期管理
-- **知识库 + RAG** — pgvector / Qdrant 向量检索 + LLM 智能问答
-- **AI 聊天客服** — 接入 DeepSeek / Qwen，7×24 小时在线应答
-- **管理仪表盘** — 数据可视化、运营分析、转化漏斗
-- **第三方集成** — Airtable 数据同步、企业微信消息推送
+- Beauty salons
+- Medical beauty clinics
+- Wellness stores
+- Mother & baby businesses
 
-## 技术栈
-| 层级 | 技术 |
+Focused on:
+
+- customer follow-up
+- private-domain operations
+- AI-assisted workflows
+- operational analytics
+
+---
+
+# Business Problems
+
+Traditional stores often face:
+
+- customer loss
+- manual follow-up workflows
+- messy customer management
+- poor operational visibility
+- inconsistent staff follow-up
+
+AI Beauty CRM helps businesses improve operational efficiency and customer retention.
+
+---
+
+# Core Features
+
+## AI Customer Management
+
+- customer tagging
+- lifecycle tracking
+- follow-up history
+- customer segmentation
+
+## AI Follow-up Automation
+
+- reminder workflows
+- AI-generated scripts
+- silent customer alerts
+- automated follow-up tasks
+
+## AI Knowledge Base + RAG
+
+- internal knowledge base
+- AI Q&A assistant
+- product information retrieval
+- staff support tools
+
+## Dashboard & Analytics
+
+- operational dashboard
+- conversion analysis
+- customer insights
+- analytics reports
+
+---
+
+# Workflow
+
+```text
+Customer Registration
+↓
+AI Tag Analysis
+↓
+Follow-up Reminder
+↓
+AI-generated Scripts
+↓
+Customer Engagement
+↓
+Operational Analytics
+```
+
+---
+
+# Use Cases
+
+## Beauty Salons
+
+- customer management
+- follow-up automation
+- private-domain operations
+
+## Medical Beauty Clinics
+
+- post-treatment follow-up
+- AI knowledge base
+- customer lifecycle management
+
+## Wellness & Mother-Baby Stores
+
+- long-term customer engagement
+- customer analytics
+- operational workflows
+
+---
+
+# Tech Stack
+
+| Layer | Tech |
 | --- | --- |
-| 前端 | React + TypeScript + Vite + Tailwind CSS |
-| 业务后端 | Express + Drizzle ORM |
-| AI 后端 | FastAPI |
-| 存储 | PostgreSQL + pgvector + Qdrant + Redis |
-| 部署 | Docker + Docker Compose |
+| Frontend | React + TypeScript + Vite |
+| Backend | Express + Drizzle ORM |
+| AI Backend | FastAPI |
+| Database | PostgreSQL + pgvector + Redis |
+| AI | DeepSeek / Qwen / RAG |
+| Deploy | Docker + Docker Compose |
 
-## 架构
-前端 React SPA，后端双服务：Express 负责业务逻辑与数据持久化，FastAPI 专注 AI 推理与向量检索。
-```
-用户 → React 前端 → Express（业务 API）→ PostgreSQL + pgvector
-                 ↘ FastAPI（AI 服务） → Qdrant + LLM
-```
+---
 
-## 快速启动
+# Quick Start
+
 ```bash
 git clone https://github.com/CHINGBOH/medical-beauty-crm-landing.git
 cd medical-beauty-crm-landing
 cp .env.example .env && docker compose up -d
 ```
-访问 `http://localhost:3000` 进入系统。
 
-## 安全说明
-`main` 分支已清理所有敏感凭据。使用 `.env` 与环境变量管理密钥，请勿提交真实凭据。
+Open:
+
+```text
+http://localhost:3000
+```
