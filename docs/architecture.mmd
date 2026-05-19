@@ -1,0 +1,8 @@
+graph TD
+  User[Clinic/operator] --> Client[React + Vite frontend]
+  Client --> API[Express/TypeScript backend]
+  API --> Routes[CRM, knowledge, crawler, integration routes]
+  Routes --> DB[(PostgreSQL + pgvector)]
+  Routes --> Knowledge[Knowledge-base and vector search]
+  Routes --> Integrations[Airtable / enterprise messaging]
+  Scripts[Setup and seed scripts] --> DB
