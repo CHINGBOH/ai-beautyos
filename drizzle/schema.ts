@@ -1,5 +1,6 @@
 import {
   pgTable,
+  uuid,
   check,
   serial,
   varchar,
@@ -14,10 +15,12 @@ import {
   jsonb,
 } from "drizzle-orm/pg-core";
 import { sql, relations } from "drizzle-orm";
+import { tenants } from "./schema-agent";
 
 export const knowledgeBase = pgTable(
   "knowledge_base",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     type: varchar({ length: 20 }).default("customer").notNull(),
     title: varchar({ length: 255 }).notNull(),
@@ -111,6 +114,7 @@ export const knowledgeBase = pgTable(
 export const triggerExecutions = pgTable(
   "trigger_executions",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     triggerId: integer("trigger_id").notNull(),
     leadId: integer("lead_id"),
@@ -137,6 +141,7 @@ export const triggerExecutions = pgTable(
 export const weworkContactWay = pgTable(
   "wework_contact_way",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     configId: varchar("config_id", { length: 100 }).notNull(),
     type: varchar({ length: 10 }).default("single").notNull(),
@@ -170,6 +175,7 @@ export const weworkContactWay = pgTable(
 export const weworkMessages = pgTable(
   "wework_messages",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     externalUserId: varchar("external_user_id", { length: 100 }).notNull(),
     sendUserId: varchar("send_user_id", { length: 100 }).notNull(),
@@ -224,6 +230,7 @@ export const systemConfig = pgTable(
 export const xiaohongshuPosts = pgTable(
   "xiaohongshu_posts",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     title: varchar({ length: 255 }).notNull(),
     content: text().notNull(),
@@ -280,6 +287,7 @@ export const xiaohongshuPosts = pgTable(
 export const xiaohongshuContentHistory = pgTable(
   "xiaohongshu_content_history",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     postId: integer("post_id").notNull(),
     version: integer().default(1).notNull(),
@@ -347,6 +355,7 @@ export const xiaohongshuContentHistory = pgTable(
 export const weworkCustomers = pgTable(
   "wework_customers",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     externalUserId: varchar("external_user_id", { length: 100 }).notNull(),
     name: varchar({ length: 100 }),
@@ -390,6 +399,7 @@ export const weworkCustomers = pgTable(
 export const conversations = pgTable(
   "conversations",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     sessionId: varchar("session_id", { length: 64 }).notNull(),
     visitorName: varchar("visitor_name", { length: 100 }),
@@ -427,6 +437,7 @@ export const conversations = pgTable(
 export const leads = pgTable(
   "leads",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     airtableId: varchar("airtable_id", { length: 100 }),
     name: varchar({ length: 100 }).notNull(),
@@ -487,6 +498,7 @@ export const leads = pgTable(
 export const customers = pgTable(
   "customers",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     name: varchar({ length: 100 }).notNull(),
     phone: varchar({ length: 20 }).notNull(),
@@ -530,6 +542,7 @@ export const customers = pgTable(
 export const appointments = pgTable(
   "appointments",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     customerId: integer("customer_id").references(() => customers.id),
     leadId: integer("lead_id").references(() => leads.id),
@@ -576,6 +589,7 @@ export const appointments = pgTable(
 export const orders = pgTable(
   "orders",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     customerId: integer("customer_id")
       .references(() => customers.id)
@@ -613,6 +627,7 @@ export const orders = pgTable(
 export const triggers = pgTable(
   "triggers",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     name: varchar({ length: 255 }).notNull(),
     description: text(),
@@ -657,6 +672,7 @@ export const triggers = pgTable(
 export const messages = pgTable(
   "messages",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     conversationId: integer("conversation_id").notNull(),
     role: varchar({ length: 20 }).notNull(),
@@ -684,6 +700,7 @@ export const messages = pgTable(
 export const users = pgTable(
   "users",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     openId: varchar({ length: 64 }).notNull(),
     name: text(),
@@ -708,6 +725,7 @@ export const users = pgTable(
 export const weworkConfig = pgTable(
   "wework_config",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     corpId: varchar("corp_id", { length: 100 }),
     corpSecret: varchar("corp_secret", { length: 200 }),
@@ -737,6 +755,7 @@ export const weworkConfig = pgTable(
 export const xiaohongshuComments = pgTable(
   "xiaohongshu_comments",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     postId: integer("post_id").notNull(),
     authorName: varchar("author_name", { length: 100 }).notNull(),
@@ -786,6 +805,7 @@ export const xiaohongshuComments = pgTable(
 export const userLearningProgress = pgTable(
   "user_learning_progress",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     userId: integer("user_id").notNull(),
     contentId: integer("content_id").notNull(),
@@ -845,6 +865,7 @@ export const userLearningProgress = pgTable(
 export const expertReviews = pgTable(
   "expert_reviews",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     contentId: integer("content_id").notNull(),
     expertId: varchar("expert_id", { length: 100 }).notNull(),
@@ -894,6 +915,7 @@ export const expertReviews = pgTable(
 export const contentQualityMetrics = pgTable(
   "content_quality_metrics",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     contentId: integer("content_id").notNull(),
     completenessScore: numeric("completeness_score", {
@@ -985,6 +1007,7 @@ export const contentQualityMetrics = pgTable(
 export const userLearningPreferences = pgTable(
   "user_learning_preferences",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     userId: integer("user_id").notNull(),
     preferredDifficulty: varchar("preferred_difficulty", {
@@ -1026,6 +1049,7 @@ export const userLearningPreferences = pgTable(
 export const learningAnalytics = pgTable(
   "learning_analytics",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     userId: integer("user_id").notNull(),
     eventType: varchar("event_type", { length: 50 }).notNull(),
@@ -1070,6 +1094,7 @@ export const learningAnalytics = pgTable(
 export const websiteContent = pgTable(
   "website_content",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial("id").primaryKey(),
     pageKey: varchar("page_key", { length: 100 }).notNull(),
     sectionKey: varchar("section_key", { length: 100 }),
@@ -1101,6 +1126,7 @@ export const websiteContent = pgTable(
 export const medicalProjects = pgTable(
   "medical_projects",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     name: varchar("name", { length: 100 }).notNull(),
     displayName: varchar("display_name", { length: 200 }),
@@ -1135,6 +1161,7 @@ export const medicalProjects = pgTable(
 export const websiteNavigation = pgTable(
   "website_navigation",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     parentKey: varchar("parent_key", { length: 100 }),
     navKey: varchar("nav_key", { length: 100 }).notNull(),
@@ -1173,6 +1200,7 @@ export const websiteNavigation = pgTable(
 export const serviceCategories = pgTable(
   "service_categories",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     key: varchar("key", { length: 50 }).notNull().unique(), // skin, injection, laser, antiaging
     name: varchar("name", { length: 100 }).notNull(), // 皮肤管理
@@ -1206,6 +1234,7 @@ export const serviceCategories = pgTable(
 export const serviceSubcategories = pgTable(
   "service_subcategories",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     categoryId: integer("category_id")
       .notNull()
@@ -1243,6 +1272,7 @@ export const serviceSubcategories = pgTable(
 export const serviceDetails = pgTable(
   "service_details",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     subcategoryId: integer("subcategory_id")
       .notNull()
@@ -1354,6 +1384,7 @@ export const serviceDetails = pgTable(
 export const serviceFaqs = pgTable(
   "service_faqs",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     serviceDetailId: integer("service_detail_id")
       .notNull()
@@ -1386,6 +1417,7 @@ export const serviceFaqs = pgTable(
 export const serviceDoctorRelations = pgTable(
   "service_doctor_relations",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     serviceDetailId: integer("service_detail_id")
       .notNull()
@@ -1420,6 +1452,7 @@ export const serviceDoctorRelations = pgTable(
 export const serviceCaseRelations = pgTable(
   "service_case_relations",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     serviceDetailId: integer("service_detail_id")
       .notNull()
@@ -1451,6 +1484,7 @@ export const serviceCaseRelations = pgTable(
 export const caseCustomers = pgTable(
   "case_customers",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
 
     // 关联真实客户（可为空，保护隐私）
@@ -1491,6 +1525,7 @@ export const caseCustomers = pgTable(
 export const cases = pgTable(
   "cases",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     caseCustomerId: integer("case_customer_id")
       .notNull()
@@ -1579,6 +1614,7 @@ export const cases = pgTable(
 export const casePhotos = pgTable(
   "case_photos",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     caseId: integer("case_id")
       .notNull()
@@ -1638,6 +1674,7 @@ export const casePhotos = pgTable(
 export const caseAuthorizations = pgTable(
   "case_authorizations",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     caseId: integer("case_id")
       .notNull()
@@ -1696,6 +1733,7 @@ export const caseAuthorizations = pgTable(
 export const caseTreatments = pgTable(
   "case_treatments",
   {
+    tenantId: uuid("tenant_id").notNull().references(() => tenants.id, { onDelete: "restrict" }),
     id: serial().primaryKey().notNull(),
     caseId: integer("case_id")
       .notNull()
@@ -2006,3 +2044,5 @@ export const serviceCaseRelationsRelations = relations(
     }),
   })
 );
+
+export * from "./schema-agent";
