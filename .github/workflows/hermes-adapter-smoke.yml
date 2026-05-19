@@ -1,0 +1,83 @@
+name: hermes-adapter-smoke
+
+# End-to-end smoke for the Hermes Adapter contract.
+# Brings up the compose stack (web + tool-server + postgres) and runs
+# scripts/hermes-adapter-smoke.mjs against it. This is the contract that
+# beautyos-hermes/bootstrap.py implements on the other side — if this
+# breaks, the wrapper repo's smoke will break too.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "scripts/hermes-adapter-smoke.mjs"
+      - "config/hermes-profile.yaml"
+      - "docs/architecture/hermes-adapter.md"
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - ".github/workflows/hermes-adapter-smoke.yml"
+  pull_request:
+    branches: [main]
+    paths:
+      - "server/**"
+      - "scripts/hermes-adapter-smoke.mjs"
+      - "config/hermes-profile.yaml"
+      - "docs/architecture/hermes-adapter.md"
+      - "docker-compose.yml"
+      - "Dockerfile"
+      - ".github/workflows/hermes-adapter-smoke.yml"
+  workflow_dispatch: {}
+
+permissions:
+  contents: read
+
+concurrency:
+  group: adapter-smoke-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the ai-beautyos image
+        run: docker build -t ai-beautyos:local .
+
+      - name: Boot compose stack (web + tool-server + postgres)
+        run: |
+          cp .env.example .env || true
+          docker compose up -d postgres
+          # Wait for postgres to accept connections.
+          for i in $(seq 1 30); do
+            if docker compose exec -T postgres pg_isready -U beautyos -d beautyos >/dev/null 2>&1; then
+              echo "postgres ready"; break
+            fi
+            sleep 2
+          done
+          docker compose up -d web tool-server
+          # Wait for /healthz on web.
+          for i in $(seq 1 30); do
+            if docker compose exec -T web wget -qO- http://localhost:3000/healthz >/dev/null 2>&1; then
+              echo "web ready"; break
+            fi
+            sleep 2
+          done
+
+      - name: Run hermes-adapter smoke
+        run: |
+          docker compose exec -T -u root web sh -lc \
+            "cd /app && node scripts/hermes-adapter-smoke.mjs"
+
+      - name: Dump container logs on failure
+        if: failure()
+        run: |
+          echo "::group::web logs"; docker compose logs web | tail -200; echo "::endgroup::"
+          echo "::group::tool-server logs"; docker compose logs tool-server | tail -200; echo "::endgroup::"
+          echo "::group::postgres logs"; docker compose logs postgres | tail -100; echo "::endgroup::"
+
+      - name: Tear down
+        if: always()
+        run: docker compose down -v
