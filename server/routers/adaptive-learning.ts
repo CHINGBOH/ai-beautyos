@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, protectedProcedure } from '../_core/trpc';
 import { getDb } from '../db';
-import { knowledgeBase, users } from '../drizzle/schema';
+import { knowledgeBase, users } from '../../drizzle/schema';
 import { eq, and, desc, sql, inArray } from 'drizzle-orm';
 
 // 学习路径输入验证

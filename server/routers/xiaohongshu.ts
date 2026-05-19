@@ -162,7 +162,7 @@ export const xiaohongshuRouter = router({
       const db = await getDb();
       if (!db) throw new Error("Database not available");
 
-      const { xiaohongshuComments } = await import("../drizzle/schema");
+      const { xiaohongshuComments } = await import("../../drizzle/schema");
       
       let query = db.select().from(xiaohongshuComments)
         .where(eq(xiaohongshuComments.postId, input.postId));

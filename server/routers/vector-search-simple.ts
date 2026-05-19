@@ -7,7 +7,7 @@ import { z } from 'zod';
 import { TRPCError } from '@trpc/server';
 import { router, protectedProcedure } from '../_core/trpc';
 import { getDb } from '../db';
-import { knowledgeBase } from '../drizzle/schema';
+import { knowledgeBase } from '../../drizzle/schema';
 import { eq, and, ilike, desc, sql, or } from 'drizzle-orm';
 
 // 向量搜索输入验证
