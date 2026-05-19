@@ -76,6 +76,8 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/package.json ./package.json
 COPY --from=builder /app/drizzle ./drizzle
+# System Registry (#21) reads docs/system-manifest.yaml at runtime.
+COPY --from=builder /app/docs/system-manifest.yaml ./docs/system-manifest.yaml
 
 # Run as non-root
 USER node

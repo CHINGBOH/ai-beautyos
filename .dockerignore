@@ -58,5 +58,7 @@ docker-compose*.yaml
 # Documentation that bloats the image
 *.md
 docs/
+# but keep the system manifest — system-registry.ts reads it at runtime
+!docs/system-manifest.yaml
 !server/**/*.md
 .env.compose-test

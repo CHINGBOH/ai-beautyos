@@ -11,6 +11,7 @@ import { serveStatic } from "./static";
 import { restApi } from "../routers/rest-api"; // 导入
 import { validateAndPrint } from "./env-validation";
 import { registerMetricsRoute, startMetricsCollection } from "./metrics";
+import { registerSystemRegistryRoutes } from "./system-registry";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -61,6 +62,10 @@ async function startServer() {
   // Process metrics — RSS, heap, event loop lag. Cheap, no DB hit. See
   // docs/deployment/runtime-governance.md for the SLO / alert thresholds.
   registerMetricsRoute(app, SERVER_START_TIME);
+
+  // System Registry — /system/* endpoints. Hermes's canonical entry point.
+  // Read-only, no secrets, no DB hit. See server/_core/system-registry.ts.
+  registerSystemRegistryRoutes(app, SERVER_START_TIME);
 
   // 企业微信Webhook回调（需要在JSON解析之前，因为企业微信发送的是XML）
   // 使用text parser处理所有XML请求（包括text/xml和application/xml）
