@@ -1,0 +1,61 @@
+# Dependencies & build outputs
+**/node_modules
+.pnpm-store/
+dist/
+build/
+
+# Local environment / secrets — must NEVER end up in the image
+.env
+.env.*
+!.env.example
+
+# VCS & CI metadata
+.git
+.github
+.gitignore
+.gitattributes
+
+# IDE / editor / OS
+.vscode
+.idea
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs & temp
+*.log
+logs
+tmp
+temp
+.cache
+.parcel-cache
+.next
+.nuxt
+.eslintcache
+*.tsbuildinfo
+
+# Lockfiles for other package managers — pnpm is authoritative
+package-lock.json
+yarn.lock
+
+# Test / coverage artifacts
+coverage
+.nyc_output
+*.lcov
+
+# Local databases & dumps
+*.db
+*.sqlite
+*.sqlite3
+
+# Docker / compose / k8s manifests (not needed inside the image)
+Dockerfile
+.dockerignore
+docker-compose*.yml
+docker-compose*.yaml
+
+# Documentation that bloats the image
+*.md
+docs/
+!server/**/*.md
