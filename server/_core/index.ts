@@ -74,8 +74,14 @@ async function startServer() {
 
   // Tool Server (MVP, in-process) — /tools/* endpoints. Mounted *before*
   // the big body parser so we can use a smaller one for tool calls.
-  app.use("/tools", express.json({ limit: "1mb" }));
-  registerToolServerRoutes(app);
+  // Phase-3: set BEAUTYOS_DISABLE_EMBEDDED_TOOL_SERVER=1 to delegate to the
+  // standalone tool-server service (server/tool-server-main.ts).
+  if (process.env.BEAUTYOS_DISABLE_EMBEDDED_TOOL_SERVER === "1") {
+    console.log("[boot] embedded tool-server disabled; expecting standalone tool-server service");
+  } else {
+    app.use("/tools", express.json({ limit: "1mb" }));
+    registerToolServerRoutes(app);
+  }
 
   // 企业微信Webhook回调（需要在JSON解析之前，因为企业微信发送的是XML）
   // 使用text parser处理所有XML请求（包括text/xml和application/xml）
