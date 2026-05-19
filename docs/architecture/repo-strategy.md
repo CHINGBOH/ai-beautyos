@@ -24,7 +24,7 @@ The business system. Owns:
 * CI: GHCR image publish
 * Hermes **skills** — repo-local definitions Hermes loads at startup
 
-### 2. `CHINGBOH/beautyos-hermes` (sibling repo, separate)
+### 2. [`CHINGBOH/beautyos-hermes`](https://github.com/CHINGBOH/beautyos-hermes) (sibling repo, separate)
 
 The custom Hermes runtime. Owns:
 
