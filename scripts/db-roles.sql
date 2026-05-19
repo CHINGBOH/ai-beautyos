@@ -6,26 +6,46 @@
 -- policy_decisions). Reads on business tables go through the Tool Server,
 -- which uses the application role `beautyos`.
 --
--- Apply with:
---   docker compose exec -T postgres psql -U postgres -d beautyos \
---     -f /scripts/db-roles.sql
--- or (if connecting as the beautyos owner):
---   psql -U beautyos -d beautyos -f scripts/db-roles.sql
+-- Apply (preferred — refuses placeholders / weak values):
+--   HERMES_DB_PASSWORD='<strong-secret>' ./scripts/apply-db-roles.sh
 --
--- The password is intentionally a placeholder. Replace before running in
--- any non-dev environment; pass via env var `HERMES_DB_PASSWORD` and use
--- envsubst.
+-- Or directly with psql (you supply the password via -v):
+--   psql -U beautyos -d beautyos \
+--     -v hermes_password="'<strong-secret>'" \
+--     -f scripts/db-roles.sql
+--
+-- The password variable :hermes_password is REQUIRED — if you forget it, psql
+-- will fail with an unbound-variable error rather than silently using a
+-- predictable string.  Rotating the password later? Re-run this file with a
+-- new value; the DO block calls ALTER ROLE on the existing role.
 
 \set ON_ERROR_STOP on
 
+-- Bind psql variable into a session-scoped custom GUC so the DO block can
+-- read it via current_setting() — psql's :'var' interpolation does not work
+-- inside dollar-quoted PL/pgSQL bodies.
+SELECT set_config('beautyos.hermes_password', :'hermes_password', false);
+
 DO $$
+DECLARE
+  pw text := current_setting('beautyos.hermes_password');
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'beautyos_hermes') THEN
-    -- Note: replace 'change-me' before running in production.
-    EXECUTE format('CREATE ROLE beautyos_hermes WITH LOGIN PASSWORD %L', 'change-me');
+  IF pw IS NULL OR length(pw) < 16 THEN
+    RAISE EXCEPTION 'hermes_password must be at least 16 characters (got %).', coalesce(length(pw)::text, 'null');
+  END IF;
+  IF pw IN ('change-me', 'change_me', 'changeme', 'password', 'beautyos') THEN
+    RAISE EXCEPTION 'hermes_password is a known placeholder/weak value; refusing.';
+  END IF;
+  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'beautyos_hermes') THEN
+    EXECUTE format('ALTER ROLE beautyos_hermes WITH LOGIN PASSWORD %L', pw);
+  ELSE
+    EXECUTE format('CREATE ROLE beautyos_hermes WITH LOGIN PASSWORD %L', pw);
   END IF;
 END
 $$;
+
+-- Clear the GUC so the password does not linger in the session context.
+SELECT set_config('beautyos.hermes_password', '', false);
 
 -- 1. Read-only on ALL existing tables (current state snapshot).
 GRANT CONNECT ON DATABASE beautyos TO beautyos_hermes;
