@@ -68,6 +68,9 @@ function loadManifest(): Manifest {
 
 import { persistAuditLog } from "./agent-persistence";
 import { loadTenantConfig, clearTenantConfigCache, renderSystemPrompt } from "./tenant-config";
+import { getDb } from "../db";
+import { tenantConfigDrafts } from "../../drizzle/schema-agent";
+import { eq, and, desc, sql as drizzleSql } from "drizzle-orm";
 
 interface AuditEntry {
   ts: string;
@@ -227,6 +230,184 @@ export function registerSystemRegistryRoutes(
       res.status(200).json({ tenantId, profile, prompt: rendered });
     } catch (e) {
       res.status(400).json({ error: (e as Error).message });
+    }
+  });
+
+  // ──────────────── tenant_config_drafts (#26 acceptance #3) ────────────────
+  // Hermes proposes a config change; humans approve/reject.
+  // The actual YAML write-back is deferred — approval here records the
+  // intent + flips status; the operator applies the patch manually until
+  // we ship the safe YAML-patcher.
+
+  const ALLOWED_RISK = new Set(["low", "medium", "high", "very_high"]);
+
+  // bigserial id → JSON-safe string (JSON cannot serialize BigInt).
+  const serializeDraft = (row: any) =>
+    row ? { ...row, id: typeof row.id === "bigint" ? row.id.toString() : row.id } : row;
+
+  // POST /system/tenant-config/drafts — agent proposes a change
+  app.post("/system/tenant-config/drafts", async (req: Request, res: Response) => {
+    const tenantId =
+      (req.headers["x-tenant-id"] as string | undefined)?.trim() ||
+      (req.body?.tenantId as string | undefined) ||
+      "00000000-0000-0000-0000-000000000001";
+    const proposedBy = String(req.body?.proposedBy || "").trim();
+    const reason = String(req.body?.reason || "").trim();
+    const patch = req.body?.patch;
+    const riskLevel = String(req.body?.riskLevel || "low").trim();
+    const proposerRef = req.body?.proposerRef ? String(req.body.proposerRef).trim() : null;
+
+    if (!proposedBy) return res.status(400).json({ error: "proposedBy required" });
+    if (!reason) return res.status(400).json({ error: "reason required" });
+    if (!patch || typeof patch !== "object") return res.status(400).json({ error: "patch must be a JSON object" });
+    if (!ALLOWED_RISK.has(riskLevel)) return res.status(400).json({ error: `riskLevel must be one of ${[...ALLOWED_RISK].join(",")}` });
+
+    try {
+      const db = await getDb();
+      if (!db) return res.status(503).json({ error: "database unavailable" });
+      const [row] = await db
+        .insert(tenantConfigDrafts)
+        .values({ tenantId, proposedBy, proposerRef, reason, patch, riskLevel })
+        .returning();
+
+      await persistAuditLog({
+        tenantId,
+        kind: "tenant_config.draft.proposed",
+        actorKind: "agent",
+        actorRef: proposedBy,
+        subjectKind: "tenant_config_draft",
+        subjectRef: String(row.id),
+        payload: { reason, riskLevel, patch },
+      });
+
+      res.status(201).json({ ok: true, draft: serializeDraft(row) });
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  // GET /system/tenant-config/drafts — list (default: pending only)
+  app.get("/system/tenant-config/drafts", async (req: Request, res: Response) => {
+    const tenantId =
+      (req.headers["x-tenant-id"] as string | undefined)?.trim() ||
+      (req.query.tenantId as string | undefined);
+    const status = (req.query.status as string | undefined) || "pending";
+    const limit = Math.min(Number(req.query.limit) || 50, 200);
+
+    try {
+      const db = await getDb();
+      if (!db) return res.status(503).json({ error: "database unavailable" });
+      const conditions = [eq(tenantConfigDrafts.status, status)];
+      if (tenantId) conditions.push(eq(tenantConfigDrafts.tenantId, tenantId));
+      const rows = await db
+        .select()
+        .from(tenantConfigDrafts)
+        .where(and(...conditions))
+        .orderBy(desc(tenantConfigDrafts.createdAt))
+        .limit(limit);
+      res.status(200).json({ count: rows.length, drafts: rows.map(serializeDraft) });
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  // POST /system/tenant-config/drafts/:id/approve — human approves
+  app.post("/system/tenant-config/drafts/:id/approve", async (req: Request, res: Response) => {
+    const draftId = req.params.id;
+    const reviewedBy = String(req.body?.reviewedBy || "").trim();
+    const reviewerRef = req.body?.reviewerRef ? String(req.body.reviewerRef).trim() : null;
+    const reviewNote = req.body?.reviewNote ? String(req.body.reviewNote).trim() : null;
+    if (!reviewedBy) return res.status(400).json({ error: "reviewedBy required" });
+
+    try {
+      const db = await getDb();
+      if (!db) return res.status(503).json({ error: "database unavailable" });
+      const [draft] = await db
+        .select()
+        .from(tenantConfigDrafts)
+        .where(eq(tenantConfigDrafts.id, BigInt(draftId)));
+      if (!draft) return res.status(404).json({ error: "draft not found" });
+      if (draft.status !== "pending")
+        return res.status(409).json({ error: `draft already ${draft.status}` });
+
+      const [updated] = await db
+        .update(tenantConfigDrafts)
+        .set({
+          status: "approved",
+          reviewedBy,
+          reviewerRef,
+          reviewNote,
+          appliedAt: drizzleSql`now()`,
+          updatedAt: drizzleSql`now()`,
+        })
+        .where(eq(tenantConfigDrafts.id, BigInt(draftId)))
+        .returning();
+
+      await persistAuditLog({
+        tenantId: draft.tenantId,
+        kind: "tenant_config.draft.approved",
+        actorKind: "human",
+        actorRef: reviewedBy,
+        subjectKind: "tenant_config_draft",
+        subjectRef: draftId,
+        payload: { reviewNote, patch: draft.patch, proposedBy: draft.proposedBy },
+      });
+
+      res.status(200).json({
+        ok: true,
+        draft: serializeDraft(updated),
+        note: "approval recorded; YAML write-back is manual until safe-patcher ships",
+      });
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
+    }
+  });
+
+  // POST /system/tenant-config/drafts/:id/reject — human rejects
+  app.post("/system/tenant-config/drafts/:id/reject", async (req: Request, res: Response) => {
+    const draftId = req.params.id;
+    const reviewedBy = String(req.body?.reviewedBy || "").trim();
+    const reviewerRef = req.body?.reviewerRef ? String(req.body.reviewerRef).trim() : null;
+    const reviewNote = req.body?.reviewNote ? String(req.body.reviewNote).trim() : null;
+    if (!reviewedBy) return res.status(400).json({ error: "reviewedBy required" });
+    if (!reviewNote) return res.status(400).json({ error: "reviewNote required for rejection" });
+
+    try {
+      const db = await getDb();
+      if (!db) return res.status(503).json({ error: "database unavailable" });
+      const [draft] = await db
+        .select()
+        .from(tenantConfigDrafts)
+        .where(eq(tenantConfigDrafts.id, BigInt(draftId)));
+      if (!draft) return res.status(404).json({ error: "draft not found" });
+      if (draft.status !== "pending")
+        return res.status(409).json({ error: `draft already ${draft.status}` });
+
+      const [updated] = await db
+        .update(tenantConfigDrafts)
+        .set({
+          status: "rejected",
+          reviewedBy,
+          reviewerRef,
+          reviewNote,
+          updatedAt: drizzleSql`now()`,
+        })
+        .where(eq(tenantConfigDrafts.id, BigInt(draftId)))
+        .returning();
+
+      await persistAuditLog({
+        tenantId: draft.tenantId,
+        kind: "tenant_config.draft.rejected",
+        actorKind: "human",
+        actorRef: reviewedBy,
+        subjectKind: "tenant_config_draft",
+        subjectRef: draftId,
+        payload: { reviewNote, patch: draft.patch, proposedBy: draft.proposedBy },
+      });
+
+      res.status(200).json({ ok: true, draft: serializeDraft(updated) });
+    } catch (e) {
+      res.status(500).json({ error: (e as Error).message });
     }
   });
 }

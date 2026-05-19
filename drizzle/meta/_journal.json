@@ -78,6 +78,13 @@
       "when": 1779213073813,
       "tag": "0010_cultured_the_executioner",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1779215739069,
+      "tag": "0011_tenant_config_drafts",
+      "breakpoints": true
     }
   ]
 }

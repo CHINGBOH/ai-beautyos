@@ -303,6 +303,52 @@ export const outbox = pgTable(
   ]
 );
 
+/* ─────────────────── 3.9 tenant_config_drafts ─────────────────── */
+/**
+ * Drafts proposed by Hermes (or any agent) for tenant-config changes.
+ * Workflow:
+ *   1. Agent POST /system/tenant-config/drafts {patch, reason}
+ *      → row inserted with status='pending'.
+ *   2. Human reviews via GET /system/tenant-config/drafts.
+ *   3. Human POSTs approve / reject — approval triggers re-validation
+ *      against the Zod schema and (when implemented) writes the patch
+ *      to the live overlay YAML. Until file-writer ships, approve just
+ *      flips status and the operator copies the patch by hand.
+ *
+ * The patch is stored as JSON because it has to be JSON-Patch-shaped
+ * (RFC 6902 subset) so we can later automate the YAML write without
+ * a YAML diff library.
+ */
+export const tenantConfigDrafts = pgTable(
+  "tenant_config_drafts",
+  {
+    id: bigserial("id", { mode: "bigint" }).primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "cascade" }),
+    proposedBy: varchar("proposed_by", { length: 64 }).notNull(),
+    proposerRef: varchar("proposer_ref", { length: 128 }),
+    reason: text("reason").notNull(),
+    patch: jsonb("patch").notNull(),
+    riskLevel: varchar("risk_level", { length: 16 }).default("low").notNull(),
+    status: varchar("status", { length: 16 }).default("pending").notNull(),
+    reviewedBy: varchar("reviewed_by", { length: 64 }),
+    reviewerRef: varchar("reviewer_ref", { length: 128 }),
+    reviewNote: text("review_note"),
+    appliedAt: timestamp("applied_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    updatedAt: timestamp("updated_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("tenant_config_drafts_tenant_status_idx").on(t.tenantId, t.status),
+    index("tenant_config_drafts_status_created_idx").on(t.status, t.createdAt),
+  ]
+);
+
 /* ─────────────────── exports ─────────────────── */
 
 export const agentNativeTables = {
@@ -314,4 +360,5 @@ export const agentNativeTables = {
   policyDecisions,
   auditLog,
   outbox,
+  tenantConfigDrafts,
 };

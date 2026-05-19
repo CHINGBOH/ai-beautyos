@@ -68,7 +68,8 @@ async function startServer() {
   registerMetricsRoute(app, SERVER_START_TIME);
 
   // System Registry — /system/* endpoints. Hermes's canonical entry point.
-  // Read-only, no secrets, no DB hit. See server/_core/system-registry.ts.
+  // Read-only mostly; some POSTs (config drafts) need JSON body parsing.
+  app.use("/system", express.json({ limit: "1mb" }));
   registerSystemRegistryRoutes(app, SERVER_START_TIME);
 
   // Tool Server (MVP, in-process) — /tools/* endpoints. Mounted *before*
