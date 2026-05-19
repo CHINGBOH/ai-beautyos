@@ -68,11 +68,15 @@ jobs:
 
       - name: Run hermes-adapter smoke
         run: |
-          # The smoke script is not baked into the production image (it's
-          # source-only). Copy it into /app so it can resolve node_modules
-          # (yaml et al. live at /app/node_modules).
-          docker compose cp scripts/hermes-adapter-smoke.mjs web:/app/_smoke.mjs
-          docker compose exec -T -u root -w /app web node /app/_smoke.mjs
+          # The smoke script is not baked into the production image (source-
+          # only). Copy it into /app/scripts/ — the script resolves the
+          # profile path as `__dirname/../config/hermes-profile.yaml`, so
+          # it must live one level under /app where config/ already is.
+          docker compose exec -T -u root web mkdir -p /app/scripts
+          docker compose cp scripts/hermes-adapter-smoke.mjs \
+            web:/app/scripts/hermes-adapter-smoke.mjs
+          docker compose exec -T -u root -w /app web \
+            node /app/scripts/hermes-adapter-smoke.mjs
 
       - name: Dump container logs on failure
         if: failure()
