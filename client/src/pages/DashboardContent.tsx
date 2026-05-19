@@ -888,14 +888,6 @@ export default function DashboardContent() {
                   </Card>
                 )}
 
-                {/* 批量生成面板 */}
-                {showBulkPanel && (
-                  <Card className="mt-4">
-                    <CardHeader>
-                      <CardTitle className="text-lg">批量生成内容</CardTitle>
-                      <CardDescription>一次性生成多个不同类型的内容</CardDescription>
-                    </CardHeader>
-                    <CardContent>
                 {/* 定时发布模态框 */}
                 {showScheduleModal && (
                   <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
