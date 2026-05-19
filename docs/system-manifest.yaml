@@ -1,0 +1,179 @@
+# =============================================================================
+# AI BeautyOS — System Manifest
+# =============================================================================
+# Machine-readable system map. The canonical entry point for Hermes and any
+# other agent that needs to understand BeautyOS before reading code.
+#
+# Runtime equivalents are exposed at /system/* (see Issue #21 / server/_core/
+# system-registry.ts). Both must stay in sync; the runtime endpoint loads
+# this file at boot and overlays live data (health, deployment commit,
+# audit recent).
+#
+# Versioning: bump `meta.version` on any breaking change. The runtime
+# endpoint returns this value so agents can detect drift.
+# =============================================================================
+
+meta:
+  version: "1.0.0"
+  generated_by: "humans"
+  authoritative_source: "docs/system-manifest.yaml"
+  spec: "https://github.com/CHINGBOH/ai-beautyos/issues/22"
+
+system:
+  name: ai-beautyos
+  purpose: >
+    Agent-native beauty-industry CRM + content + WeCom operations platform.
+    Designed to be operated jointly by humans and a custom Hermes agent.
+  runtime_model: >
+    Multiple services on a single Docker network. Web/API talks to Postgres
+    directly. Hermes never touches Postgres — it goes through the MCP/Tool
+    Server, which is the only component allowed to do controlled writes.
+  principles:
+    - "Code defines capability."
+    - "Config defines behavior."
+    - "Parameters decide outcome."
+    - "Permissions decide boundary."
+    - "Audit records fact."
+
+modules:
+  - id: crm
+    owner: server/routers/customers.ts
+    purpose: Customer profiles, segments, follow-up state.
+  - id: conversation
+    owner: server/routers/conversations.ts
+    purpose: WeCom + private-domain message threads, AI replies.
+  - id: content
+    owner: server/routers/xiaohongshu.ts
+    purpose: Xiaohongshu content generation, schedule, history.
+  - id: knowledge
+    owner: server/routers/knowledge.ts
+    purpose: RAG knowledge base (pgvector embeddings).
+  - id: wecom
+    owner: server/wework-webhook.ts
+    purpose: WeCom webhook + OAuth, message ingestion.
+  - id: analytics
+    owner: server/routers/analytics.ts
+    purpose: Business overview, funnel, KPI rollups.
+  - id: tool-server
+    owner: mcp-server/
+    purpose: MCP-style tool surface for Hermes (see #17).
+  - id: system-registry
+    owner: server/_core/system-registry.ts
+    purpose: /system/* endpoints (see #21).
+  - id: workers
+    owner: planned
+    purpose: Background jobs (follow-up reminders, embedding refresh).
+
+routes:
+  http:
+    - path: /healthz
+      kind: liveness
+    - path: /metrics
+      kind: process_metrics
+    - path: /system/*
+      kind: system_registry
+    - path: /api/trpc/*
+      kind: trpc
+    - path: /api/rest/*
+      kind: rest
+    - path: /api/oauth/callback
+      kind: oauth
+    - path: /api/wework/webhook
+      kind: wecom_webhook
+  pages:
+    - path: /
+      module: dashboard
+    - path: /customers
+      module: crm
+    - path: /conversations
+      module: conversation
+    - path: /content
+      module: content
+
+services:
+  - id: beautyos-web
+    image: ghcr.io/chingboh/ai-beautyos
+    responsibilities: [http, trpc, rest, oauth, wecom-webhook, system-registry]
+    health: GET /healthz
+  - id: postgres
+    image: pgvector/pgvector:pg16
+    responsibilities: [primary-store, embeddings]
+    health: pg_isready
+    network_exposure: internal-only
+  - id: beautyos-tool-server
+    image: ghcr.io/chingboh/ai-beautyos-tool-server
+    status: planned
+    responsibilities: [mcp-tools]
+    network_exposure: internal-only
+  - id: beautyos-worker
+    status: planned
+    responsibilities: [background-jobs]
+
+tools:
+  # Tools live in mcp-server/. This list is the canonical name → risk map.
+  # Tool *limits* (timeout, maxRows, etc.) live in config/tools/*.yaml (#25).
+  - name: search_customers
+    risk: low
+    access: read
+  - name: get_customer_profile
+    risk: low
+    access: read
+  - name: get_business_overview
+    risk: low
+    access: read
+  - name: list_recent_conversations
+    risk: low
+    access: read
+  - name: generate_followup_suggestion
+    risk: medium
+    access: read-llm
+    notes: Calls DeepSeek; no external send-out.
+
+data_models:
+  primary_store: postgresql
+  required_extensions: [vector]
+  key_tables:
+    - users
+    - customers
+    - conversations
+    - messages
+    - xiaohongshu_posts
+    - knowledge_base
+    - system_config
+
+permissions:
+  # What Hermes is allowed to do via the Tool Server.
+  hermes:
+    read: ["all tools tagged access=read*"]
+    write: []                # MVP: no writes; later via dry-run + confirm
+    require_confirm:
+      - send_followup_message  # planned, not in MVP
+      - schedule_post          # planned, not in MVP
+    forbidden:
+      - direct database access
+      - shell execution
+      - calling Tool Server with unbounded result sets
+
+deployment:
+  default_topology: docker-compose
+  compose_file: docker-compose.yml
+  joint_topology_file: docker-compose.full.yml
+  health_endpoints:
+    web: GET /healthz
+    metrics: GET /metrics
+    registry: GET /system/health
+  image_traceability:
+    build_arg: GIT_COMMIT
+    surfaced_at: /healthz.commit
+    label: org.opencontainers.image.revision
+
+hermes:
+  recommended_entry_points:
+    - GET /system/manifest        # start here
+    - GET /system/tools           # learn capabilities
+    - GET /system/permissions     # learn boundaries
+  forbidden_behaviors:
+    - "Reading entire repo on every turn"
+    - "Direct SQL against Postgres"
+    - "Calling Tool Server tools without traceId / requestId"
+    - "Bypassing confirm/dry-run for high-risk tools"
