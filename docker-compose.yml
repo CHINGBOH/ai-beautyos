@@ -26,6 +26,10 @@ services:
     image: pgvector/pgvector:pg16
     container_name: beautyos-postgres
     restart: unless-stopped
+    mem_limit: 1g
+    mem_reservation: 256m
+    cpus: 1.5
+    stop_grace_period: 30s
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-beautyos}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-beautyos}
@@ -49,6 +53,15 @@ services:
     image: ai-beautyos:${IMAGE_TAG:-local}
     container_name: beautyos-web
     restart: unless-stopped
+    # Resource governance — see docs/deployment/runtime-governance.md.
+    # mem_limit triggers OOM-kill at the container boundary; NODE_OPTIONS
+    # caps V8's heap below that so we get a clean OOM with a stacktrace
+    # instead of an opaque SIGKILL. cpus caps CPU so a runaway endpoint
+    # cannot starve postgres on the same host.
+    mem_limit: 768m
+    mem_reservation: 256m
+    cpus: 1.5
+    stop_grace_period: 20s
     build:
       context: .
       dockerfile: Dockerfile
@@ -59,6 +72,8 @@ services:
     environment:
       NODE_ENV: production
       PORT: "3000"
+      # Keep V8 below mem_limit. Override here, not in the Dockerfile.
+      NODE_OPTIONS: ${NODE_OPTIONS:---max-old-space-size=512}
       # Inside the Compose network the DB host is the service name. We
       # override DATABASE_URL here so operators only have to set credentials
       # in .env, not the host.

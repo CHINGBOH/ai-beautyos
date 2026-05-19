@@ -65,7 +65,11 @@ RUN apk add --no-cache wget tini
 ARG GIT_COMMIT=unknown
 ENV NODE_ENV=production \
     PORT=3000 \
-    GIT_COMMIT=${GIT_COMMIT}
+    GIT_COMMIT=${GIT_COMMIT} \
+    # Cap V8's old-space heap so a leaking process is OOM-killed inside the
+    # container memory limit instead of pushing the host into swap. Tune via
+    # NODE_OPTIONS in compose / orchestrator for sizes other than 512 MiB.
+    NODE_OPTIONS=--max-old-space-size=512
 
 # Copy production node_modules + built artifacts + minimal runtime metadata
 COPY --from=builder /app/node_modules ./node_modules
