@@ -13,7 +13,7 @@ input:
 output:
   id: string
   name: string
-  tags: { type: string[] }
+  tags: { type: "string[]" }
   lastFiveInteractions: { type: array }
 audit: summary
 tags:

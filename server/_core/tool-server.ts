@@ -43,8 +43,8 @@ export type ToolConfig = {
 
 const TOOL_DIR_CANDIDATES = [
   path.resolve(process.cwd(), "config/tools"),
-  path.resolve(__dirname, "../../config/tools"),
-  path.resolve(__dirname, "../config/tools"),
+  path.resolve(import.meta.dirname, "../../config/tools"),
+  path.resolve(import.meta.dirname, "../config/tools"),
 ];
 
 function findToolDir(): string | null {
