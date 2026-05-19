@@ -7,12 +7,14 @@ import { registerOAuthRoutes } from "./oauth";
 import { registerWeworkWebhookRoutes } from "../wework-webhook";
 import { appRouter } from "../routers";
 import { createContext } from "./context";
-import { serveStatic, setupVite } from "./vite";
+import { serveStatic } from "./static";
 import { restApi } from "../routers/rest-api";
 import { validateAndPrint } from "./env-validation";
 import { registerLangchainBackendProxy } from "./langchain-proxy";
-// import { registerTestRoute } from "./test-route";
 import { runBirthdayHolidayReminders } from "../jobs/birthday-holiday";
+import { registerMetricsRoute, startMetricsCollection } from "./metrics";
+import { registerSystemRegistryRoutes } from "./system-registry";
+import { registerToolServerRoutes } from "./tool-server";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -33,13 +35,46 @@ async function findAvailablePort(startPort: number = 3000): Promise<number> {
   throw new Error(`No available port found starting from ${startPort}`);
 }
 
+const SERVER_START_TIME = new Date();
+
 async function startServer() {
   // 在启动前验证环境变量
   validateAndPrint();
 
+  // Start sampling event-loop lag as early as possible so /metrics reflects
+  // real boot-time delay too.
+  startMetricsCollection();
+
   const app = express();
   const server = createServer(app);
-  
+
+  // Health check — must be registered BEFORE any body parser / auth / vite
+  // middleware so probes never hit application logic.
+  // Liveness only: returns 200 as long as the event loop is alive. Do not
+  // perform DB checks here (use a separate /readyz if/when needed).
+  app.get("/healthz", (_req, res) => {
+    res.status(200).json({
+      status: "ok",
+      service: "ai-beautyos",
+      commit: process.env.GIT_COMMIT || "unknown",
+      startedAt: SERVER_START_TIME.toISOString(),
+      uptimeSec: Math.round(process.uptime()),
+    });
+  });
+
+  // Process metrics — RSS, heap, event loop lag. Cheap, no DB hit. See
+  // docs/deployment/runtime-governance.md for the SLO / alert thresholds.
+  registerMetricsRoute(app, SERVER_START_TIME);
+
+  // System Registry — /system/* endpoints. Hermes's canonical entry point.
+  // Read-only, no secrets, no DB hit. See server/_core/system-registry.ts.
+  registerSystemRegistryRoutes(app, SERVER_START_TIME);
+
+  // Tool Server (MVP, in-process) — /tools/* endpoints. Mounted *before*
+  // the big body parser so we can use a smaller one for tool calls.
+  app.use("/tools", express.json({ limit: "1mb" }));
+  registerToolServerRoutes(app);
+
   // 企业微信Webhook回调（需要在JSON解析之前，因为企业微信发送的是XML）
   // 使用text parser处理所有XML请求（包括text/xml和application/xml）
   app.use("/api/wework/webhook", express.text({ type: ["text/xml", "application/xml", "text/plain"] }));
@@ -66,18 +101,28 @@ async function startServer() {
   // 将落地页调用的 FastAPI 契约转发到 Python 后端（默认 127.0.0.1:8000）
   registerLangchainBackendProxy(app);
 
-  // development mode uses Vite, production mode uses static files
+  // development mode uses Vite, production mode uses static files.
+  // Use a runtime variable to prevent esbuild from inlining ./vite (which
+  // would pull devDep imports like @tailwindcss/vite into the prod bundle).
   if (process.env.NODE_ENV === "development") {
+    const viteMod = "./vite";
+    const { setupVite } = await import(/* @vite-ignore */ viteMod);
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
 
-  const preferredPort = parseInt(process.env.PORT || "3000");
-  const port = await findAvailablePort(preferredPort);
+  const preferredPort = parseInt(process.env.PORT || "3000", 10);
 
-  if (port !== preferredPort) {
-    console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+  // Strict bind in production / container deployments — health probes and
+  // reverse proxies must be able to rely on the configured PORT. In dev we
+  // keep the port-scanning fallback for convenience.
+  let port = preferredPort;
+  if (process.env.NODE_ENV !== "production") {
+    port = await findAvailablePort(preferredPort);
+    if (port !== preferredPort) {
+      console.log(`Port ${preferredPort} is busy, using port ${port} instead`);
+    }
   }
 
   const host = process.env.HOST || "0.0.0.0";

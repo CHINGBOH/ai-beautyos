@@ -20,8 +20,8 @@ async function verifyStartup() {
   } else {
     console.log("   ✅ DATABASE_URL 已配置");
     // 验证格式
-    if (!process.env.DATABASE_URL.startsWith("mysql://")) {
-      warnings.push("⚠️  DATABASE_URL 格式可能不正确（应以 mysql:// 开头）");
+    if (!/^postgres(ql)?:\/\//.test(process.env.DATABASE_URL)) {
+      warnings.push("⚠️  DATABASE_URL 格式可能不正确（应以 postgresql:// 开头）");
     }
   }
 
@@ -122,12 +122,12 @@ async function verifyStartup() {
       console.log("\n💡 修复建议:");
       if (errors.some(e => e.includes("DATABASE_URL"))) {
         console.log("   1. 创建 .env 文件并配置 DATABASE_URL");
-        console.log("   2. 格式: DATABASE_URL=mysql://user:password@host:port/database");
+        console.log("   2. 格式: DATABASE_URL=postgresql://user:password@host:port/database");
       }
       if (errors.some(e => e.includes("数据库连接"))) {
         console.log("   1. 确保数据库服务正在运行");
         console.log("   2. 检查 DATABASE_URL 是否正确");
-        console.log("   3. 运行 'npm run db:push' 创建表结构");
+        console.log("   3. 运行 'pnpm db:push' 创建表结构");
       }
     }
   }

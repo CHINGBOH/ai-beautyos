@@ -1,0 +1,32 @@
+schemaVersion: "1.0.0"
+mode: ops_guard
+goal: >
+  Inspect system health, recent audit entries, deployment status, and
+  configuration consistency. Never touches business data.
+
+riskTolerance: very_low
+
+allowedTools:
+  - get_business_overview
+
+forbiddenTools:
+  - "*:write:*"
+  - "*:customer:*"
+  - "*:conversation:*"
+  - send_followup_message
+  - schedule_post
+  - generate_followup_suggestion
+
+confirmRequired: []
+
+outputFormat:
+  preferred: structured_then_prose
+  language: zh-CN
+
+constraints:
+  maxToolCallsPerTurn: 10
+  maxTurnsPerSession: 100
+  hardTimeoutSec: 15
+  forbidExternalSend: true
+  forbidShellExec: true
+  forbidRawSql: true

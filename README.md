@@ -109,7 +109,7 @@ Operational Analytics
 | Frontend | React + TypeScript + Vite |
 | Backend | Express + Drizzle ORM |
 | AI Backend | FastAPI |
-| Database | PostgreSQL + pgvector + Redis |
+| Database | PostgreSQL + pgvector |
 | AI | DeepSeek / Qwen / RAG |
 | Deploy | Docker + Docker Compose |
 
@@ -118,9 +118,10 @@ Operational Analytics
 # Quick Start
 
 ```bash
-git clone https://github.com/CHINGBOH/medical-beauty-crm-landing.git
-cd medical-beauty-crm-landing
-cp .env.example .env && docker compose up -d
+git clone https://github.com/CHINGBOH/ai-beautyos.git
+cd ai-beautyos
+cp .env.example .env   # then fill in DATABASE_URL, JWT_SECRET, DEEPSEEK_API_KEY
+docker compose up -d
 ```
 
 Open:
@@ -128,3 +129,15 @@ Open:
 ```text
 http://localhost:3000
 ```
+
+## Required environment variables
+
+Minimum set for the service to start (see [`ENV_VARIABLES.md`](./ENV_VARIABLES.md) for the full list and rationale):
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string (`postgresql://...`). pgvector required. |
+| `JWT_SECRET` | ≥ 32 chars; signs session cookies. Generate with `openssl rand -base64 48`. |
+| `DEEPSEEK_API_KEY` | DeepSeek key; powers the AI chat agent. |
+
+The full template, including optional Qwen / OpenAI / Airtable / Manus-platform variables, lives in [`.env.example`](./.env.example).

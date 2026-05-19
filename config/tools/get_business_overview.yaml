@@ -1,0 +1,21 @@
+schemaVersion: "1.0.0"
+name: get_business_overview
+description: 取经营看板汇总数据（新客 / 转化 / 跟进健康度），可指定时间窗
+risk: low
+access: ro
+timeoutMs: 5000
+maxRows: 0
+rateLimitPerMin: 30
+requiresConfirm: false
+supportsDryRun: false
+input:
+  rangeDays: { type: number, required: false, default: 7, max: 90 }
+output:
+  windowDays: number
+  newCustomers: number
+  conversions: number
+  pendingFollowups: number
+  staleFollowups: number
+audit: summary
+tags:
+  - "analytics:read"

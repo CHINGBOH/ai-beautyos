@@ -1,0 +1,34 @@
+schemaVersion: "1.0.0"
+mode: content_operator
+goal: >
+  Draft and refine Xiaohongshu / private-domain content. Generate copy,
+  iterate on tone, prepare schedule proposals. Never publish without a
+  human approving the final draft.
+
+riskTolerance: medium
+
+allowedTools:
+  - search_customers
+  - get_business_overview
+  - list_recent_conversations
+
+forbiddenTools:
+  - "*:write:*"
+  - send_followup_message
+  - schedule_post
+
+confirmRequired:
+  - schedule_post
+
+outputFormat:
+  preferred: structured_then_prose
+  language: zh-CN
+  maxParagraphs: 6
+
+constraints:
+  maxToolCallsPerTurn: 4
+  maxTurnsPerSession: 60
+  hardTimeoutSec: 30
+  forbidExternalSend: true
+  forbidShellExec: true
+  forbidRawSql: true
