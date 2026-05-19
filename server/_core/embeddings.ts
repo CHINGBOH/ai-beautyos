@@ -65,10 +65,18 @@ export function createEmbeddingClient(cfg: EmbeddingProviderConfig): OpenAI {
   });
 }
 
-export async function generateEmbedding(text: string): Promise<{ embedding: number[]; provider: EmbeddingProvider; model: string }> {
+export async function generateEmbedding(text: string): Promise<{ embedding: number[]; provider: EmbeddingProvider | "local-hash"; model: string }> {
   const cfg = resolveEmbeddingProvider();
   if (!cfg) {
-    throw new Error("未配置 embedding 提供方：请设置 QWEN_API_KEY 或 OPENAI_API_KEY");
+    // Offline fallback: deterministic 1536-dim hash embedding. Not
+    // semantically meaningful but lets the RAG pipeline run end-to-end
+    // in dev / CI without burning provider credits. Use a real provider
+    // (QWEN_API_KEY / OPENAI_API_KEY) in production.
+    return {
+      embedding: localHashEmbedding(text, 1536),
+      provider: "local-hash",
+      model: "hash-djb2-1536",
+    };
   }
 
   const client = createEmbeddingClient(cfg);
@@ -93,5 +101,31 @@ export async function generateEmbedding(text: string): Promise<{ embedding: numb
   }
 
   throw lastErr instanceof Error ? lastErr : new Error(String(lastErr));
+}
+
+/**
+ * Deterministic hash embedding. Tokenises on whitespace + punctuation,
+ * spreads each token's djb2 hash across `dim` buckets, then L2-normalises.
+ * Same input always returns the same vector. Semantic quality is poor
+ * (it's basically bag-of-tokens with hashing) — use for offline tests.
+ */
+function localHashEmbedding(text: string, dim: number): number[] {
+  const out = new Float64Array(dim);
+  const tokens = text.toLowerCase().split(/[^a-z0-9\u4e00-\u9fa5]+/u).filter(Boolean);
+  for (const tok of tokens) {
+    let h = 5381;
+    for (let i = 0; i < tok.length; i++) {
+      h = ((h << 5) + h + tok.charCodeAt(i)) | 0;
+    }
+    const idx = ((h % dim) + dim) % dim;
+    const sign = (h & 1) === 0 ? 1 : -1;
+    out[idx] += sign;
+  }
+  let norm = 0;
+  for (let i = 0; i < dim; i++) norm += out[i] * out[i];
+  norm = Math.sqrt(norm) || 1;
+  const arr: number[] = new Array(dim);
+  for (let i = 0; i < dim; i++) arr[i] = out[i] / norm;
+  return arr;
 }
 

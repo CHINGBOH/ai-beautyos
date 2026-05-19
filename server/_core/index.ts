@@ -15,6 +15,7 @@ import { runBirthdayHolidayReminders } from "../jobs/birthday-holiday";
 import { registerMetricsRoute, startMetricsCollection } from "./metrics";
 import { registerSystemRegistryRoutes } from "./system-registry";
 import { registerToolServerRoutes } from "./tool-server";
+import { startOutboxWorker } from "./outbox-worker";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -131,6 +132,8 @@ async function startServer() {
     if (host === "0.0.0.0") {
       console.log(`  (局域网访问需用本机 IP，如 http://<本机IP>:${port}/)`);
     }
+    // Outbox delivery worker (at-least-once outbound messaging).
+    startOutboxWorker();
     // 进程内定时：每日执行生日/节日提醒触发器（首次延后 1 分钟，之后每 24 小时）
     const MS_PER_DAY = 24 * 60 * 60 * 1000;
     setTimeout(() => {

@@ -24,6 +24,7 @@ import { ENV } from "./_core/env";
 import { logger } from "./_core/logger";
 
 let _db: ReturnType<typeof drizzle> | null = null;
+let _pg: ReturnType<typeof postgres> | null = null;
 
 // Lazily create the drizzle instance so local tooling can run without a DB.
 export async function getDb() {
@@ -35,6 +36,7 @@ export async function getDb() {
         idle_timeout: 20,
         connect_timeout: 10,
       });
+      _pg = client;
       _db = drizzle(client);
 
       // 测试连接
@@ -47,6 +49,28 @@ export async function getDb() {
     }
   }
   return _db;
+}
+
+/**
+ * Run `fn` inside a transaction with `app.tenant_id` set via
+ * SET LOCAL. The setting is automatically rolled back at COMMIT.
+ *
+ * For the owning role (beautyos) this is purely informational —
+ * RLS is bypassed. For non-owning roles (e.g. beautyos_hermes) the
+ * setting drives the RLS policy filter.
+ */
+export async function withTenant<T>(
+  tenantId: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  await getDb();
+  if (!_pg) throw new Error("withTenant: db not initialized");
+  const safe = String(tenantId).replace(/'/g, "''");
+  // postgres-js .begin manages BEGIN/COMMIT/ROLLBACK for us.
+  return await _pg.begin(async (tx) => {
+    await tx.unsafe(`SET LOCAL app.tenant_id = '${safe}'`);
+    return await fn();
+  }) as T;
 }
 
 export async function upsertUser(user: InsertUser): Promise<void> {
