@@ -57,7 +57,7 @@ export async function invokeLLMWithRetry(
 
   // Try to get from cache
   if (enableCache) {
-    const cached = llmCache.get<InvokeResult>(key);
+    const cached = llmCache.get(key) as InvokeResult | null;
     if (cached) {
       logger.info(`[LLM] Cache hit for key: ${key.substring(0, 50)}...`);
       return {

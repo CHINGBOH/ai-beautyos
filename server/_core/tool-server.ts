@@ -203,7 +203,6 @@ export function registerToolServerRoutes(app: Express) {
 
     if (!tokenBucketAllow(tenantId, name, cfg.rateLimitPerMin)) {
       recordAudit({
-        ts: new Date().toISOString(),
         kind: "tool.invoke.rate_limited",
         tool: name,
         tenantId,
@@ -233,7 +232,6 @@ export function registerToolServerRoutes(app: Express) {
 
     if (cfg.requiresConfirm && !confirmed && !(dryRun && cfg.supportsDryRun)) {
       recordAudit({
-        ts: new Date().toISOString(),
         kind: "tool.invoke.blocked",
         tool: name,
         tenantId,
@@ -287,7 +285,6 @@ export function registerToolServerRoutes(app: Express) {
       const result = await withTimeout(handler(input, { tenantId }), cfg.timeoutMs, name);
       const dt = Date.now() - t0;
       recordAudit({
-        ts: new Date().toISOString(),
         kind: dryRun ? "tool.invoke.dryrun" : "tool.invoke.ok",
         tool: name,
         tenantId,
@@ -317,7 +314,6 @@ export function registerToolServerRoutes(app: Express) {
     } catch (e: any) {
       const dt = Date.now() - t0;
       recordAudit({
-        ts: new Date().toISOString(),
         kind: "tool.invoke.error",
         tool: name,
         tenantId,

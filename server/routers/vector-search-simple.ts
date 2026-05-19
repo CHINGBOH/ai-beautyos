@@ -221,7 +221,8 @@ export const vectorSearchRouter = router({
               const tagConditions = tags.map(tag => 
                 ilike(knowledgeBase.tags, `%${tag}%`)
               );
-              whereConditions.push(or(...tagConditions));
+              const tagFilter = or(...tagConditions);
+              if (tagFilter) whereConditions.push(tagFilter);
             }
           } catch (e) {
             // 标签解析失败，忽略标签匹配

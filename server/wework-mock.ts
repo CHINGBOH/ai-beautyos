@@ -11,8 +11,8 @@ export async function getMockAccessToken(): Promise<string> {
   
   // 检查是否有有效的缓存 token
   if (config?.accessToken && config.tokenExpiresAt) {
-    const now = new Date();
-    if (config.tokenExpiresAt > now) {
+    const expiresAt = new Date(config.tokenExpiresAt);
+    if (expiresAt > new Date()) {
       return config.accessToken;
     }
   }

@@ -275,11 +275,10 @@ export const vectorSearchRouter = router({
 
       const text = `${item.title}\n${item.summary || ""}\n${item.content || ""}`;
       const { embedding } = await generateEmbedding(text);
-      const literal = toVectorLiteral(embedding);
 
       await db
         .update(knowledgeBase)
-        .set({ embedding: literal, updatedAt: new Date().toISOString() })
+        .set({ embedding, updatedAt: new Date().toISOString() })
         .where(eq(knowledgeBase.id, input.contentId));
 
       return {
@@ -340,7 +339,7 @@ export const vectorSearchRouter = router({
           await db
             .update(knowledgeBase)
             .set({
-              embedding: toVectorLiteral(embedding),
+              embedding,
               updatedAt: new Date().toISOString(),
             })
             .where(eq(knowledgeBase.id, it.id));

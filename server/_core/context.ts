@@ -10,6 +10,7 @@ const buildDevUser = (): User => ({
   email: null,
   loginMethod: null,
   role: "admin",
+  tenantId: "00000000-0000-0000-0000-000000000001",
   createdAt: new Date().toISOString(),
   updatedAt: new Date().toISOString(),
   lastSignedIn: new Date().toISOString(),
