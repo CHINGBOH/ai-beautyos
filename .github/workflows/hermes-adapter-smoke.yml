@@ -68,8 +68,10 @@ jobs:
 
       - name: Run hermes-adapter smoke
         run: |
-          docker compose exec -T -u root web sh -lc \
-            "cd /app && node scripts/hermes-adapter-smoke.mjs"
+          # The smoke script is not baked into the production image (it's
+          # source-only). Copy it in just for this CI run.
+          docker compose cp scripts/hermes-adapter-smoke.mjs web:/tmp/smoke.mjs
+          docker compose exec -T -u root web node /tmp/smoke.mjs
 
       - name: Dump container logs on failure
         if: failure()
