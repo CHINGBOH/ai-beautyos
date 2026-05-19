@@ -1,0 +1,88 @@
+# =============================================================================
+# AI BeautyOS — single-host Docker Compose deployment
+# =============================================================================
+# Usage:
+#   cp .env.example .env             # fill in secrets
+#   docker compose up -d --build     # build + start web + postgres
+#   docker compose ps                # see health
+#   docker compose logs -f web       # tail web logs
+#
+# Notes:
+#   * Postgres is reachable only on the internal Compose network — no host
+#     port is published.
+#   * Web is the only service exposed to the host (default 3000). Put a
+#     reverse proxy (nginx / Caddy / Traefik) in front of it for TLS.
+#   * GIT_COMMIT is stamped into the image label and surfaced at /healthz so
+#     every running container can be traced back to a Git commit.
+# =============================================================================
+
+name: beautyos
+
+services:
+  postgres:
+    # Vanilla postgres:16 won't work — `pnpm db:pgvector` requires the
+    # `vector` extension for knowledge / RAG features. The pgvector image
+    # is a drop-in replacement that ships the extension pre-installed.
+    image: pgvector/pgvector:pg16
+    container_name: beautyos-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-beautyos}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-beautyos}
+      POSTGRES_DB: ${POSTGRES_DB:-beautyos}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - beautyos-internal
+    # No `ports:` on purpose — the DB must not be exposed to the host. Use
+    # `docker compose exec postgres psql ...` for admin access.
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U "${POSTGRES_USER:-beautyos}" -d "${POSTGRES_DB:-beautyos}"
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
+  web:
+    image: ai-beautyos:${IMAGE_TAG:-local}
+    container_name: beautyos-web
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-unknown}
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+      PORT: "3000"
+      # Inside the Compose network the DB host is the service name. We
+      # override DATABASE_URL here so operators only have to set credentials
+      # in .env, not the host.
+      DATABASE_URL: postgresql://${POSTGRES_USER:-beautyos}:${POSTGRES_PASSWORD:-beautyos}@postgres:5432/${POSTGRES_DB:-beautyos}
+    ports:
+      - "${WEB_PORT:-3000}:3000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - beautyos-internal
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - wget -q -O /dev/null --spider http://127.0.0.1:3000/healthz || exit 1
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+networks:
+  beautyos-internal:
+    driver: bridge
+
+volumes:
+  postgres-data:
+    driver: local
