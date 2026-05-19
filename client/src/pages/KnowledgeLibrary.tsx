@@ -26,6 +26,7 @@ import { KnowledgeSearch } from "@/components/KnowledgeSearch";
 import { KnowledgeDetailView } from "@/components/KnowledgeDetailView";
 import { KNOWLEDGE_MODULES, MODULE_NAMES } from "@shared/types";
 import { useAuth } from "@/_core/hooks/useAuth";
+import { useLocation } from "wouter";
 
 /**
  * 客户视角的知识库页面
@@ -33,6 +34,7 @@ import { useAuth } from "@/_core/hooks/useAuth";
  */
 export default function KnowledgeLibrary() {
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const isEmployee = user?.role === "admin" || user?.role === "staff";
 
   const [selectedModule, setSelectedModule] = useState<string>(
@@ -49,6 +51,7 @@ export default function KnowledgeLibrary() {
     data: knowledgeTree,
     isLoading: treeLoading,
     isError: treeError,
+    refetch: refetchTree,
   } = trpc.knowledge.getTreeByModule.useQuery({
     module: selectedModule,
   });
@@ -100,7 +103,7 @@ export default function KnowledgeLibrary() {
                   variant="ghost"
                   size="sm"
                   onClick={() =>
-                    (window.location.href = "/dashboard/knowledge-tree")
+                    setLocation("/dashboard/knowledge-tree")
                   }
                 >
                   管理后台
@@ -223,9 +226,12 @@ export default function KnowledgeLibrary() {
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
             ) : treeError ? (
-              <div className="text-center py-12 text-destructive">
-                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-80" />
-                <p>加载失败，请稍后重试</p>
+              <div className="text-center py-12 text-muted-foreground">
+                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-80 text-amber-600" />
+                <p className="mb-3">知识库暂时不可用，可以重新加载或切换模块</p>
+                <Button variant="outline" size="sm" onClick={() => refetchTree()}>
+                  重新加载
+                </Button>
               </div>
             ) : knowledgeTree && knowledgeTree.length > 0 ? (
               <KnowledgeTreeView
@@ -267,9 +273,7 @@ export default function KnowledgeLibrary() {
                   variant="brand"
                   size="sm"
                   onClick={() =>
-                    (window.location.href = `/dashboard/chat?kbId=${encodeURIComponent(
-                      String(selectedKnowledgeId)
-                    )}`)
+                    setLocation(`/dashboard/chat?kbId=${encodeURIComponent(String(selectedKnowledgeId))}`)
                   }
                 >
                   在对话中使用这篇知识

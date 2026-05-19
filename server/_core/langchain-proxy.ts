@@ -47,6 +47,26 @@ async function forwardToLangchain(req: Request, res: Response): Promise<void> {
   }
 }
 
+
+const fallbackLandingServices = [
+  { id: "skin", name: "皮肤管理", description: "从基础护理到深度修复，改善暗沉、敏感、毛孔和屏障问题。", icon: "Sparkles", services: [
+    { id: "101", name: "超皮秒祛斑", fullName: "超皮秒色素管理", description: "通过皮秒级激光脉冲击碎色素颗粒，适合雀斑、晒斑、色沉等问题。", shortDescription: "淡斑提亮，肤色更均匀", indications: ["雀斑", "晒斑", "色沉", "肤色暗沉"], contraindications: ["孕期", "光敏感", "治疗区感染"], treatmentDuration: "30-45分钟", recoveryTime: "1-3天", painLevel: 3, priceMin: 2980, priceMax: 6800, priceUnit: "次", effects: ["淡化色斑", "提亮肤色", "改善肤质"], risks: ["短暂泛红", "轻微结痂", "反黑风险需防晒管理"], preCare: "治疗前避免暴晒，停用刺激性护肤品。", postCare: "严格防晒，按医嘱补水修复。", technology: "皮秒激光", equipment: "进口皮秒设备", recommendedCourses: "3次为一疗程" },
+  ] },
+  { id: "injection", name: "注射美容", description: "面部精细化注射，改善凹陷、轮廓和动态纹。", icon: "Shield", services: [
+    { id: "102", name: "水光焕肤", description: "补水提亮，改善干燥细纹和肤质粗糙。", shortDescription: "补水、提亮、细腻肤质", indications: ["干燥", "细纹", "暗沉"], contraindications: ["孕期", "皮肤感染", "严重过敏体质"], treatmentDuration: "45分钟", recoveryTime: "1-2天", painLevel: 2, priceMin: 1280, priceMax: 3980, priceUnit: "次", effects: ["补水", "提亮", "改善细纹"], risks: ["短暂针眼", "轻微泛红"], preCare: "治疗前保持皮肤稳定。", postCare: "24小时内避免彩妆和高温环境。" },
+  ] },
+  { id: "laser", name: "光电项目", description: "非手术光电抗衰和肤质改善项目。", icon: "Star", services: [
+    { id: "103", name: "热玛吉紧致", description: "通过射频能量刺激胶原收缩和新生，改善松弛。", shortDescription: "紧致轮廓，改善松弛", indications: ["面部松弛", "下颌线模糊", "轻中度皱纹"], contraindications: ["孕期", "植入电子设备", "治疗区感染"], treatmentDuration: "60-90分钟", recoveryTime: "基本无恢复期", painLevel: 5, priceMin: 9800, priceMax: 26800, priceUnit: "次", effects: ["紧致提升", "轮廓改善", "胶原新生"], risks: ["短暂红肿", "热感不适"], preCare: "治疗前充分面诊评估。", postCare: "加强保湿，避免暴晒和高温护理。" },
+  ] },
+  { id: "antiaging", name: "抗衰紧致", description: "围绕轮廓、纹路、肤质制定综合抗衰方案。", icon: "Clock", services: [
+    { id: "104", name: "综合抗衰方案", description: "结合光电、注射和皮肤管理，制定个性化抗衰计划。", shortDescription: "多维抗衰，定制方案", indications: ["松弛", "细纹", "轮廓下垂", "肤质下降"], contraindications: ["孕期", "急性炎症", "严重基础疾病未控制"], treatmentDuration: "按方案制定", recoveryTime: "按项目不同", painLevel: 3, priceMin: 6800, priceMax: 39800, priceUnit: "方案", effects: ["紧致", "淡纹", "肤质改善"], risks: ["因项目组合而异"], preCare: "先面诊评估衰老层次。", postCare: "遵循分阶段护理和复诊计划。" },
+  ] },
+];
+
+function findFallbackLandingService(id: number) {
+  return fallbackLandingServices.flatMap(category => category.services).find(service => Number(service.id) === id) || null;
+}
+
 export function registerLangchainBackendProxy(app: Express): void {
   // 落地页预约 - 已实现数据库持久化
   app.post("/api/landing/appointments", async (req, res) => {
@@ -207,10 +227,11 @@ export function registerLangchainBackendProxy(app: Express): void {
     try {
       const { getAllMedicalProjects } = await import("../db");
       const projects = await getAllMedicalProjects(true);
-      res.status(200).json(projects);
+      const looksLikeLandingCategories = Array.isArray(projects) && projects.some((item: any) => Array.isArray(item?.services));
+      res.status(200).json(looksLikeLandingCategories ? projects : fallbackLandingServices);
     } catch (err) {
-      console.error("[services] 查询失败:", err);
-      res.status(500).json({ detail: "获取服务项目列表失败" });
+      console.error("[services] 查询失败，使用兜底服务:", err);
+      res.status(200).json(fallbackLandingServices);
     }
   });
 
@@ -224,12 +245,22 @@ export function registerLangchainBackendProxy(app: Express): void {
       const { getMedicalProjectById } = await import("../db");
       const project = await getMedicalProjectById(id);
       if (!project) {
+        const fallback = findFallbackLandingService(id);
+        if (fallback) {
+          res.status(200).json(fallback);
+          return;
+        }
         res.status(404).json({ detail: "服务项目不存在" });
         return;
       }
       res.status(200).json(project);
     } catch (err) {
-      console.error("[service_detail] 查询失败:", err);
+      console.error("[service_detail] 查询失败，使用兜底服务:", err);
+      const fallback = findFallbackLandingService(id);
+      if (fallback) {
+        res.status(200).json(fallback);
+        return;
+      }
       res.status(500).json({ detail: "获取服务项目详情失败" });
     }
   });

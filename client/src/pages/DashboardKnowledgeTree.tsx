@@ -63,6 +63,7 @@ export default function DashboardKnowledgeTree() {
     data: knowledgeTree,
     isLoading,
     isError: treeError,
+    refetch: refetchTree,
   } = trpc.knowledge.getTreeByModule.useQuery({
     module: selectedModule,
   });
@@ -236,9 +237,12 @@ export default function DashboardKnowledgeTree() {
                   <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
                 </div>
               ) : treeError ? (
-                <div className="text-center py-12 text-destructive">
-                  <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-80" />
-                  <p className="text-sm">加载失败，请稍后重试</p>
+                <div className="text-center py-12 text-muted-foreground">
+                  <AlertCircle className="w-10 h-10 mx-auto mb-3 opacity-80 text-amber-600" />
+                  <p className="text-sm mb-3">知识树暂时不可用</p>
+                  <Button variant="outline" size="sm" onClick={() => refetchTree()}>
+                    重新加载
+                  </Button>
                 </div>
               ) : searchKeyword && searchResults ? (
                 <div className="space-y-2">

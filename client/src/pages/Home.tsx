@@ -16,6 +16,7 @@ import { landingApi } from "@/lib/api";
 import { toast } from "sonner";
 import { ServiceDetailModal } from "@/components/ServiceDetailModal";
 import { AppointmentChatBot } from "@/components/AppointmentChatBot";
+import { fallbackServiceCategories } from "@/lib/fallback-services";
 
 // ============ 性能优化：使用 ref 而非 state 进行视差计算 ============
 function useRefParallax(
@@ -463,6 +464,8 @@ const heroSlides = [
   },
 ];
 
+const featuredHeroSlides = heroSlides;
+
 function Hero({ onOpenChat }: { onOpenChat: () => void }) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const sectionRef = useRef<HTMLElement>(null);
@@ -473,7 +476,7 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
   // 自动轮播 - 12秒切换
   useEffect(() => {
     intervalRef.current = setInterval(() => {
-      setCurrentSlide(prev => (prev + 1) % heroSlides.length);
+      setCurrentSlide(prev => (prev + 1) % featuredHeroSlides.length);
     }, 12000);
     return () => clearInterval(intervalRef.current);
   }, []);
@@ -494,7 +497,7 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  const slide = heroSlides[currentSlide];
+  const slide = featuredHeroSlides[currentSlide];
 
   return (
     <section
@@ -502,7 +505,7 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
       className="relative h-screen w-full overflow-hidden"
     >
       {/* 背景层 - 轮播 */}
-      {heroSlides.map((s, index) => (
+      {featuredHeroSlides.map((s, index) => (
         <div
           key={s.id}
           ref={el => {
@@ -518,7 +521,8 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
             className="w-full h-full object-cover"
             fetchPriority={index === 0 ? "high" : "auto"}
           />
-          <div className={`absolute inset-0 bg-gradient-to-b ${s.gradient}`} />
+          <div className="absolute inset-0 bg-gradient-to-r from-[#1f1712]/72 via-[#6f5847]/32 to-[#f8efe2]/14" />
+          <div className="absolute inset-0 bg-gradient-to-t from-[#1f1712]/55 via-transparent to-[#1f1712]/20" />
         </div>
       ))}
 
@@ -541,21 +545,21 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
           >
             {/* 副标题 */}
             <motion.p
-              className={`text-xs tracking-[0.3em] uppercase mb-4 ${slide.subColor}`}
+              className="text-xs tracking-[0.28em] uppercase mb-4 text-[#EADCC8]"
             >
               {slide.subtitle}
             </motion.p>
 
             {/* 主标题 */}
             <h1
-              className={`text-5xl lg:text-7xl font-light leading-[1.1] mb-6 tracking-tight ${slide.textColor}`}
+              className="text-5xl lg:text-7xl font-light leading-[1.1] mb-6 tracking-tight text-white"
             >
               {slide.title}
             </h1>
 
             {/* 统计数据 */}
             <div
-              className={`flex items-baseline gap-2 mb-8 ${slide.statColor}`}
+              className="flex items-baseline gap-2 mb-8 text-[#F7E9D2]"
             >
               <span className="text-4xl font-light">{slide.stat}</span>
               <span className="text-sm opacity-80">{slide.statLabel}</span>
@@ -567,7 +571,7 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 onClick={onOpenChat}
-                className="bg-white text-stone-900 px-6 py-3 rounded-full text-sm font-medium flex items-center gap-2 hover:bg-stone-100 transition-colors"
+                className="bg-[#F8EFE2] text-[#3D3027] px-6 py-3 rounded-full text-sm font-medium flex items-center gap-2 hover:bg-white transition-colors shadow-lg shadow-black/10"
               >
                 {slide.primaryBtn}
                 <ArrowRight className="w-4 h-4" />
@@ -575,7 +579,8 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
               <motion.button
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className={`flex items-center gap-2 text-sm ${slide.textColor} hover:opacity-80 transition-opacity`}
+                onClick={() => document.getElementById("cta")?.scrollIntoView({ behavior: "smooth" })}
+                className="flex items-center gap-2 text-sm text-white/90 hover:text-white transition-colors"
               >
                 <span className="w-10 h-10 rounded-full border border-current flex items-center justify-center text-xs">
                   ▶
@@ -588,14 +593,14 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
 
         {/* 轮播指示器 - 移到右下角 */}
         <div className="absolute bottom-10 right-6 lg:right-16 flex items-center gap-3">
-          {heroSlides.map((_, index) => (
+          {featuredHeroSlides.map((_, index) => (
             <button
               key={index}
               onClick={() => setCurrentSlide(index)}
               className={`h-1 rounded-full transition-all duration-500 ${
                 index === currentSlide
-                  ? "w-8 bg-white"
-                  : "w-2 bg-white/40 hover:bg-white/60"
+                  ? "w-9 bg-[#F8EFE2]"
+                  : "w-5 bg-[#F8EFE2]/45 hover:bg-[#F8EFE2]/75"
               }`}
             />
           ))}
@@ -829,6 +834,8 @@ const testimonials = [
   },
 ];
 
+const featuredTestimonials = testimonials;
+
 function Testimonial() {
   const [currentIndex, setCurrentIndex] = useState(0);
   const sectionRef = useRef<HTMLElement>(null);
@@ -838,12 +845,12 @@ function Testimonial() {
   // 自动轮播 - 10秒切换
   useEffect(() => {
     intervalRef.current = setInterval(() => {
-      setCurrentIndex(prev => (prev + 1) % testimonials.length);
+      setCurrentIndex(prev => (prev + 1) % featuredTestimonials.length);
     }, 10000);
     return () => clearInterval(intervalRef.current);
   }, []);
 
-  const current = testimonials[currentIndex];
+  const current = featuredTestimonials[currentIndex];
 
   return (
     <section
@@ -875,7 +882,7 @@ function Testimonial() {
           </AnimatePresence>
         </div>
         <motion.div
-          className={`absolute inset-0 bg-gradient-to-r ${current.gradient}`}
+          className="absolute inset-0 bg-gradient-to-r from-[#2f251f]/78 via-[#6f5847]/42 to-[#fbf8f3]/12"
           initial={false}
           animate={{ opacity: 1 }}
           transition={{ duration: 0.5 }}
@@ -891,9 +898,7 @@ function Testimonial() {
             exit={{ opacity: 0, y: -20 }}
             transition={{ duration: 0.6 }}
           >
-            <p
-              className={`text-xs tracking-[0.3em] uppercase mb-6 text-${current.theme}-200`}
-            >
+            <p className="text-xs tracking-[0.28em] uppercase mb-6 text-[#EADCC8]">
               {current.category}
             </p>
 
@@ -902,18 +907,12 @@ function Testimonial() {
             </blockquote>
 
             <div className="flex items-center gap-4">
-              <div
-                className={`w-12 h-12 rounded-full bg-${current.theme}-300/30 flex items-center justify-center`}
-              >
-                <span className={`text-${current.theme}-100 text-lg`}>
-                  {current.initial}
-                </span>
+              <div className="w-12 h-12 rounded-full border border-[#F8EFE2]/50 bg-[#F8EFE2]/16 flex items-center justify-center">
+                <span className="text-[#F8EFE2] text-lg">{current.initial}</span>
               </div>
               <div>
                 <p className="text-white font-medium">{current.author}</p>
-                <p className={`text-${current.theme}-200 text-sm`}>
-                  {current.role}
-                </p>
+                <p className="text-[#EADCC8] text-sm">{current.role}</p>
               </div>
             </div>
           </motion.div>
@@ -921,7 +920,7 @@ function Testimonial() {
 
         {/* 轮播指示器 - 触感优化 */}
         <div className="flex items-center gap-3 mt-12">
-          {testimonials.map((_, index) => (
+          {featuredTestimonials.map((_, index) => (
             <motion.button
               key={index}
               onClick={() => setCurrentIndex(index)}
@@ -930,8 +929,8 @@ function Testimonial() {
               transition={{ type: "spring", stiffness: 400, damping: 17 }}
               className={`h-1.5 rounded-full transition-all duration-300 ${
                 index === currentIndex
-                  ? "w-8 bg-white shadow-[0_0_12px_rgba(255,255,255,0.4)]"
-                  : "w-2 bg-white/40 hover:bg-white/80 hover:shadow-[0_0_8px_rgba(255,255,255,0.2)]"
+                  ? "w-9 bg-[#F8EFE2] shadow-[0_0_10px_rgba(248,239,226,0.25)]"
+                  : "w-5 bg-[#F8EFE2]/40 hover:bg-[#F8EFE2]/75"
               }`}
             />
           ))}
@@ -957,37 +956,7 @@ function ServicesPreview() {
       })
       .catch(err => {
         console.error("Failed to load services:", err);
-        // 使用默认数据
-        setServiceCategories([
-          {
-            id: "skin",
-            name: "皮肤管理",
-            description: "从基础护理到深度修复",
-            icon: "Sparkles",
-            services: [],
-          },
-          {
-            id: "injection",
-            name: "注射美容",
-            description: "精准塑形，自然不假面",
-            icon: "Shield",
-            services: [],
-          },
-          {
-            id: "laser",
-            name: "光电项目",
-            description: "无创焕新，零恢复期",
-            icon: "Star",
-            services: [],
-          },
-          {
-            id: "antiaging",
-            name: "抗衰紧致",
-            description: "逆转时光，定格黄金年龄",
-            icon: "Clock",
-            services: [],
-          },
-        ]);
+        setServiceCategories(fallbackServiceCategories);
         setLoading(false);
       });
   }, []);
@@ -1004,11 +973,11 @@ function ServicesPreview() {
     Clock,
   };
 
-  const colorMap: Record<string, string> = {
-    skin: "rose",
-    injection: "amber",
-    laser: "blue",
-    antiaging: "emerald",
+  const serviceToneMap: Record<string, { iconWrap: string; icon: string }> = {
+    skin: { iconWrap: "bg-[#F4E6DD]", icon: "text-[#9C5F4D]" },
+    injection: { iconWrap: "bg-[#EFE5D4]", icon: "text-[#8A6D45]" },
+    laser: { iconWrap: "bg-[#E5ECE8]", icon: "text-[#547268]" },
+    antiaging: { iconWrap: "bg-[#EAE3DA]", icon: "text-[#6F5847]" },
   };
 
   return (
@@ -1037,7 +1006,7 @@ function ServicesPreview() {
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-6">
               {serviceCategories.map((category, index) => {
                 const Icon = iconMap[category.icon] || Sparkles;
-                const color = colorMap[category.id] || "stone";
+                const tone = serviceToneMap[category.id] || serviceToneMap.skin;
                 const firstService = category.services?.[0];
 
                 return (
@@ -1049,15 +1018,15 @@ function ServicesPreview() {
                         stiffness: 300,
                         damping: 20,
                       }}
-                      className="group p-6 bg-white rounded-2xl border border-stone-100 shadow-sm hover:shadow-xl transition-all cursor-pointer h-full"
+                      className="group p-6 bg-white/90 rounded-xl border border-[#E8DDD0] shadow-sm hover:shadow-lg hover:shadow-[#6F5847]/10 transition-all cursor-pointer h-full"
                       onClick={() =>
                         firstService && handleServiceClick(firstService.id)
                       }
                     >
                       <div
-                        className={`w-12 h-12 rounded-xl bg-${color}-50 flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}
+                        className={`w-12 h-12 rounded-xl ${tone.iconWrap} flex items-center justify-center mb-4 group-hover:scale-105 transition-transform`}
                       >
-                        <Icon className={`w-6 h-6 text-${color}-500`} />
+                        <Icon className={`w-6 h-6 ${tone.icon}`} />
                       </div>
                       <h3 className="text-lg font-medium text-stone-900 mb-2">
                         {category.name}
@@ -1134,7 +1103,7 @@ function Stats() {
   ];
 
   return (
-    <section ref={ref} className="py-16 lg:py-20 px-6 lg:px-16 bg-[#1C1C1C]">
+    <section ref={ref} className="py-16 lg:py-20 px-6 lg:px-16 bg-[#EFE7DA]">
       <div className="max-w-5xl mx-auto">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-8 lg:gap-12">
           {stats.map((stat, index) => (
@@ -1144,7 +1113,7 @@ function Stats() {
                 animate={isInView ? { opacity: 1, scale: 1 } : {}}
                 transition={{ duration: 0.6, delay: index * 0.1 }}
               >
-                <span className="text-4xl lg:text-5xl font-light text-[#FAF9F7]">
+                <span className="text-4xl lg:text-5xl font-light text-[#3D3027]">
                   {isInView ? (
                     <CountUp
                       end={stat.value}
@@ -1157,7 +1126,7 @@ function Stats() {
                   {stat.suffix}
                 </span>
               </motion.div>
-              <p className="text-[#C5BFB7] text-sm mt-2">{stat.label}</p>
+              <p className="text-[#7D6A59] text-sm mt-2">{stat.label}</p>
             </div>
           ))}
         </div>
@@ -1393,15 +1362,11 @@ function CTA() {
   return (
     <section
       id="cta"
-      className="py-24 lg:py-32 px-6 lg:px-16 bg-gradient-to-b from-[#FAF9F7] via-[#FDFCFB] to-[#FAF9F7] relative overflow-hidden"
+      className="py-24 lg:py-32 px-6 lg:px-16 bg-[#FBF8F3] relative overflow-hidden"
     >
-      {/* 柔和光晕 - 边缘虚化 */}
-      <div className="absolute top-0 left-0 right-0 h-24 bg-gradient-to-b from-[#F8F6F3] to-transparent" />
-      <div className="absolute bottom-0 left-0 right-0 h-24 bg-gradient-to-t from-[#F8F6F3] to-transparent" />
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-[#FFF8F0] rounded-full opacity-40 blur-[100px]" />
-      {/* 背景装饰 */}
-      <div className="absolute top-0 left-0 w-64 h-64 bg-amber-100 rounded-full blur-3xl opacity-50 -translate-x-1/2 -translate-y-1/2" />
-      <div className="absolute bottom-0 right-0 w-96 h-96 bg-pink-100 rounded-full blur-3xl opacity-50 translate-x-1/2 translate-y-1/2" />
+      <div className="absolute inset-x-0 top-0 h-px bg-[#DED2C4]" />
+      <div className="absolute inset-x-0 bottom-0 h-px bg-[#DED2C4]" />
+      <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(111,88,71,0.04)_1px,transparent_1px),linear-gradient(180deg,rgba(111,88,71,0.04)_1px,transparent_1px)] bg-[size:48px_48px]" />
 
       <div className="max-w-4xl mx-auto text-center relative z-10">
         <FadeIn>
@@ -1494,16 +1459,44 @@ function CTA() {
 
 // 页脚组件
 function Footer() {
+  const [activePanel, setActivePanel] = useState<string | null>(null);
+  const socialDetails: Record<string, { title: string; body: string; action: string }> = {
+    微信: { title: "微信咨询", body: "添加官方微信客服，可预约面诊、查看项目资料并接收术后护理提醒。", action: "微信号：LUMIERE-Beauty" },
+    微博: { title: "微博主页", body: "微博用于发布品牌动态、活动公告和医生科普内容。", action: "账号：LUMIERE医美" },
+    小红书: { title: "小红书主页", body: "小红书用于查看真实案例、项目笔记和顾客体验反馈。", action: "账号：LUMIERE高端医美" },
+    抖音: { title: "抖音主页", body: "抖音用于观看项目讲解、探店视频和医生短视频科普。", action: "账号：LUMIERE美学中心" },
+  };
+  const policyDetails: Record<string, { title: string; body: string[] }> = {
+    privacy: {
+      title: "隐私政策",
+      body: [
+        "我们仅收集预约咨询所需的姓名、电话、关注项目和沟通记录，用于顾问跟进与服务安排。",
+        "客户资料不会出售或提供给无关第三方；如需删除或更正资料，可通过官方客服提交申请。",
+      ],
+    },
+    terms: {
+      title: "服务条款",
+      body: [
+        "页面展示的项目介绍、案例和价格信息仅供咨询参考，实际方案以到院面诊和医生评估为准。",
+        "预约提交后顾问会联系确认时间；如需取消或改期，可在到店前联系顾问处理。",
+      ],
+    },
+    icp: {
+      title: "备案信息",
+      body: ["沪ICP备12345678号", "主体、许可证和门店资质信息可在到店或咨询时由顾问提供核验。"],
+    },
+  };
+  const activeSocial = activePanel ? socialDetails[activePanel] : null;
+  const activePolicy = activePanel ? policyDetails[activePanel] : null;
+
   return (
-    <footer className="bg-[#1C1C1C] text-[#D5CFC7] py-16 px-6 lg:px-16 relative">
-      {/* 顶部柔和过渡 */}
-      <div className="absolute top-0 left-0 right-0 h-16 bg-gradient-to-b from-[#FAF9F7] to-[#3D3832]" />
+    <footer className="bg-[#EFE7DA] text-[#6F5847] py-16 px-6 lg:px-16 relative">
+      <div className="absolute top-0 left-0 right-0 h-px bg-[#DED2C4]" />
       <div className="max-w-7xl mx-auto">
         <div className="grid md:grid-cols-4 gap-12 mb-12">
-          {/* 品牌 */}
           <div className="md:col-span-2">
             <Link href="/">
-              <h3 className="text-2xl font-light text-[#FAF9F7] mb-4 tracking-[0.2em] cursor-pointer">
+              <h3 className="text-2xl font-light text-[#3D3027] mb-4 tracking-[0.2em] cursor-pointer">
                 LUMIÈRE
               </h3>
             </Link>
@@ -1511,10 +1504,13 @@ function Footer() {
               以科技之力，重塑东方美学。我们相信，每一位女性都值得拥有自信的光芒。
             </p>
             <div className="flex gap-4">
-              {["微信", "微博", "小红书", "抖音"].map(social => (
+              {Object.keys(socialDetails).map(social => (
                 <button
                   key={social}
-                  className="w-10 h-10 rounded-full border border-[#6B6560] flex items-center justify-center hover:border-[#A39E97] hover:text-[#FAF9F7] transition-colors text-xs"
+                  type="button"
+                  onClick={() => setActivePanel(social)}
+                  className="w-10 h-10 rounded-full border border-[#CDBFAF] flex items-center justify-center hover:border-[#6F5847] hover:text-[#3D3027] transition-colors text-xs"
+                  aria-label={social}
                 >
                   {social[0]}
                 </button>
@@ -1522,48 +1518,18 @@ function Footer() {
             </div>
           </div>
 
-          {/* 快速链接 */}
           <div>
-            <h4 className="text-[#FAF9F7] text-sm font-medium mb-4 tracking-wider">
-              快速链接
-            </h4>
+            <h4 className="text-[#3D3027] text-sm font-medium mb-4 tracking-wider">快速链接</h4>
             <ul className="space-y-3 text-sm">
-              <li>
-                <Link href="/services">
-                  <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
-                    服务项目
-                  </span>
-                </Link>
-              </li>
-              <li>
-                <Link href="/cases">
-                  <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
-                    真实案例
-                  </span>
-                </Link>
-              </li>
-              <li>
-                <Link href="/about">
-                  <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
-                    关于我们
-                  </span>
-                </Link>
-              </li>
-              <li>
-                <Link href="/#cta">
-                  <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
-                    预约咨询
-                  </span>
-                </Link>
-              </li>
+              <li><Link href="/services"><span className="hover:text-[#3D3027] transition-colors cursor-pointer">服务项目</span></Link></li>
+              <li><Link href="/cases"><span className="hover:text-[#3D3027] transition-colors cursor-pointer">真实案例</span></Link></li>
+              <li><Link href="/about"><span className="hover:text-[#3D3027] transition-colors cursor-pointer">关于我们</span></Link></li>
+              <li><Link href="/#cta"><span className="hover:text-[#3D3027] transition-colors cursor-pointer">预约咨询</span></Link></li>
             </ul>
           </div>
 
-          {/* 联系 */}
           <div>
-            <h4 className="text-[#FAF9F7] text-sm font-medium mb-4 tracking-wider">
-              联系我们
-            </h4>
+            <h4 className="text-[#3D3027] text-sm font-medium mb-4 tracking-wider">联系我们</h4>
             <ul className="space-y-3 text-sm">
               <li>400-888-9999</li>
               <li>hello@lumiere.com</li>
@@ -1573,21 +1539,37 @@ function Footer() {
           </div>
         </div>
 
-        <div className="border-t border-[#5A5450] pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
+        <div className="border-t border-[#D8CBBB] pt-8 flex flex-col md:flex-row justify-between items-center gap-4 text-xs">
           <p>© 2024 LUMIÈRE. All rights reserved.</p>
           <div className="flex gap-6">
-            <button className="hover:text-[#FAF9F7] transition-colors">
-              隐私政策
-            </button>
-            <button className="hover:text-[#FAF9F7] transition-colors">
-              服务条款
-            </button>
-            <button className="hover:text-[#FAF9F7] transition-colors">
-              沪ICP备12345678号
-            </button>
+            <button type="button" onClick={() => setActivePanel("privacy")} className="hover:text-[#3D3027] transition-colors">隐私政策</button>
+            <button type="button" onClick={() => setActivePanel("terms")} className="hover:text-[#3D3027] transition-colors">服务条款</button>
+            <button type="button" onClick={() => setActivePanel("icp")} className="hover:text-[#3D3027] transition-colors">沪ICP备12345678号</button>
           </div>
         </div>
       </div>
+
+      {activePanel && (activeSocial || activePolicy) && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-[#1f1712]/50 px-4" onClick={() => setActivePanel(null)}>
+          <div className="w-full max-w-md rounded-xl bg-[#FBF8F3] p-6 shadow-2xl text-[#3D3027]" onClick={e => e.stopPropagation()}>
+            <div className="flex items-start justify-between gap-4 mb-4">
+              <h3 className="text-xl font-medium">{activeSocial?.title || activePolicy?.title}</h3>
+              <button type="button" onClick={() => setActivePanel(null)} className="text-[#6F5847] hover:text-[#3D3027]">关闭</button>
+            </div>
+            {activeSocial ? (
+              <div className="space-y-4 text-sm leading-relaxed">
+                <p>{activeSocial.body}</p>
+                <div className="rounded-lg border border-[#D8CBBB] bg-white/70 p-4 font-medium">{activeSocial.action}</div>
+                <Link href="/#cta"><Button className="w-full bg-[#6F5847] hover:bg-[#3D3027] text-white" onClick={() => setActivePanel(null)}>预约咨询</Button></Link>
+              </div>
+            ) : (
+              <div className="space-y-3 text-sm leading-relaxed">
+                {activePolicy?.body.map((item, index) => <p key={index}>{item}</p>)}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </footer>
   );
 }
@@ -1612,7 +1594,7 @@ function BackToTop() {
           animate={{ opacity: 1, scale: 1 }}
           exit={{ opacity: 0, scale: 0.8 }}
           onClick={scrollToTop}
-          className="fixed bottom-8 left-8 w-12 h-12 bg-[#B8A68D]/80 backdrop-blur-sm text-white rounded-full shadow-xl flex items-center justify-center hover:bg-[#B8A68D] transition-colors z-50"
+          className="fixed bottom-8 left-8 w-12 h-12 bg-[#6F5847]/90 backdrop-blur-sm text-white rounded-full shadow-xl flex items-center justify-center hover:bg-[#3D3027] transition-colors z-50"
         >
           <ArrowRight className="w-5 h-5 -rotate-90" />
         </motion.button>
@@ -1626,7 +1608,7 @@ function NavigationBar({
   slide,
   onOpenChat,
 }: {
-  slide: (typeof heroSlides)[0];
+  slide: (typeof featuredHeroSlides)[0];
   onOpenChat: () => void;
 }) {
   const [scrolled, setScrolled] = useState(false);
@@ -1658,7 +1640,7 @@ function NavigationBar({
       <Link href="/">
         <span
           className={`text-lg font-light tracking-[0.2em] transition-colors duration-300 cursor-pointer ${
-            scrolled ? "text-stone-900" : slide.textColor
+            scrolled ? "text-[#3D3027]" : "text-white"
           }`}
         >
           LUMIÈRE
@@ -1670,8 +1652,8 @@ function NavigationBar({
             <span
               className={`text-sm cursor-pointer transition-colors duration-300 ${
                 scrolled
-                  ? "text-stone-600 hover:text-stone-900"
-                  : `${slide.subColor} hover:text-white`
+                  ? "text-[#6F5847] hover:text-[#3D3027]"
+                  : "text-white/82 hover:text-white"
               }`}
             >
               {item.label}
@@ -1683,8 +1665,8 @@ function NavigationBar({
         onClick={onOpenChat}
         className={`px-6 py-2 border rounded-full text-sm transition-all duration-300 ${
           scrolled
-            ? "text-[#B8A68D] border-[#B8A68D] hover:bg-[#B8A68D] hover:text-white"
-            : `${slide.textColor} border-current hover:bg-white/10`
+            ? "text-[#6F5847] border-[#C8B9A8] hover:bg-[#6F5847] hover:text-white"
+            : "text-white border-white/70 hover:bg-white/12"
         }`}
       >
         立即预约
@@ -1698,7 +1680,7 @@ function PageLoader() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 1500);
+    const timer = setTimeout(() => setLoading(false), 450);
     return () => clearTimeout(timer);
   }, []);
 
@@ -1709,7 +1691,7 @@ function PageLoader() {
           initial={{ opacity: 1 }}
           exit={{ opacity: 0 }}
           transition={{ duration: 0.5 }}
-          className="fixed inset-0 bg-stone-50 z-[100] flex items-center justify-center"
+          className="fixed inset-0 bg-[#FBF8F3] z-[100] flex items-center justify-center"
         >
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -1722,7 +1704,7 @@ function PageLoader() {
             </h1>
             <div className="w-32 h-0.5 bg-stone-200 mx-auto overflow-hidden">
               <motion.div
-                className="h-full bg-[#B8A68D]"
+                className="h-full bg-[#6F5847]"
                 initial={{ x: "-100%" }}
                 animate={{ x: "100%" }}
                 transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
@@ -1741,7 +1723,7 @@ export default function Home() {
   return (
     <>
       <PageLoader />
-      <main className="bg-[#FAF9F7]">
+      <main className="bg-[#FBF8F3]">
         <Hero onOpenChat={() => setChatOpen(true)} />
         <ServicesPreview />
         <Stats />

@@ -1,29 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
 
   <head>
     <meta charset="UTF-8" />
     <meta
       name="viewport"
       content="width=device-width, initial-scale=1.0, maximum-scale=1" />
-    <title>医美 | 高端医美定制</title>    
+    <title>LUMIÈRE | 高端医美定制</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;600;700&family=Playfair+Display:wght@400;600;700&display=swap" rel="stylesheet" />
   </head>
 
-  <body style="margin:0;min-height:100vh;background:oklch(0.99 0.005 60);">
-    <div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:#92400e;">
-      <p id="root-fallback">加载中…</p>
+  <body style="margin:0;min-height:100vh;background:#fbf8f3;">
+    <div id="root" style="min-height:100vh;display:flex;align-items:center;justify-content:center;font-family:system-ui,sans-serif;color:#6f5847;">
+      <p id="root-fallback" style="letter-spacing:0.18em;">LUMIÈRE</p>
     </div>
     <script type="module" src="/src/main.tsx"></script>
     <script>
-      const analyticsEndpoint = "%VITE_ANALYTICS_ENDPOINT%";
-      const analyticsWebsiteId = "%VITE_ANALYTICS_WEBSITE_ID%";
-      const isPlaceholder =
-        analyticsEndpoint.includes("%VITE_ANALYTICS_ENDPOINT%") ||
-        analyticsWebsiteId.includes("%VITE_ANALYTICS_WEBSITE_ID%");
-      if (analyticsEndpoint && analyticsWebsiteId && !isPlaceholder) {
+      const analyticsEndpoint = window.__VITE_ANALYTICS_ENDPOINT__ || "";
+      const analyticsWebsiteId = window.__VITE_ANALYTICS_WEBSITE_ID__ || "";
+      if (analyticsEndpoint && analyticsWebsiteId) {
         const script = document.createElement("script");
         script.defer = true;
         script.src = `${analyticsEndpoint}/umami`;

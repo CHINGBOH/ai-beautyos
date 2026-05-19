@@ -91,7 +91,8 @@ export default function DashboardKnowledge() {
     },
   });
 
-  const currentData = activeTab === "customer" ? customerQuery.data : internalQuery.data;
+  const currentQuery = activeTab === "customer" ? customerQuery : internalQuery;
+  const currentData = currentQuery.data;
   const rawItems = currentData?.items ?? [];
   // 不在列表中展示占位用「种子知识-xxx」，避免界面杂乱
   const items = rawItems.filter((item) => !item.title?.startsWith("种子知识"));
@@ -220,8 +221,11 @@ export default function DashboardKnowledge() {
 
             <TabsContent value="customer" className="space-y-4 mt-0">
               {customerQuery.isError && (
-                <div className="rounded-md bg-destructive/10 text-destructive px-4 py-3 text-sm">
-                  加载失败，请稍后重试
+                <div className="rounded-md bg-amber-50 text-amber-800 border border-amber-200 px-4 py-3 text-sm flex items-center justify-between gap-3">
+                  <span>客户咨询知识库暂时不可用</span>
+                  <Button variant="outline" size="sm" onClick={() => customerQuery.refetch()}>
+                    重新加载
+                  </Button>
                 </div>
               )}
               {customerQuery.isLoading ? (
@@ -326,8 +330,11 @@ export default function DashboardKnowledge() {
 
             <TabsContent value="internal" className="space-y-4 mt-0">
               {internalQuery.isError && (
-                <div className="rounded-md bg-destructive/10 text-destructive px-4 py-3 text-sm">
-                  加载失败，请稍后重试
+                <div className="rounded-md bg-amber-50 text-amber-800 border border-amber-200 px-4 py-3 text-sm flex items-center justify-between gap-3">
+                  <span>内部管理知识库暂时不可用</span>
+                  <Button variant="outline" size="sm" onClick={() => internalQuery.refetch()}>
+                    重新加载
+                  </Button>
                 </div>
               )}
               {internalQuery.isLoading ? (
@@ -448,7 +455,12 @@ export default function DashboardKnowledge() {
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
             ) : editingId && getByIdQuery.isError ? (
-              <p className="text-destructive py-4">加载失败，请关闭后重试</p>
+              <div className="rounded-md bg-amber-50 text-amber-800 border border-amber-200 px-4 py-3 text-sm flex items-center justify-between gap-3">
+                <span>知识详情暂时不可用</span>
+                <Button variant="outline" size="sm" onClick={() => getByIdQuery.refetch()}>
+                  重新加载
+                </Button>
+              </div>
             ) : (
             <div className="space-y-4">
               <div>

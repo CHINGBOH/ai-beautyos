@@ -28,10 +28,17 @@ export const useButtonContent = (pageKey: string, buttonKey: string) => {
     isLoading,
     isError,
     error: fetchError,
-  } = trpc.website.getButtonContent.useQuery({
-    pageKey,
-    buttonKey,
-  });
+    refetch,
+  } = trpc.website.getButtonContent.useQuery(
+    {
+      pageKey,
+      buttonKey,
+    },
+    {
+      retry: 1,
+      staleTime: 5 * 60 * 1000,
+    }
+  );
 
   useEffect(() => {
     if (isLoading) {
@@ -57,6 +64,6 @@ export const useButtonContent = (pageKey: string, buttonKey: string) => {
     content,
     loading,
     error,
-    refetch: () => {}, // Placeholder for refetch function
+    refetch,
   };
 };

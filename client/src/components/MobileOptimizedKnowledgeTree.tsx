@@ -60,6 +60,8 @@ export const MobileOptimizedKnowledgeTree: React.FC<
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
   const [currentModule, setCurrentModule] = useState(selectedModule || "all");
+  const [selectedDifficulty, setSelectedDifficulty] = useState<string | undefined>();
+  const [selectedCredibility, setSelectedCredibility] = useState<number | undefined>();
   const [touchStart, setTouchStart] = useState<{ x: number; y: number } | null>(
     null
   );
@@ -104,6 +106,14 @@ export const MobileOptimizedKnowledgeTree: React.FC<
     if (query.length >= 2) {
       onSearch?.(query);
     }
+  };
+
+  const applyFilters = (filters: { module?: string; difficulty?: string; minCredibility?: number }) => {
+    onFilter?.({
+      module: filters.module ?? currentModule,
+      difficulty: filters.difficulty ?? selectedDifficulty,
+      minCredibility: filters.minCredibility ?? selectedCredibility,
+    });
   };
 
   // 处理触摸开始
@@ -254,7 +264,11 @@ export const MobileOptimizedKnowledgeTree: React.FC<
       <div className="mt-3">
         <select
           value={currentModule}
-          onChange={e => setCurrentModule(e.target.value)}
+          onChange={e => {
+            const nextModule = e.target.value;
+            setCurrentModule(nextModule);
+            applyFilters({ module: nextModule });
+          }}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
         >
           {moduleOptions.map(option => (
@@ -285,7 +299,17 @@ export const MobileOptimizedKnowledgeTree: React.FC<
               {["beginner", "intermediate", "advanced"].map(difficulty => (
                 <button
                   key={difficulty}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-full hover:bg-gray-50"
+                  type="button"
+                  onClick={() => {
+                    const nextDifficulty = selectedDifficulty === difficulty ? undefined : difficulty;
+                    setSelectedDifficulty(nextDifficulty);
+                    applyFilters({ difficulty: nextDifficulty });
+                  }}
+                  className={`px-3 py-1 text-sm border rounded-full hover:bg-gray-50 ${
+                    selectedDifficulty === difficulty
+                      ? "border-stone-500 bg-stone-100 text-stone-700"
+                      : "border-gray-300"
+                  }`}
                 >
                   {difficulty === "beginner"
                     ? "入门"
@@ -306,7 +330,17 @@ export const MobileOptimizedKnowledgeTree: React.FC<
               {[7, 8, 9, 10].map(rating => (
                 <button
                   key={rating}
-                  className="px-3 py-1 text-sm border border-gray-300 rounded-full hover:bg-gray-50"
+                  type="button"
+                  onClick={() => {
+                    const nextCredibility = selectedCredibility === rating ? undefined : rating;
+                    setSelectedCredibility(nextCredibility);
+                    applyFilters({ minCredibility: nextCredibility });
+                  }}
+                  className={`px-3 py-1 text-sm border rounded-full hover:bg-gray-50 ${
+                    selectedCredibility === rating
+                      ? "border-stone-500 bg-stone-100 text-stone-700"
+                      : "border-gray-300"
+                  }`}
                 >
                   {rating}分以上
                 </button>

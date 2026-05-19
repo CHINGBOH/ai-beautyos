@@ -13,6 +13,8 @@ import { Smartphone, QrCode, Users, MessageSquare, Plus, Loader2, CheckCircle2, 
 
 export default function DashboardWework() {
   const [activeTab, setActiveTab] = useState("config");
+  const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [messageText, setMessageText] = useState("您好，这里是 LUMIÈRE 美学顾问。请问今天有什么可以帮您？");
   
   const config = trpc.wework.getConfig.useQuery();
   const contactWays = trpc.wework.listContactWays.useQuery();
@@ -22,6 +24,11 @@ export default function DashboardWework() {
   const mockAddCustomer = trpc.wework.mockAddCustomer.useMutation();
   const saveConfig = trpc.wework.saveConfig.useMutation();
   const testConnection = trpc.wework.testConnection.useMutation();
+  const sendMessage = trpc.wework.sendMessage.useMutation();
+  const messages = trpc.wework.listMessages.useQuery(
+    { externalUserId: selectedCustomerId || undefined },
+    { enabled: activeTab === "messages" }
+  );
   
   const [formData, setFormData] = useState({
     corpId: "",
@@ -122,6 +129,46 @@ export default function DashboardWework() {
       }
     } catch (error) {
       toast.error("添加失败，请重试");
+      console.error(error);
+    }
+  };
+
+  const getMessageText = (content: string | null) => {
+    if (!content) return "";
+    try {
+      const parsed = JSON.parse(content);
+      return parsed?.content || content;
+    } catch {
+      return content;
+    }
+  };
+
+  const handleSendMessage = async () => {
+    if (!selectedCustomerId) {
+      toast.error("请先选择客户");
+      return;
+    }
+    if (!messageText.trim()) {
+      toast.error("请输入消息内容");
+      return;
+    }
+
+    try {
+      const result = await sendMessage.mutateAsync({
+        externalUserId: selectedCustomerId,
+        sendUserId: "admin",
+        msgType: "text",
+        content: { content: messageText.trim() },
+      });
+      if (result.success) {
+        toast.success("消息已发送");
+        setMessageText("");
+        messages.refetch();
+      } else {
+        toast.error(`发送失败：${result.error}`);
+      }
+    } catch (error) {
+      toast.error("发送失败，请检查企业微信配置");
       console.error(error);
     }
   };
@@ -535,13 +582,66 @@ export default function DashboardWework() {
               <CardHeader>
                 <CardTitle>消息推送</CardTitle>
                 <CardDescription>
-                  向企业微信客户发送消息
+                  向企业微信客户发送文本消息，并查看发送记录
                 </CardDescription>
               </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <MessageSquare className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-                  <p className="text-gray-500">消息推送功能开发中...</p>
+              <CardContent className="space-y-5">
+                <div className="grid gap-4 md:grid-cols-[260px_1fr]">
+                  <div className="space-y-2">
+                    <Label htmlFor="wework-customer">选择客户</Label>
+                    <select
+                      id="wework-customer"
+                      value={selectedCustomerId}
+                      onChange={e => setSelectedCustomerId(e.target.value)}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                    >
+                      <option value="">请选择客户</option>
+                      {(customers.data || []).map(customer => (
+                        <option key={customer.externalUserId} value={customer.externalUserId}>
+                          {customer.name || customer.externalUserId}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="wework-message">消息内容</Label>
+                    <textarea
+                      id="wework-message"
+                      value={messageText}
+                      onChange={e => setMessageText(e.target.value)}
+                      rows={4}
+                      className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm"
+                      placeholder="请输入要发送给客户的消息"
+                    />
+                  </div>
+                </div>
+                <div className="flex justify-end">
+                  <Button onClick={handleSendMessage} disabled={sendMessage.isPending || !selectedCustomerId || !messageText.trim()}>
+                    {sendMessage.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <MessageSquare className="w-4 h-4 mr-2" />}
+                    发送消息
+                  </Button>
+                </div>
+                <div className="border-t pt-4">
+                  <h3 className="font-medium mb-3">发送记录</h3>
+                  {messages.isLoading ? (
+                    <div className="text-sm text-gray-500">加载记录中...</div>
+                  ) : messages.data && messages.data.length > 0 ? (
+                    <div className="space-y-2">
+                      {messages.data.map(message => (
+                        <div key={message.id} className="rounded-lg border p-3 text-sm">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-gray-600">{message.externalUserId}</span>
+                            <Badge variant={message.status === "sent" ? "default" : message.status === "failed" ? "destructive" : "outline"}>
+                              {message.status}
+                            </Badge>
+                          </div>
+                          <p className="mt-2 text-gray-700">{getMessageText(message.content)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500">暂无消息记录</div>
+                  )}
                 </div>
               </CardContent>
             </Card>

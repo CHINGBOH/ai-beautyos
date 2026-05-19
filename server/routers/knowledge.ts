@@ -34,13 +34,18 @@ export const knowledgeRouter = router({
       })
     )
     .query(async ({ input }) => {
-      return getAllKnowledge({
-        type: input.type,
-        module: input.module,
-        limit: input.limit,
-        offset: input.offset,
-        searchTerm: input.searchTerm,
-      });
+      try {
+        return await getAllKnowledge({
+          type: input.type,
+          module: input.module,
+          limit: input.limit,
+          offset: input.offset,
+          searchTerm: input.searchTerm,
+        });
+      } catch (error) {
+        console.warn("[knowledge.getAll] fallback empty list:", error instanceof Error ? error.message : error);
+        return { items: [], total: 0 };
+      }
     }),
 
   /**
@@ -74,9 +79,12 @@ export const knowledgeRouter = router({
    * 获取知识库树形结构 (兼容前端调用)
    */
   getTree: publicProcedure.query(async () => {
-    // 默认获取 health_foundation 模块的树
-    const tree = await getKnowledgeTreeByModule("health_foundation");
-    return tree;
+    try {
+      return await getKnowledgeTreeByModule("health_foundation");
+    } catch (error) {
+      console.warn("[knowledge.getTree] fallback empty tree:", error instanceof Error ? error.message : error);
+      return [];
+    }
   }),
 
   /**
@@ -89,8 +97,12 @@ export const knowledgeRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const tree = await getKnowledgeTreeByModule(input.module);
-      return tree;
+      try {
+        return await getKnowledgeTreeByModule(input.module);
+      } catch (error) {
+        console.warn("[knowledge.getTreeByModule] fallback empty tree:", error instanceof Error ? error.message : error);
+        return [];
+      }
     }),
 
   /**
@@ -123,13 +135,17 @@ export const knowledgeRouter = router({
       })
     )
     .query(async ({ input }) => {
-      const results = await searchKnowledge(
-        input.keyword,
-        input.module,
-        input.type,
-        input.limit
-      );
-      return results;
+      try {
+        return await searchKnowledge(
+          input.keyword,
+          input.module,
+          input.type,
+          input.limit
+        );
+      } catch (error) {
+        console.warn("[knowledge.search] fallback empty results:", error instanceof Error ? error.message : error);
+        return [];
+      }
     }),
 
   /**

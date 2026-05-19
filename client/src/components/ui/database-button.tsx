@@ -47,7 +47,7 @@ interface DatabaseButtonProps extends React.ButtonHTMLAttributes<HTMLButtonEleme
 }
 
 const DatabaseButton = React.forwardRef<HTMLButtonElement, DatabaseButtonProps>(
-  ({ className, variant, size, asChild = false, pageKey, buttonKey, fallbackText = '', showLoading = true, ...props }, ref) => {
+  ({ className, variant, size, asChild = false, pageKey, buttonKey, fallbackText = '', showLoading = false, ...props }, ref) => {
     const { content, loading, error } = useButtonContent(pageKey, buttonKey);
     
     const Comp = asChild ? Slot : "button";
@@ -57,8 +57,8 @@ const DatabaseButton = React.forwardRef<HTMLButtonElement, DatabaseButtonProps>(
     const isKeyLike = (t: string) => /^[a-z][a-z0-9-]*$/.test(t) && t.length < 40;
     const buttonText = (fromApi && !isKeyLike(fromApi) ? fromApi : null) ?? (fallbackText || "按钮");
     
-    // 如果正在加载且需要显示加载状态，则显示加载文本
-    if (loading && showLoading) {
+    // 按钮文案加载不能阻塞真实功能；默认先展示 fallback，只有显式要求时才显示加载态。
+    if (loading && showLoading && !fallbackText) {
       return (
         <Comp
           ref={ref}

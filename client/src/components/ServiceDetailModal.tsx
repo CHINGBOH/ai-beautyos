@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { landingApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { AppointmentChatBot } from './AppointmentChatBot';
+import { findFallbackService } from '@/lib/fallback-services';
 
 interface ServiceDetailModalProps {
   serviceId: string | null;
@@ -22,8 +23,8 @@ export function ServiceDetailModal({ serviceId, isOpen, onClose }: ServiceDetail
       landingApi.getServiceDetail(serviceId)
         .then(data => setService(data))
         .catch(err => {
-          toast.error('加载服务详情失败');
-          console.error(err);
+          console.error('Failed to load service detail, using fallback:', err);
+          setService(findFallbackService(serviceId));
         })
         .finally(() => setLoading(false));
     }

@@ -15,6 +15,8 @@ import { KNOWLEDGE_MODULES, MODULE_NAMES } from "@shared/types";
 export default function KnowledgeLibraryEmployee() {
   const [selectedModule, setSelectedModule] = useState<string>(KNOWLEDGE_MODULES.HEALTH_FOUNDATION);
   const [learningProgress, setLearningProgress] = useState<Record<string, number>>({});
+  const [examAnswers, setExamAnswers] = useState<Record<string, string>>({});
+  const [examSubmitted, setExamSubmitted] = useState(false);
 
   // 获取推荐的学习路径
   const { data: recommendedPaths } = trpc.learningPath.getRecommendedPaths.useQuery({
@@ -23,15 +25,30 @@ export default function KnowledgeLibraryEmployee() {
   });
 
   // 获取知识库树
-  const { data: knowledgeTree, isLoading: treeLoading, isError: treeError } = trpc.knowledge.getTreeByModule.useQuery({
+  const { data: knowledgeTree, isLoading: treeLoading, isError: treeError, refetch: refetchTree } = trpc.knowledge.getTreeByModule.useQuery({
     module: selectedModule,
   });
 
+  const examQuestions = (knowledgeTree || []).slice(0, 3).map((node: any, index: number) => ({
+    id: String(node.id ?? index),
+    title: node.title,
+    answer: node.title,
+    options: [node.title, "只看营销话术不需要理解原理", "所有客户都适合同一方案"],
+  }));
+  const examScore = examQuestions.length === 0
+    ? 0
+    : Math.round(
+        (examQuestions.filter(q => examAnswers[q.id] === q.answer).length / examQuestions.length) * 100
+      );
+
   // 计算学习进度
   const calculateProgress = (module: string) => {
-    // 这里应该从数据库获取员工的学习记录
-    // 暂时返回模拟数据
     return learningProgress[module] || 0;
+  };
+
+  const handleSubmitExam = () => {
+    setExamSubmitted(true);
+    setLearningProgress(prev => ({ ...prev, [selectedModule]: Math.max(prev[selectedModule] || 0, examScore) }));
   };
 
   return (
@@ -95,7 +112,16 @@ export default function KnowledgeLibraryEmployee() {
                         <span>{path.knowledgeCount} 个知识点</span>
                       </div>
                     </div>
-                    <Button className="w-full mt-4" variant="outline">
+                    <Button
+                      className="w-full mt-4"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedModule(path.module || selectedModule);
+                        document
+                          .getElementById("employee-knowledge-tree")
+                          ?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                    >
                       开始学习
                     </Button>
                   </CardContent>
@@ -131,7 +157,7 @@ export default function KnowledgeLibraryEmployee() {
         </Card>
 
         {/* 知识库树（员工版 - 显示更多技术细节） */}
-        <Card>
+        <Card id="employee-knowledge-tree">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <BookOpen className="w-5 h-5" />
@@ -147,9 +173,12 @@ export default function KnowledgeLibraryEmployee() {
                 <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
               </div>
             ) : treeError ? (
-              <div className="text-center py-12 text-destructive">
-                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-80" />
-                <p>加载失败，请稍后重试</p>
+              <div className="text-center py-12 text-muted-foreground">
+                <AlertCircle className="w-12 h-12 mx-auto mb-4 opacity-80 text-amber-600" />
+                <p className="mb-3">培训知识暂时不可用</p>
+                <Button variant="outline" size="sm" onClick={() => refetchTree()}>
+                  重新加载
+                </Button>
               </div>
             ) : knowledgeTree && knowledgeTree.length > 0 ? (
               <EmployeeKnowledgeTreeView tree={knowledgeTree} />
@@ -173,10 +202,42 @@ export default function KnowledgeLibraryEmployee() {
               完成学习后参加考试，获得专业认证
             </CardDescription>
           </CardHeader>
-          <CardContent>
-            <div className="text-center py-8 text-muted-foreground">
-              <p>考试功能即将推出</p>
-            </div>
+          <CardContent className="space-y-4">
+            {examQuestions.length === 0 ? (
+              <div className="text-center py-8 text-muted-foreground">该模块暂无可考试知识点</div>
+            ) : (
+              <>
+                {examQuestions.map((question, index) => (
+                  <div key={question.id} className="rounded-lg border p-4 space-y-3">
+                    <div className="font-medium">{index + 1}. 以下哪一项属于当前模块知识点？</div>
+                    <div className="grid gap-2 md:grid-cols-3">
+                      {question.options.map(option => (
+                        <Button
+                          key={option}
+                          type="button"
+                          variant={examAnswers[question.id] === option ? "default" : "outline"}
+                          className="justify-start whitespace-normal h-auto py-3"
+                          onClick={() => {
+                            setExamSubmitted(false);
+                            setExamAnswers(prev => ({ ...prev, [question.id]: option }));
+                          }}
+                        >
+                          {option}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-center gap-3">
+                  <Button onClick={handleSubmitExam} disabled={Object.keys(examAnswers).length < examQuestions.length}>
+                    提交考试
+                  </Button>
+                  {examSubmitted && (
+                    <Badge variant={examScore >= 60 ? "default" : "destructive"}>得分 {examScore}</Badge>
+                  )}
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>

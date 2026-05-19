@@ -5,6 +5,7 @@ import { Route, Router as WouterRouter, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { SmoothScroll } from "./components/SmoothScroll";
+import Home from "./pages/Home";
 
 // 当部署在子路径下（例如 https://example.com/beauty/）时，Vite 在构建时
 // 注入 import.meta.env.BASE_URL（带尾斜杠）。wouter 的 Router base 不接受
@@ -12,8 +13,7 @@ import { SmoothScroll } from "./components/SmoothScroll";
 const RAW_BASE = import.meta.env.BASE_URL || "/";
 const ROUTER_BASE = RAW_BASE === "/" ? "" : RAW_BASE.replace(/\/$/, "");
 
-// 路由懒加载：首屏只拉当前页 chunk，减少「加载中…」停留时间
-const Home = lazy(() => import("./pages/Home"));
+// 首页是 /beauty/ 首屏，直接打进入口包，避免线上长时间停在品牌加载态。
 const Services = lazy(() => import("./pages/Services"));
 const Cases = lazy(() => import("./pages/Cases"));
 const About = lazy(() => import("./pages/About"));
@@ -49,11 +49,11 @@ function LoadingFallback() {
         alignItems: "center",
         justifyContent: "center",
         fontFamily: "system-ui, sans-serif",
-        color: "#92400e",
-        background: "oklch(0.99 0.005 60)",
+        color: "#6f5847",
+        background: "#fbf8f3",
       }}
     >
-      <p>加载中…</p>
+      <p style={{ letterSpacing: "0.18em" }}>LUMIÈRE</p>
     </div>
   );
 }
@@ -70,6 +70,7 @@ function Router() {
       
       {/* CRM 系统路由 */}
       <Route path={"/chat"} component={Chat} />
+      <Route path={"/dashboard/chat"} component={Chat} />
       <Route path={"/admin"} component={Admin} />
       <Route path={"/analytics"} component={Analytics} />
       <Route path={"/dashboard"} component={DashboardOverview} />

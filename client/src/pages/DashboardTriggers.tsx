@@ -23,10 +23,12 @@ import {
 import { Zap, Clock, Activity, Cloud, Plus, Play, Trash2, Gift, Cake } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/DashboardLayout";
+import { useLocation } from "wouter";
 
 type TriggerType = "time" | "behavior" | "weather" | "birthday_reminder" | "holiday_reminder";
 
 export default function DashboardTriggers() {
+  const [, setLocation] = useLocation();
   const [selectedType, setSelectedType] = useState<string>("all");
   const [createOpen, setCreateOpen] = useState(false);
   const [createName, setCreateName] = useState("");
@@ -707,9 +709,7 @@ export default function DashboardTriggers() {
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  (window.location.href = `/dashboard/customers?fromTrigger=${encodeURIComponent(
-                    String(executionsTrigger.id)
-                  )}`)
+                  setLocation(`/dashboard/customers?fromTrigger=${encodeURIComponent(String(executionsTrigger.id))}`)
                 }
               >
                 查看相关客户

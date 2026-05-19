@@ -178,7 +178,7 @@ function NavigationBar() {
           );
         })}
       </div>
-      <Link href="/">
+      <Link href="/#cta">
         <button className="px-6 py-2 border rounded-full text-sm border-[#B8A68D] text-[#B8A68D] hover:bg-[#B8A68D] hover:text-white transition-all shadow-sm hover:shadow-md hover:shadow-[#B8A68D]/10">
           预约咨询
         </button>
@@ -405,7 +405,7 @@ function CaseGallery() {
                       </span>
                     ))}
                   </div>
-                  <Link href="/">
+                  <Link href="/#cta">
                     <Button className="w-full bg-[#B8A68D] hover:bg-[#A69479] text-white rounded-full shadow-lg shadow-[#B8A68D]/20 hover:shadow-xl hover:shadow-[#B8A68D]/30 transition-all">
                       咨询同款方案 <ArrowRight className="ml-2 w-4 h-4" />
                     </Button>
@@ -430,16 +430,16 @@ function Stats() {
   ];
 
   return (
-    <section className="py-16 px-6 lg:px-16 bg-[#1C1C1C]">
+    <section className="py-16 px-6 lg:px-16 bg-[#EFE7DA]">
       <div className="max-w-5xl mx-auto">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
           {stats.map((stat, index) => (
             <FadeIn key={stat.label} delay={index * 0.1}>
               <div className="text-center">
-                <p className="text-3xl lg:text-4xl font-light tracking-tight text-[#FAF9F7] mb-2 font-serif">
+                <p className="text-3xl lg:text-4xl font-light tracking-tight text-[#3D3027] mb-2 font-serif">
                   {stat.value}
                 </p>
-                <p className="text-[#C5BFB7] text-sm">{stat.label}</p>
+                <p className="text-[#7D6A59] text-sm">{stat.label}</p>
               </div>
             </FadeIn>
           ))}
@@ -461,7 +461,7 @@ function CTA() {
           <p className="text-stone-500 mb-8">
             每个人的美都是独一无二的，让我们帮您发现最好的自己
           </p>
-          <Link href="/">
+          <Link href="/#cta">
             <Button
               size="lg"
               className="bg-[#B8A68D] hover:bg-[#A69479] text-white rounded-full shadow-lg shadow-[#B8A68D]/20 hover:shadow-xl hover:shadow-[#B8A68D]/30 transition-all px-10 py-6"
@@ -478,27 +478,27 @@ function CTA() {
 // 页脚
 function Footer() {
   return (
-    <footer className="bg-[#1C1C1C] text-stone-400 py-12 px-6 lg:px-16">
+    <footer className="bg-[#EFE7DA] text-[#6F5847] py-12 px-6 lg:px-16 border-t border-[#D8CBBB]">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <Link href="/">
-            <span className="text-xl font-light text-[#FAF9F7] tracking-[0.2em]">
+            <span className="text-xl font-light text-[#3D3027] tracking-[0.2em]">
               LUMIÈRE
             </span>
           </Link>
           <div className="flex gap-8 text-sm">
             <Link href="/services">
-              <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
+              <span className="hover:text-[#3D3027] transition-colors cursor-pointer">
                 服务项目
               </span>
             </Link>
             <Link href="/cases">
-              <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
+              <span className="hover:text-[#3D3027] transition-colors cursor-pointer">
                 真实案例
               </span>
             </Link>
             <Link href="/about">
-              <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
+              <span className="hover:text-[#3D3027] transition-colors cursor-pointer">
                 关于我们
               </span>
             </Link>

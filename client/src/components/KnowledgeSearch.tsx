@@ -40,8 +40,19 @@ export function KnowledgeSearch({ onSelectKnowledge, module }: KnowledgeSearchPr
     }
   );
 
-  const isLoading = keywordLoading || symptomLoading;
-  const results = searchMode === "symptom" ? symptomResults : keywordResults;
+  const { data: imageResults, isLoading: imageLoading } = trpc.knowledge.search.useQuery(
+    {
+      keyword: searchKeyword,
+      module,
+      limit: 10,
+    },
+    {
+      enabled: searchKeyword.length > 0 && searchMode === "image",
+    }
+  );
+
+  const isLoading = keywordLoading || symptomLoading || imageLoading;
+  const results = searchMode === "symptom" ? symptomResults : searchMode === "image" ? imageResults : keywordResults;
 
   // 常见症状快捷按钮
   const commonSymptoms = [
@@ -73,11 +84,9 @@ export function KnowledgeSearch({ onSelectKnowledge, module }: KnowledgeSearchPr
           variant={searchMode === "image" ? "default" : "outline"}
           size="sm"
           onClick={() => setSearchMode("image")}
-          disabled
         >
           <ImageIcon className="w-4 h-4 mr-2" />
           图片搜索
-          <Badge variant="secondary" className="ml-2 text-xs">即将推出</Badge>
         </Button>
       </div>
 
@@ -88,7 +97,9 @@ export function KnowledgeSearch({ onSelectKnowledge, module }: KnowledgeSearchPr
           placeholder={
             searchMode === "symptom"
               ? "描述您的皮肤问题，如：脸上有斑点、经常长痘痘..."
-              : "搜索知识库内容..."
+              : searchMode === "image"
+                ? "输入图片中的症状或图片说明，如：色斑、痘印、毛孔粗大..."
+                : "搜索知识库内容..."
           }
           value={searchKeyword}
           onChange={(e) => setSearchKeyword(e.target.value)}

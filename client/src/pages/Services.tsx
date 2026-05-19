@@ -6,6 +6,7 @@ import { Link } from 'wouter';
 import { landingApi } from '@/lib/api';
 import { toast } from 'sonner';
 import { ServiceDetailModal } from '@/components/ServiceDetailModal';
+import { fallbackServiceCategories } from '@/lib/fallback-services';
 
 // 淡入动画组件
 function FadeIn({ children, delay = 0, className = '' }: { children: React.ReactNode; delay?: number; className?: string }) {
@@ -102,7 +103,7 @@ function NavigationBar() {
           );
         })}
       </div>
-      <Link href="/">
+      <Link href="/#cta">
         <button className="px-6 py-2 border rounded-full text-sm border-[#B8A68D] text-[#B8A68D] hover:bg-[#B8A68D] hover:text-white transition-all shadow-sm hover:shadow-md hover:shadow-[#B8A68D]/10">
           预约咨询
         </button>
@@ -159,8 +160,8 @@ function ServiceCategories() {
         setLoading(false);
       })
       .catch(err => {
-        console.error('Failed to load services:', err);
-        toast.error('加载服务数据失败');
+        console.error('Failed to load services, using fallback:', err);
+        setServiceCategories(fallbackServiceCategories);
         setLoading(false);
       });
   }, []);
@@ -286,7 +287,7 @@ function FeaturedServices() {
                 <div className="w-full lg:w-1/2 text-center lg:text-left">
                   <h3 className="text-2xl lg:text-3xl font-light tracking-tight text-stone-900 mb-4 font-serif">{service.title}</h3>
                   <p className="text-stone-500 leading-relaxed mb-6">{service.description}</p>
-                  <Link href="/">
+                  <Link href="/#cta">
                     <Button className="bg-[#B8A68D] hover:bg-[#A69479] text-white rounded-full px-8 shadow-lg shadow-[#B8A68D]/20 hover:shadow-xl hover:shadow-[#B8A68D]/30 transition-all">
                       立即预约 <ArrowRight className="ml-2 w-4 h-4" />
                     </Button>
@@ -313,7 +314,7 @@ function CTA() {
           <p className="text-stone-500 mb-8">
             我们的美学顾问将为您提供免费的1对1咨询服务，帮您找到最适合的变美方案
           </p>
-          <Link href="/">
+          <Link href="/#cta">
             <Button size="lg" className="bg-[#B8A68D] hover:bg-[#A69479] text-white rounded-full px-10 py-6 shadow-lg shadow-[#B8A68D]/20 hover:shadow-xl hover:shadow-[#B8A68D]/30 transition-all">
               免费咨询 <ArrowRight className="ml-2 w-5 h-5" />
             </Button>
@@ -327,16 +328,16 @@ function CTA() {
 // 页脚
 function Footer() {
   return (
-    <footer className="bg-[#1C1C1C] text-stone-400 py-12 px-6 lg:px-16">
+    <footer className="bg-[#EFE7DA] text-[#6F5847] py-12 px-6 lg:px-16 border-t border-[#D8CBBB]">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <Link href="/">
-            <span className="text-xl font-light text-[#FAF9F7] tracking-[0.2em]">LUMIÈRE</span>
+            <span className="text-xl font-light text-[#3D3027] tracking-[0.2em]">LUMIÈRE</span>
           </Link>
           <div className="flex gap-8 text-sm">
-            <Link href="/services"><span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">服务项目</span></Link>
-            <Link href="/cases"><span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">真实案例</span></Link>
-            <Link href="/about"><span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">关于我们</span></Link>
+            <Link href="/services"><span className="hover:text-[#3D3027] transition-colors cursor-pointer">服务项目</span></Link>
+            <Link href="/cases"><span className="hover:text-[#3D3027] transition-colors cursor-pointer">真实案例</span></Link>
+            <Link href="/about"><span className="hover:text-[#3D3027] transition-colors cursor-pointer">关于我们</span></Link>
           </div>
           <p className="text-xs">© 2024 LUMIÈRE. All rights reserved.</p>
         </div>

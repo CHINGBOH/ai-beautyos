@@ -83,7 +83,7 @@ function NavigationBar() {
           );
         })}
       </div>
-      <Link href="/">
+      <Link href="/#cta">
         <button className="px-6 py-2 border rounded-full text-sm border-[#B8A68D] text-[#B8A68D] hover:bg-[#B8A68D] hover:text-white transition-all shadow-sm hover:shadow-md hover:shadow-[#B8A68D]/10">
           预约咨询
         </button>
@@ -460,7 +460,7 @@ function Contact() {
               </div>
               <div className="mt-8 pt-6 border-t border-stone-100">
                 <p className="text-stone-400 text-sm mb-4">需要预约咨询？</p>
-                <Link href="/">
+                <Link href="/#cta">
                   <Button className="w-full bg-[#B8A68D] hover:bg-[#A69479] text-white rounded-full shadow-lg shadow-[#B8A68D]/20 hover:shadow-xl hover:shadow-[#B8A68D]/30 transition-all shadow-lg shadow-[#B8A68D]/20 hover:shadow-xl hover:shadow-[#B8A68D]/30 transition-all">
                     立即预约 <ArrowRight className="ml-2 w-4 h-4" />
                   </Button>
@@ -486,7 +486,7 @@ function CTA() {
           <p className="text-stone-500 mb-8">
             每一次蜕变都值得被认真对待，让我们一起开启您的美丽之旅
           </p>
-          <Link href="/">
+          <Link href="/#cta">
             <Button
               size="lg"
               className="bg-[#B8A68D] hover:bg-[#A69479] text-white rounded-full shadow-lg shadow-[#B8A68D]/20 hover:shadow-xl hover:shadow-[#B8A68D]/30 transition-all px-10 py-6"
@@ -503,27 +503,27 @@ function CTA() {
 // 页脚
 function Footer() {
   return (
-    <footer className="bg-[#1C1C1C] text-stone-400 py-12 px-6 lg:px-16">
+    <footer className="bg-[#EFE7DA] text-[#6F5847] py-12 px-6 lg:px-16 border-t border-[#D8CBBB]">
       <div className="max-w-7xl mx-auto">
         <div className="flex flex-col md:flex-row justify-between items-center gap-6">
           <Link href="/">
-            <span className="text-xl font-light text-[#FAF9F7] tracking-[0.2em]">
+            <span className="text-xl font-light text-[#3D3027] tracking-[0.2em]">
               LUMIÈRE
             </span>
           </Link>
           <div className="flex gap-8 text-sm">
             <Link href="/services">
-              <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
+              <span className="hover:text-[#3D3027] transition-colors cursor-pointer">
                 服务项目
               </span>
             </Link>
             <Link href="/cases">
-              <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
+              <span className="hover:text-[#3D3027] transition-colors cursor-pointer">
                 真实案例
               </span>
             </Link>
             <Link href="/about">
-              <span className="hover:text-[#FAF9F7] transition-colors cursor-pointer">
+              <span className="hover:text-[#3D3027] transition-colors cursor-pointer">
                 关于我们
               </span>
             </Link>
