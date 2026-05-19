@@ -42,7 +42,8 @@
     "report:api": "REPORT_FILE=docs/api-monitor-report.md npm run check:api",
     "dev:all": "concurrently \"npm run dev:python\" \"npm run dev\" --names \"Python,Node\" --prefix-colors \"blue,green\"",
     "dev:python": "python3 -m uvicorn server.main:app --host 127.0.0.1 --port 8000 --reload",
-    "dev:frontend": "vite --host"
+    "dev:frontend": "vite --host",
+    "smoke:adapter": "node scripts/hermes-adapter-smoke.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.693.0",

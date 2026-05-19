@@ -6,8 +6,16 @@ schemaVersion: "1.0.0"
 
 # Where to reach BeautyOS from inside the Hermes container.
 # In the joint compose file (#29) this resolves via Docker DNS.
+#
+# Phase-3: /system/* lives on the Web/API service (`web`) and /tools/*
+# lives on the standalone tool-server (`tool-server`, internal-only).
+# `base` is the System Registry endpoint; `toolBase` is the MCP Tool
+# Server endpoint. Until BEAUTYOS_DISABLE_EMBEDDED_TOOL_SERVER=1 is
+# flipped on `web`, `toolBase` MAY equal `base` and /tools/* still
+# answers on the web port.
 beautyos:
   base: "http://web:3000"
+  toolBase: "http://tool-server:5001"
   endpoints:
     manifest:    "/system/manifest"
     tools:       "/system/tools"
