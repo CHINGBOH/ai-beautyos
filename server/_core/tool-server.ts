@@ -3,6 +3,7 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { Express, Request, Response } from "express";
 import { recordAudit } from "./system-registry";
+import { tenantContext, tokenBucketAllow } from "./tenant-context";
 
 // MVP Tool Server — mounted in-process under /tools/*.
 // Issue #17 explicitly allows this; #29 documents splitting it into its
@@ -155,6 +156,10 @@ export function registerToolServerRoutes(app: Express) {
   const names = Object.keys(TOOL_CONFIGS).sort();
   console.log(`[tool-server] loaded ${names.length} tools: ${names.join(", ") || "(none)"}`);
 
+  // Attach tenant context to every /tools/* request. Non-strict in MVP so
+  // local curl still works; switch to strict:true when bearer auth lands.
+  app.use("/tools", tenantContext({ strict: false }));
+
   app.get("/tools", (_req: Request, res: Response) => {
     res.json({
       tools: Object.values(TOOL_CONFIGS).map((t) => ({
@@ -183,13 +188,26 @@ export function registerToolServerRoutes(app: Express) {
     const handler = TOOL_HANDLERS[name];
     if (!handler) return res.status(501).json({ error: "tool has no handler" });
 
-    const tenantId = (req.headers["x-tenant-id"] as string) || "default";
-    const agentId = (req.headers["x-agent-id"] as string) || "unknown";
-    const requestId = (req.headers["x-request-id"] as string) || `req_${Date.now()}`;
+    const tenantId = req.tenantContext?.tenantId ?? "default";
+    const agentId = req.tenantContext?.agentId ?? "unknown";
+    const requestId = req.tenantContext?.requestId ?? `req_${Date.now()}`;
     const body = req.body ?? {};
     const input = body.input ?? {};
     const dryRun = body.dryRun === true;
     const confirmed = body.confirmed === true;
+
+    if (!tokenBucketAllow(tenantId, name, cfg.rateLimitPerMin)) {
+      recordAudit({
+        ts: new Date().toISOString(),
+        kind: "tool.invoke.rate_limited",
+        tool: name,
+        tenantId,
+        agentId,
+        requestId,
+      });
+      res.setHeader("retry-after", "60");
+      return res.status(429).json({ error: "rate_limited", tool: name });
+    }
 
     if (cfg.requiresConfirm && !confirmed && !(dryRun && cfg.supportsDryRun)) {
       recordAudit({
