@@ -12,7 +12,6 @@
     "test": "vitest run",
     "db:push": "drizzle-kit generate && drizzle-kit migrate",
     "wework:init": "tsx scripts/init-wework-config.ts",
-    "wework:test": "tsx scripts/test-wework-api.ts",
     "knowledge:generate": "tsx scripts/generate-and-import-knowledge.ts",
     "db:pgvector": "tsx scripts/enable-pgvector.ts",
     "knowledge:index": "tsx scripts/index-knowledge-embeddings.ts"
