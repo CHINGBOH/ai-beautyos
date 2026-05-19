@@ -7,21 +7,25 @@ const path = require("path");
 
 const DB_URL =
   process.env.DATABASE_URL ||
-  "postgresql://devuser:devpass@localhost:5432/medical_crm";
-
-// 按 journal 顺序排列的迁移文件
-const MIGRATIONS = [
-  "0000_cooing_union_jack.sql",
-  "0001_tan_stellaris.sql",
-  "0002_bizarre_meteorite.sql",
-  "0003_hot_eddie_brock.sql",
-  "0004_add_leads_hood_birthday_holidays.sql",
-  "0005_bored_hardball.sql",
-  "0006_nice_anthem.sql",
-  "0007_lively_namor.sql",
-];
+  "postgresql://beautyos:beautyos@localhost:5432/beautyos";
 
 const DRIZZLE_DIR = path.join(__dirname, "../drizzle");
+const JOURNAL_PATH = path.join(DRIZZLE_DIR, "meta", "_journal.json");
+
+function discoverMigrations() {
+  if (!fs.existsSync(JOURNAL_PATH)) {
+    throw new Error(`Drizzle journal not found at ${JOURNAL_PATH}`);
+  }
+  const journal = JSON.parse(fs.readFileSync(JOURNAL_PATH, "utf8"));
+  const entries = Array.isArray(journal.entries) ? journal.entries : [];
+  entries.sort((a, b) => a.idx - b.idx);
+  return entries.map((e) => `${e.tag}.sql`);
+}
+
+const MIGRATIONS = discoverMigrations();
+console.log(
+  `[Migration] Discovered ${MIGRATIONS.length} migrations from journal: ${MIGRATIONS[0]} … ${MIGRATIONS[MIGRATIONS.length - 1]}`
+);
 
 async function runMigrations() {
   const sql = postgres(DB_URL, { max: 1 });
@@ -69,12 +73,15 @@ async function runMigrations() {
         try {
           await sql.unsafe(stmt);
         } catch (e) {
-          // Ignore "already exists" errors (idempotent)
-          if (
-            e.message?.includes("already exists") ||
-            e.message?.includes("duplicate")
-          ) {
-            console.log(`  stmt ${i + 1}: already exists, skip`);
+          // Tolerate idempotency-friendly errors so this runner can heal a DB
+          // that was previously applied out-of-band (e.g. via raw psql).
+          const msg = e.message || "";
+          const idempotent =
+            msg.includes("already exists") ||
+            msg.includes("duplicate") ||
+            msg.includes("does not exist"); // DROP TABLE/CONSTRAINT/INDEX IF NOT EXISTS not always supported
+          if (idempotent) {
+            console.log(`  stmt ${i + 1}: idempotent skip (${msg.split("\n")[0]})`);
           } else {
             console.error(`  stmt ${i + 1} FAILED:`, e.message);
             console.error("  SQL:", stmt.substring(0, 200));
