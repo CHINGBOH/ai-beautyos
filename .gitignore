@@ -129,3 +129,4 @@ ymsai/
 # Production env (keep .env.example only)
 .env.production
 server/.env
+/backups/

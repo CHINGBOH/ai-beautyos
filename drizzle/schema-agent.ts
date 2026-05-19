@@ -267,6 +267,42 @@ export const auditLog = pgTable(
   ]
 );
 
+/* ─────────────────── 3.8 outbox ─────────────────── */
+
+/**
+ * Reliable outbound message delivery (at-least-once).
+ * Producers (wework/xhs router, notifications) INSERT a row in the same
+ * transaction as the business change; a worker drains rows where
+ * status='pending' or 'retry' and updates status to 'sent' / 'failed'.
+ */
+export const outbox = pgTable(
+  "outbox",
+  {
+    id: bigserial("id", { mode: "bigint" }).primaryKey(),
+    tenantId: uuid("tenant_id")
+      .notNull()
+      .references(() => tenants.id, { onDelete: "restrict" }),
+    channel: varchar("channel", { length: 32 }).notNull(),
+    target: varchar("target", { length: 255 }).notNull(),
+    payload: jsonb("payload").default({}).notNull(),
+    status: varchar("status", { length: 16 }).default("pending").notNull(),
+    attempts: integer("attempts").default(0).notNull(),
+    lastError: text("last_error"),
+    notBefore: timestamp("not_before", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+    sentAt: timestamp("sent_at", { withTimezone: true, mode: "string" }),
+    createdAt: timestamp("created_at", { withTimezone: true, mode: "string" })
+      .defaultNow()
+      .notNull(),
+  },
+  (t) => [
+    index("outbox_due_idx").on(t.status, t.notBefore),
+    index("outbox_tenant_created_idx").on(t.tenantId, t.createdAt),
+    index("outbox_channel_status_idx").on(t.channel, t.status),
+  ]
+);
+
 /* ─────────────────── exports ─────────────────── */
 
 export const agentNativeTables = {
@@ -277,4 +313,5 @@ export const agentNativeTables = {
   toolInvocations,
   policyDecisions,
   auditLog,
+  outbox,
 };

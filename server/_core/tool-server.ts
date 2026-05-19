@@ -3,6 +3,11 @@ import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import type { Express, Request, Response } from "express";
 import { recordAudit } from "./system-registry";
+import {
+  persistInvocationStart,
+  persistInvocationFinish,
+  persistPolicyDecision,
+} from "./agent-persistence";
 import { tenantContext, tokenBucketAllow } from "./tenant-context";
 
 // MVP Tool Server — mounted in-process under /tools/*.
@@ -205,6 +210,23 @@ export function registerToolServerRoutes(app: Express) {
         agentId,
         requestId,
       });
+      const blockedId = await persistInvocationStart({
+        tenantId,
+        callerKind: "hermes",
+        callerRef: agentId,
+        toolName: name,
+        params: input,
+        dryRun,
+        requestId,
+      });
+      if (blockedId) {
+        persistInvocationFinish({
+          invocationId: blockedId,
+          status: "rate_limited",
+          latencyMs: 0,
+          errorCode: "rate_limited",
+        });
+      }
       res.setHeader("retry-after", "60");
       return res.status(429).json({ error: "rate_limited", tool: name });
     }
@@ -219,11 +241,46 @@ export function registerToolServerRoutes(app: Express) {
         requestId,
         reason: "confirmation_required",
       });
+      const blockedId = await persistInvocationStart({
+        tenantId,
+        callerKind: "hermes",
+        callerRef: agentId,
+        toolName: name,
+        params: input,
+        dryRun,
+        requestId,
+      });
+      if (blockedId) {
+        persistInvocationFinish({
+          invocationId: blockedId,
+          status: "blocked",
+          latencyMs: 0,
+          errorCode: "confirmation_required",
+        });
+        persistPolicyDecision({
+          tenantId,
+          invocationId: blockedId,
+          policyId: "sales-assistant",
+          rulePath: `tools.${name}.requires_confirm`,
+          decision: "require_confirm",
+          reason: "confirmation_required",
+        });
+      }
       return res.status(412).json({
         error: "confirmation_required",
         message: `tool '${name}' requires { confirmed: true } or { dryRun: true } when supportsDryRun`,
       });
     }
+
+    const invocationId = await persistInvocationStart({
+      tenantId,
+      callerKind: "hermes",
+      callerRef: agentId,
+      toolName: name,
+      params: input,
+      dryRun,
+      requestId,
+    });
 
     const t0 = Date.now();
     try {
@@ -238,6 +295,19 @@ export function registerToolServerRoutes(app: Express) {
         requestId,
         durationMs: dt,
       });
+      if (invocationId) {
+        persistInvocationFinish({
+          invocationId,
+          status: dryRun ? "dry_run" : "ok",
+          latencyMs: dt,
+          resultSummary:
+            dryRun
+              ? { preview: true }
+              : typeof result === "object" && result !== null
+              ? (result as Record<string, unknown>)
+              : { value: result },
+        });
+      }
       return res.json({
         tool: name,
         dryRun,
@@ -256,6 +326,15 @@ export function registerToolServerRoutes(app: Express) {
         durationMs: dt,
         error: e?.message ?? String(e),
       });
+      if (invocationId) {
+        persistInvocationFinish({
+          invocationId,
+          status: "error",
+          latencyMs: dt,
+          errorCode: e?.code ?? "tool_error",
+          resultSummary: { error: e?.message ?? String(e) },
+        });
+      }
       return res.status(500).json({ error: e?.message ?? "tool invocation failed" });
     }
   });

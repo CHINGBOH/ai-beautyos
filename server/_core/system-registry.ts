@@ -66,6 +66,8 @@ function loadManifest(): Manifest {
   }
 }
 
+import { persistAuditLog } from "./agent-persistence";
+
 interface AuditEntry {
   ts: string;
   kind: string;
@@ -79,15 +81,32 @@ interface AuditEntry {
   errorReason?: string;
 }
 
-// Tiny in-memory ring buffer for recent tool calls. A proper persistent
-// audit log is its own issue (#18 mentions tenant audit, planned). For now
-// /system/audit/recent at least gives Hermes a real surface to query.
+// In-memory ring is now a hot cache for /system/audit/recent.
+// The durable record lives in audit_log (see persistAuditLog).
 const AUDIT_CAP = 200;
 const audit: AuditEntry[] = [];
 
 export function recordAudit(entry: Omit<AuditEntry, "ts">): void {
-  audit.push({ ts: new Date().toISOString(), ...entry });
+  const full: AuditEntry = { ts: new Date().toISOString(), ...entry };
+  audit.push(full);
   if (audit.length > AUDIT_CAP) audit.splice(0, audit.length - AUDIT_CAP);
+
+  // Fire-and-forget DB write — failures do not break the hot path.
+  persistAuditLog({
+    tenantId: entry.tenantId ?? null,
+    kind: entry.kind,
+    actorKind: entry.agentId ? "hermes" : "system",
+    actorRef: entry.agentId,
+    subjectKind: entry.tool ? "tool" : undefined,
+    subjectRef: entry.tool,
+    payload: {
+      outcome: entry.outcome,
+      durationMs: entry.durationMs,
+      errorReason: entry.errorReason,
+    },
+    requestId: entry.requestId,
+    traceId: entry.traceId,
+  });
 }
 
 export function registerSystemRegistryRoutes(

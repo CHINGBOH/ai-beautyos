@@ -34,6 +34,11 @@ import {
 } from "../knowledge-retrieval";
 import { nanoid } from "nanoid";
 import { logger } from "../_core/logger";
+import {
+  persistAgentSession,
+  persistAgentMessage,
+  ensureDefaultTenant,
+} from "../_core/agent-persistence";
 
 type PreviewConversation = {
   id: number;
@@ -142,16 +147,25 @@ export const chatRouter = router({
    * 创建新会话
    */
   createSession: publicProcedure
-    .output(z.object({ sessionId: z.string() }))
+    .output(z.object({ sessionId: z.string(), agentSessionId: z.string().nullable() }))
     .mutation(async () => {
       const sessionId = nanoid();
+      let agentSessionId: string | null = null;
 
       try {
+        await ensureDefaultTenant();
+        agentSessionId = await persistAgentSession({
+          actorKind: "web_visitor",
+          actorRef: sessionId,
+          contextSnapshot: { source: "web" },
+        });
+
         await createConversation({
           sessionId,
           source: "web",
           status: "active",
-        });
+          ...(agentSessionId ? { agentSessionId } : {}),
+        } as any);
       } catch (error) {
         if (!isDatabaseUnavailable(error)) {
           throw error;
@@ -162,7 +176,7 @@ export const chatRouter = router({
         );
       }
 
-      return { sessionId };
+      return { sessionId, agentSessionId };
     }),
 
   /**
@@ -377,6 +391,22 @@ export const chatRouter = router({
             : undefined,
           psychologyInfo,
         });
+
+        // Agent-native overlay: mirror user + assistant turns into agent_messages
+        // so Hermes (and audit/replay) can see the full conversation.
+        const agentSessionId = (conversation as any).agentSessionId as string | undefined;
+        if (agentSessionId) {
+          persistAgentMessage({
+            sessionId: agentSessionId,
+            role: "user",
+            content: message,
+          });
+          persistAgentMessage({
+            sessionId: agentSessionId,
+            role: "assistant",
+            content: aiResponse,
+          });
+        }
 
         // 异步同步到 Airtable（可靠版本：带重试，非阻塞）
         if (extractedInfo && extractedInfo.phone) {
