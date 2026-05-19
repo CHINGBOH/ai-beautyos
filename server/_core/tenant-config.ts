@@ -12,7 +12,7 @@
  *   reference uses `| default: "..."`.
  */
 
-import { readFileSync, existsSync, writeFileSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync, statSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
@@ -118,7 +118,19 @@ export type TenantConfig = z.infer<typeof TenantConfigSchema>;
 
 /* ─────────────────── loader ─────────────────── */
 
-const cache = new Map<string, TenantConfig>();
+interface TenantCacheEntry {
+  value: TenantConfig;
+  mtimes: { defaultMs: number; overlayMs: number | null };
+}
+const cache = new Map<string, TenantCacheEntry>();
+
+function fileMtimeMs(path: string): number | null {
+  try {
+    return statSync(path).mtimeMs;
+  } catch {
+    return null;
+  }
+}
 
 function readYamlIfExists(path: string): Record<string, unknown> | null {
   if (!existsSync(path)) return null;
@@ -143,11 +155,24 @@ function deepMerge<T extends Record<string, unknown>>(base: T, overlay: Partial<
 }
 
 export function loadTenantConfig(tenantId: string): TenantConfig {
-  const cached = cache.get(tenantId);
-  if (cached) return cached;
-
   const defaultPath = resolve(TENANT_DIR, "_default.yaml");
   const tenantPath = resolve(TENANT_DIR, `${tenantId}.yaml`);
+  const defaultMs = fileMtimeMs(defaultPath) ?? 0;
+  const overlayMs = fileMtimeMs(tenantPath); // null when overlay absent
+
+  const cached = cache.get(tenantId);
+  if (
+    cached &&
+    cached.mtimes.defaultMs === defaultMs &&
+    cached.mtimes.overlayMs === overlayMs
+  ) {
+    return cached.value;
+  }
+  if (cached) {
+    logger.info(
+      `[tenant-config] hot-reload tenant=${tenantId} (file mtime changed)`,
+    );
+  }
 
   const defaults = readYamlIfExists(defaultPath);
   if (!defaults) {
@@ -164,9 +189,12 @@ export function loadTenantConfig(tenantId: string): TenantConfig {
     throw new Error(`tenant-config: invalid for ${tenantId}: ${errs}`);
   }
 
-  cache.set(tenantId, parsed.data);
+  cache.set(tenantId, {
+    value: parsed.data,
+    mtimes: { defaultMs, overlayMs },
+  });
   logger.info(
-    `[tenant-config] loaded tenant=${tenantId} brand="${parsed.data.brand.display_name}" overlay=${existsSync(tenantPath)}`,
+    `[tenant-config] loaded tenant=${tenantId} brand="${parsed.data.brand.display_name}" overlay=${overlayMs !== null}`,
   );
 
   // Audit asynchronously — never block load.
@@ -178,7 +206,7 @@ export function loadTenantConfig(tenantId: string): TenantConfig {
     subjectRef: tenantId,
     payload: {
       brand: parsed.data.brand.display_name,
-      hasOverlay: existsSync(tenantPath),
+      hasOverlay: overlayMs !== null,
       schemaVersion: parsed.data.schemaVersion,
     },
   });
@@ -358,18 +386,26 @@ export function renderTemplate(template: string, vars: RenderContext): string {
   return out;
 }
 
-const templateCache = new Map<string, string>();
+interface TemplateCacheEntry {
+  raw: string;
+  mtimeMs: number;
+}
+const templateCache = new Map<string, TemplateCacheEntry>();
 
 export function loadPromptTemplate(category: "system", name: string): string {
   const key = `${category}/${name}`;
-  const cached = templateCache.get(key);
-  if (cached) return cached;
   const path = resolve(PROMPT_DIR, category, `${name}.md.tmpl`);
-  if (!existsSync(path)) {
+  const mtimeMs = fileMtimeMs(path);
+  if (mtimeMs == null) {
     throw new Error(`prompt template not found: ${path}`);
   }
+  const cached = templateCache.get(key);
+  if (cached && cached.mtimeMs === mtimeMs) return cached.raw;
+  if (cached) {
+    logger.info(`[tenant-config] template hot-reload ${key} (mtime changed)`);
+  }
   const raw = readFileSync(path, "utf8");
-  templateCache.set(key, raw);
+  templateCache.set(key, { raw, mtimeMs });
   return raw;
 }
 
