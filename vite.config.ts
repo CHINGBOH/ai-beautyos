@@ -155,6 +155,7 @@ const plugins = [react(), tailwindcss(), vitePluginManusRuntime(), vitePluginMan
 
 export default defineConfig({
   plugins,
+  base: process.env.VITE_BASE_PATH || "/",
   resolve: {
     alias: {
       "@": path.resolve(import.meta.dirname, "client", "src"),

@@ -1,10 +1,14 @@
 // API 客户端：路径均以 /api/... 开头。
 // - 默认同源（空 base）：开发时由 Express 转发到 FastAPI；生产可由 Nginx 转发（见仓库 nginx.conf）。
 // - 可设 VITE_API_URL=http://localhost:8000 直连后端，或设完整网关地址。
+// - 当部署在子路径（如 /beauty/）下时，Vite 的 import.meta.env.BASE_URL 会
+//   自动带上前缀，本函数会在没有显式 VITE_API_URL 时使用它，让所有 fetch
+//   走 /beauty/api/... → nginx 反代剥掉 /beauty → 上游正常路由。
 function resolveApiBase(): string {
   const raw = import.meta.env.VITE_API_URL;
   if (raw === undefined || raw === "") {
-    return "";
+    const base = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+    return base;
   }
   const base = String(raw).replace(/\/$/, "");
   // docker-compose 曾写 VITE_API_URL=/api，与下方 url 拼接会变成 /api/api/...，此处归一为同源

@@ -1,10 +1,16 @@
 import { Suspense, lazy } from "react";
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Route, Switch } from "wouter";
+import { Route, Router as WouterRouter, Switch } from "wouter";
 import ErrorBoundary from "./components/ErrorBoundary";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { SmoothScroll } from "./components/SmoothScroll";
+
+// 当部署在子路径下（例如 https://example.com/beauty/）时，Vite 在构建时
+// 注入 import.meta.env.BASE_URL（带尾斜杠）。wouter 的 Router base 不接受
+// 尾斜杠，去掉后传入。
+const RAW_BASE = import.meta.env.BASE_URL || "/";
+const ROUTER_BASE = RAW_BASE === "/" ? "" : RAW_BASE.replace(/\/$/, "");
 
 // 路由懒加载：首屏只拉当前页 chunk，减少「加载中…」停留时间
 const Home = lazy(() => import("./pages/Home"));
@@ -106,7 +112,9 @@ function App() {
           <Toaster />
           <SmoothScroll>
             <Suspense fallback={<LoadingFallback />}>
-              <Router />
+              <WouterRouter base={ROUTER_BASE}>
+                <Router />
+              </WouterRouter>
             </Suspense>
           </SmoothScroll>
         </TooltipProvider>

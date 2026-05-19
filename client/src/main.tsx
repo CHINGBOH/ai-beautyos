@@ -52,10 +52,12 @@ queryClient.getMutationCache().subscribe(event => {
   }
 });
 
+const TRPC_BASE = (import.meta.env.BASE_URL || "/").replace(/\/$/, "");
+
 const trpcClient = trpc.createClient({
   links: [
     httpLink({
-      url: "/api/trpc",
+      url: `${TRPC_BASE}/api/trpc`,
       transformer: superjson,
       fetch(input, init) {
         const url =

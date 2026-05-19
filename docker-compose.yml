@@ -67,6 +67,7 @@ services:
       dockerfile: Dockerfile
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     env_file:
       - .env
     environment:
@@ -118,6 +119,7 @@ services:
       dockerfile: Dockerfile
       args:
         GIT_COMMIT: ${GIT_COMMIT:-unknown}
+        VITE_BASE_PATH: ${VITE_BASE_PATH:-/}
     env_file:
       - .env
     environment:

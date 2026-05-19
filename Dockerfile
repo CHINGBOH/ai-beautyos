@@ -47,6 +47,11 @@ COPY . .
 
 RUN corepack prepare --activate
 
+# VITE_BASE_PATH: when serving under a sub-path (e.g. https://example.com/beauty/),
+# Vite needs to emit asset URLs prefixed with that path. Leave empty / "/" for
+# root-mounted deployments.
+ARG VITE_BASE_PATH=/
+ENV VITE_BASE_PATH=${VITE_BASE_PATH}
 ENV NODE_ENV=production
 RUN pnpm build
 
