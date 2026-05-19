@@ -1,0 +1,114 @@
+# Default tenant configuration.
+#
+# This file is merged UNDER every per-tenant file. Anything a tenant
+# doesn't override falls back to these values.
+#
+# Schema: see server/_core/tenant-config.ts (TenantConfigSchema, zod).
+# Changes here are picked up on web container restart and recorded
+# in audit_log under kind = "tenant_config.loaded".
+
+schemaVersion: "1.0.0"
+
+brand:
+  display_name: "BeautyOS 默认门店"
+  short_name: "BeautyOS"
+  industry: "medical_aesthetic"
+  language: "zh-CN"
+  region: "CN"
+  timezone: "Asia/Shanghai"
+
+# Customer tier rules. Tier is recomputed at session creation time.
+# - vip: 高价值客户，最高优先级
+# - regular: 普通已成单客户
+# - lead: 留资但未成单
+# - cold: 长期未活跃
+customer_tiers:
+  vip:
+    min_lifetime_value_cny: 50000
+    min_repurchase_count: 3
+  regular:
+    min_lifetime_value_cny: 2000
+    min_repurchase_count: 1
+  lead:
+    min_lifetime_value_cny: 0
+    min_repurchase_count: 0
+  cold:
+    inactive_days_threshold: 90
+
+# Follow-up cadence per tier. Days are *recommended* — code still gates.
+followup_cadence:
+  vip:
+    initial_after_days: 1
+    nurture_interval_days: 7
+    inactive_followup_days: 14
+  regular:
+    initial_after_days: 3
+    nurture_interval_days: 14
+    inactive_followup_days: 30
+  lead:
+    initial_after_days: 1
+    nurture_interval_days: 7
+    inactive_followup_days: 14
+  cold:
+    initial_after_days: 14
+    nurture_interval_days: 30
+    inactive_followup_days: 60
+
+# Content style. Drives tone/vocabulary in generated suggestions.
+content_style:
+  tone: "friendly_professional"      # one of: friendly_professional, warm_concierge, direct_and_brief, educational
+  formality: "medium"                # low | medium | high
+  emoji_usage: "minimal"             # none | minimal | moderate
+  max_paragraph_chars: 240
+  signoff: "如有其他疑问，欢迎随时联系我们 🌸"
+
+# Project recommendation weights. Hermes uses these when ranking
+# project suggestions; sum need not equal 1.0 — code normalises.
+recommendation_weights:
+  customer_history_match: 0.40
+  current_promotion: 0.20
+  margin_priority: 0.15
+  popularity_recent_30d: 0.15
+  seasonal_fit: 0.10
+
+# Forbidden words / phrases. Generated content containing any of these
+# is rewritten or rejected. Case-insensitive substring match.
+forbidden_words:
+  - "100%有效"
+  - "永久"
+  - "根治"
+  - "绝对"
+  - "无副作用"
+  - "最便宜"
+  - "保证"
+  - "医保"
+
+# Compliance disclaimers appended to outbound marketing content.
+compliance:
+  require_medical_disclaimer: true
+  medical_disclaimer: "本内容仅供参考，具体治疗方案以面诊医生评估为准。"
+  require_price_disclaimer: true
+  price_disclaimer: "实际价格以到店面诊后报价为准。"
+  forbid_before_after_photos_without_consent: true
+
+# Hermes runtime limits (per-tenant override of policy defaults).
+hermes_limits:
+  max_tool_calls_per_turn: 6
+  max_turns_per_session: 40
+  daily_token_budget: 1000000
+  daily_tool_call_budget: 5000
+
+# Prompt template selection. The file name (without .tmpl) must exist
+# under config/prompts/system/.
+prompts:
+  system_default: "sales-assistant"
+  system_by_profile:
+    sales_assistant: "sales-assistant"
+    business_analyst: "business-analyst"
+    content_operator: "content-operator"
+
+# Project catalogue hints. These are not the source of truth (DB is),
+# but flag which projects are currently promoted / off-menu for this tenant.
+projects:
+  promoted: []        # list of project codes
+  off_menu: []        # list of project codes Hermes will refuse to suggest

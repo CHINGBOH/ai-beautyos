@@ -6,6 +6,7 @@ import {
   extractCustomerInfo,
   stripCustomerInfoJson,
 } from "../llm";
+import { renderSystemPrompt } from "../_core/tenant-config";
 import {
   createConversation,
   getConversationBySessionId,
@@ -315,11 +316,25 @@ export const chatRouter = router({
         }
 
         // 构建消息历史
+        // 系统提示按租户配置渲染（#26）。如果加载失败（缺配置/校验错），
+        // 退回到内置静态 prompt，保证服务可用性。
+        let systemPromptBase: string;
+        try {
+          systemPromptBase = renderSystemPrompt({
+            tenantId: "00000000-0000-0000-0000-000000000001",
+            profile: "sales_assistant",
+          });
+        } catch (e) {
+          logger.warn(
+            `[Chat] tenant prompt render failed, falling back: ${(e as Error).message}`,
+          );
+          systemPromptBase = MEDICAL_BEAUTY_SYSTEM_PROMPT;
+        }
         const messages = [
           {
             role: "system" as const,
             content:
-              MEDICAL_BEAUTY_SYSTEM_PROMPT +
+              systemPromptBase +
               customerHistoryContext +
               knowledgeContext,
           },

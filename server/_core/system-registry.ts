@@ -67,6 +67,7 @@ function loadManifest(): Manifest {
 }
 
 import { persistAuditLog } from "./agent-persistence";
+import { loadTenantConfig, clearTenantConfigCache, renderSystemPrompt } from "./tenant-config";
 
 interface AuditEntry {
   ts: string;
@@ -177,5 +178,55 @@ export function registerSystemRegistryRoutes(
     );
     const slice = audit.slice(-limit).reverse();
     res.status(200).json({ count: slice.length, entries: slice });
+  });
+
+  // Tenant config inspection (#26). Returns the merged + validated config
+  // for the tenant in x-tenant-id (default tenant if missing).
+  app.get("/system/tenant-config", (req: Request, res: Response) => {
+    const tenantId =
+      (req.headers["x-tenant-id"] as string | undefined)?.trim() ||
+      (req.query.tenantId as string | undefined) ||
+      "00000000-0000-0000-0000-000000000001";
+    try {
+      const cfg = loadTenantConfig(tenantId);
+      res.status(200).json({ tenantId, config: cfg });
+    } catch (e) {
+      res.status(400).json({ error: (e as Error).message });
+    }
+  });
+
+  // Reload a tenant's config from disk (force re-read + re-validate).
+  // No auth gate yet — controlled by network boundary (#21 follow-up).
+  app.post("/system/tenant-config/reload", (req: Request, res: Response) => {
+    const tenantId =
+      (req.headers["x-tenant-id"] as string | undefined)?.trim() ||
+      (req.body?.tenantId as string | undefined) ||
+      undefined;
+    clearTenantConfigCache(tenantId);
+    try {
+      const cfg = tenantId ? loadTenantConfig(tenantId) : null;
+      res.status(200).json({
+        reloaded: tenantId ?? "ALL",
+        ok: true,
+        brand: cfg?.brand.display_name,
+      });
+    } catch (e) {
+      res.status(400).json({ ok: false, error: (e as Error).message });
+    }
+  });
+
+  // Render the system prompt for a tenant + profile, for inspection.
+  app.get("/system/tenant-config/prompt", (req: Request, res: Response) => {
+    const tenantId =
+      (req.headers["x-tenant-id"] as string | undefined)?.trim() ||
+      (req.query.tenantId as string | undefined) ||
+      "00000000-0000-0000-0000-000000000001";
+    const profile = (req.query.profile as string | undefined) || "sales_assistant";
+    try {
+      const rendered = renderSystemPrompt({ tenantId, profile });
+      res.status(200).json({ tenantId, profile, prompt: rendered });
+    } catch (e) {
+      res.status(400).json({ error: (e as Error).message });
+    }
   });
 }

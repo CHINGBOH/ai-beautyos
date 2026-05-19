@@ -1,0 +1,27 @@
+# Example per-tenant overrides for the default tenant
+# (00000000-0000-0000-0000-000000000001). Only fields present here
+# override the defaults from _default.yaml.
+
+brand:
+  display_name: "三火石美学中心"
+  short_name: "三火石"
+
+content_style:
+  tone: "warm_concierge"
+  signoff: "三火石美学中心，期待您的光临 ✨"
+
+# This tenant is currently running a Q2 promotion on photofacial.
+projects:
+  promoted:
+    - photofacial_premium
+    - thermage_face
+
+# Custom forbidden words on top of the default list.
+forbidden_words:
+  - "竞品名"
+  - "山寨"
+
+# Tighter Hermes limits during pilot.
+hermes_limits:
+  max_tool_calls_per_turn: 4
+  daily_token_budget: 300000
