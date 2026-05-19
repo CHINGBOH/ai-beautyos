@@ -79,7 +79,10 @@ COPY --from=builder /app/drizzle ./drizzle
 # System Registry (#21) reads docs/system-manifest.yaml at runtime.
 COPY --from=builder /app/docs/system-manifest.yaml ./docs/system-manifest.yaml
 # Tool Server (#17/#25) reads config/tools/*.yaml + config/policies/** at runtime.
+# Tenant overlay YAML (#26) is rewritten by the approve endpoint — chown to
+# the runtime user so writes succeed without root.
 COPY --from=builder /app/config ./config
+RUN chown -R node:node ./config
 
 # Run as non-root
 USER node

@@ -67,7 +67,7 @@ function loadManifest(): Manifest {
 }
 
 import { persistAuditLog } from "./agent-persistence";
-import { loadTenantConfig, clearTenantConfigCache, renderSystemPrompt } from "./tenant-config";
+import { loadTenantConfig, clearTenantConfigCache, renderSystemPrompt, validatePatch, applyPatchToOverlay } from "./tenant-config";
 import { getDb } from "../db";
 import { tenantConfigDrafts } from "../../drizzle/schema-agent";
 import { eq, and, desc, sql as drizzleSql } from "drizzle-orm";
@@ -286,6 +286,23 @@ export function registerSystemRegistryRoutes(
     }
   });
 
+  // POST /system/tenant-config/drafts/validate — dry-run a patch
+  // Returns the merged config (without persisting) or the Zod issues.
+  // Hermes should call this before /drafts to avoid posting bad patches.
+  app.post("/system/tenant-config/drafts/validate", (req: Request, res: Response) => {
+    const tenantId =
+      (req.headers["x-tenant-id"] as string | undefined)?.trim() ||
+      (req.body?.tenantId as string | undefined) ||
+      "00000000-0000-0000-0000-000000000001";
+    const patch = req.body?.patch;
+    if (!patch || typeof patch !== "object") {
+      return res.status(400).json({ error: "patch must be a JSON object" });
+    }
+    const result = validatePatch(tenantId, patch);
+    if (!result.ok) return res.status(422).json({ ok: false, issues: result.errors });
+    return res.status(200).json({ ok: true, mergedBrand: result.merged.brand.display_name });
+  });
+
   // GET /system/tenant-config/drafts — list (default: pending only)
   app.get("/system/tenant-config/drafts", async (req: Request, res: Response) => {
     const tenantId =
@@ -317,6 +334,7 @@ export function registerSystemRegistryRoutes(
     const reviewedBy = String(req.body?.reviewedBy || "").trim();
     const reviewerRef = req.body?.reviewerRef ? String(req.body.reviewerRef).trim() : null;
     const reviewNote = req.body?.reviewNote ? String(req.body.reviewNote).trim() : null;
+    const applyToFile = req.body?.applyToFile !== false; // default true
     if (!reviewedBy) return res.status(400).json({ error: "reviewedBy required" });
 
     try {
@@ -330,6 +348,27 @@ export function registerSystemRegistryRoutes(
       if (draft.status !== "pending")
         return res.status(409).json({ error: `draft already ${draft.status}` });
 
+      // Refuse approval if the merged result wouldn't pass the schema.
+      const v = validatePatch(draft.tenantId, draft.patch as Record<string, unknown>);
+      if (!v.ok) {
+        return res.status(422).json({
+          error: "patch fails schema validation; refusing to approve",
+          issues: v.errors,
+        });
+      }
+
+      // Write overlay YAML (default behavior). Caller can opt out with
+      // applyToFile:false if they want to copy by hand.
+      let appliedPath: string | null = null;
+      if (applyToFile) {
+        try {
+          const r = applyPatchToOverlay(draft.tenantId, draft.patch as Record<string, unknown>);
+          appliedPath = r.path;
+        } catch (e) {
+          return res.status(500).json({ error: `overlay write failed: ${(e as Error).message}` });
+        }
+      }
+
       const [updated] = await db
         .update(tenantConfigDrafts)
         .set({
@@ -337,7 +376,7 @@ export function registerSystemRegistryRoutes(
           reviewedBy,
           reviewerRef,
           reviewNote,
-          appliedAt: drizzleSql`now()`,
+          appliedAt: applyToFile ? drizzleSql`now()` : null,
           updatedAt: drizzleSql`now()`,
         })
         .where(eq(tenantConfigDrafts.id, BigInt(draftId)))
@@ -350,13 +389,20 @@ export function registerSystemRegistryRoutes(
         actorRef: reviewedBy,
         subjectKind: "tenant_config_draft",
         subjectRef: draftId,
-        payload: { reviewNote, patch: draft.patch, proposedBy: draft.proposedBy },
+        payload: {
+          reviewNote,
+          patch: draft.patch,
+          proposedBy: draft.proposedBy,
+          appliedToFile: applyToFile,
+          appliedPath,
+        },
       });
 
       res.status(200).json({
         ok: true,
         draft: serializeDraft(updated),
-        note: "approval recorded; YAML write-back is manual until safe-patcher ships",
+        appliedToFile: applyToFile,
+        appliedPath,
       });
     } catch (e) {
       res.status(500).json({ error: (e as Error).message });

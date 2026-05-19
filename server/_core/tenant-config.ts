@@ -12,10 +12,10 @@
  *   reference uses `| default: "..."`.
  */
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, writeFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { parse as parseYaml } from "yaml";
+import { parse as parseYaml, stringify as stringifyYaml } from "yaml";
 import { z } from "zod";
 import { logger } from "./logger";
 import { persistAuditLog } from "./agent-persistence";
@@ -189,6 +189,109 @@ export function loadTenantConfig(tenantId: string): TenantConfig {
 export function clearTenantConfigCache(tenantId?: string): void {
   if (tenantId) cache.delete(tenantId);
   else cache.clear();
+}
+
+/* ─────────────────── patch validation + apply ─────────────────── */
+
+export type PatchValidationResult =
+  | { ok: true; merged: TenantConfig }
+  | { ok: false; errors: string[] };
+
+/**
+ * Recursively walk a patch tree and check that every leaf survives
+ * the Zod parse (i.e., wasn't silently stripped because Zod doesn't
+ * know that key). Returns the list of dropped paths.
+ *
+ * Zod's default behavior is to strip unknown keys; without this check,
+ * Hermes could propose `{vip_days: 3}` and approval would "succeed"
+ * while the merged config has no effect.
+ */
+function findDroppedKeys(
+  patch: unknown,
+  merged: unknown,
+  basePath: string[] = [],
+): string[] {
+  if (patch === null || typeof patch !== "object" || Array.isArray(patch)) return [];
+  if (merged === null || typeof merged !== "object" || Array.isArray(merged)) {
+    return [basePath.join(".") || "(root)"];
+  }
+  const dropped: string[] = [];
+  for (const k of Object.keys(patch as Record<string, unknown>)) {
+    const nextPath = [...basePath, k];
+    if (!(k in (merged as Record<string, unknown>))) {
+      dropped.push(nextPath.join("."));
+      continue;
+    }
+    dropped.push(...findDroppedKeys(
+      (patch as Record<string, unknown>)[k],
+      (merged as Record<string, unknown>)[k],
+      nextPath,
+    ));
+  }
+  return dropped;
+}
+
+/**
+ * Dry-run merge: take the current effective config for tenant +
+ * the proposed patch, deep-merge, validate with Zod. No disk write,
+ * no cache mutation. Used by approve endpoint to refuse malformed patches.
+ *
+ * Also surfaces "silently dropped" keys — fields that don't exist in
+ * the schema and would have been stripped by Zod.
+ */
+export function validatePatch(tenantId: string, patch: Record<string, unknown>): PatchValidationResult {
+  const defaultPath = resolve(TENANT_DIR, "_default.yaml");
+  const tenantPath = resolve(TENANT_DIR, `${tenantId}.yaml`);
+  const defaults = readYamlIfExists(defaultPath);
+  if (!defaults) return { ok: false, errors: [`missing default file at ${defaultPath}`] };
+  const overlay = readYamlIfExists(tenantPath) ?? {};
+  const nextOverlay = deepMerge(overlay as Record<string, unknown>, patch);
+  const merged = deepMerge(defaults as Record<string, unknown>, nextOverlay);
+  const parsed = TenantConfigSchema.safeParse(merged);
+  if (!parsed.success) {
+    return {
+      ok: false,
+      errors: parsed.error.issues.map((i) => `${i.path.join(".") || "(root)"}: ${i.message}`),
+    };
+  }
+  const dropped = findDroppedKeys(patch, parsed.data);
+  if (dropped.length > 0) {
+    return {
+      ok: false,
+      errors: dropped.map((p) => `unknown key (would be silently stripped): ${p}`),
+    };
+  }
+  return { ok: true, merged: parsed.data };
+}
+
+/**
+ * Apply a validated patch to the tenant overlay YAML on disk.
+ * Always validates again before writing (caller may have skipped or
+ * raced with another approval). Returns the path written.
+ *
+ * IMPORTANT: this is the only place that writes overlay YAML. Keep it
+ * small and audit upstream.
+ */
+export function applyPatchToOverlay(tenantId: string, patch: Record<string, unknown>): {
+  path: string;
+  merged: TenantConfig;
+} {
+  const result = validatePatch(tenantId, patch);
+  if (!result.ok) {
+    throw new Error(`patch validation failed: ${result.errors.join("; ")}`);
+  }
+  const tenantPath = resolve(TENANT_DIR, `${tenantId}.yaml`);
+  const currentOverlay = (readYamlIfExists(tenantPath) ?? {}) as Record<string, unknown>;
+  const nextOverlay = deepMerge(currentOverlay, patch);
+  const yaml = stringifyYaml(nextOverlay, { lineWidth: 120 });
+  const banner =
+    `# Tenant overlay for ${tenantId}\n` +
+    `# Last modified by approved tenant_config_draft. Hand edits OK but\n` +
+    `# run \`POST /system/tenant-config/reload\` after to refresh cache.\n`;
+  writeFileSync(tenantPath, banner + yaml, "utf8");
+  cache.delete(tenantId);
+  logger.info(`[tenant-config] overlay written for tenant=${tenantId} at ${tenantPath}`);
+  return { path: tenantPath, merged: result.merged };
 }
 
 /* ─────────────────── template engine ─────────────────── */
