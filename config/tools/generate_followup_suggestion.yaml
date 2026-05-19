@@ -1,0 +1,22 @@
+schemaVersion: "1.0.0"
+name: generate_followup_suggestion
+description: 根据客户画像生成跟进话术建议（不发送，仅草稿）
+risk: medium
+access: ro
+timeoutMs: 15000
+maxRows: 0
+rateLimitPerMin: 20
+requiresConfirm: true
+supportsDryRun: true
+input:
+  customerId: { type: string, required: true }
+  tone: { type: string, required: false, enum: [warm_concierge, professional, casual] }
+output:
+  customerId: string
+  tone: string
+  draft: string
+  rationale: string
+audit: full
+tags:
+  - "customer:read"
+  - "llm:generate"

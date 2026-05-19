@@ -12,6 +12,7 @@ import { restApi } from "../routers/rest-api"; // 导入
 import { validateAndPrint } from "./env-validation";
 import { registerMetricsRoute, startMetricsCollection } from "./metrics";
 import { registerSystemRegistryRoutes } from "./system-registry";
+import { registerToolServerRoutes } from "./tool-server";
 
 function isPortAvailable(port: number): Promise<boolean> {
   return new Promise(resolve => {
@@ -66,6 +67,11 @@ async function startServer() {
   // System Registry — /system/* endpoints. Hermes's canonical entry point.
   // Read-only, no secrets, no DB hit. See server/_core/system-registry.ts.
   registerSystemRegistryRoutes(app, SERVER_START_TIME);
+
+  // Tool Server (MVP, in-process) — /tools/* endpoints. Mounted *before*
+  // the big body parser so we can use a smaller one for tool calls.
+  app.use("/tools", express.json({ limit: "1mb" }));
+  registerToolServerRoutes(app);
 
   // 企业微信Webhook回调（需要在JSON解析之前，因为企业微信发送的是XML）
   // 使用text parser处理所有XML请求（包括text/xml和application/xml）
