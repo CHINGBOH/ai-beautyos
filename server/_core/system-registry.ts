@@ -76,13 +76,15 @@ interface AuditEntry {
   ts: string;
   kind: string;
   tool?: string;
-  outcome: "ok" | "error";
+  outcome?: "ok" | "error";
   traceId?: string;
   requestId?: string;
   tenantId?: string;
   agentId?: string;
   durationMs?: number;
   errorReason?: string;
+  reason?: string;
+  error?: string;
 }
 
 // In-memory ring is now a hot cache for /system/audit/recent.
@@ -262,25 +264,73 @@ export function registerSystemRegistryRoutes(
     if (!patch || typeof patch !== "object") return res.status(400).json({ error: "patch must be a JSON object" });
     if (!ALLOWED_RISK.has(riskLevel)) return res.status(400).json({ error: `riskLevel must be one of ${[...ALLOWED_RISK].join(",")}` });
 
+    // Pre-validate so an invalid low-risk patch can't slip through auto-approve.
+    const v = validatePatch(tenantId, patch as Record<string, unknown>);
+    if (!v.ok) {
+      return res.status(422).json({
+        error: "patch fails schema validation; refusing to record draft",
+        issues: v.errors,
+      });
+    }
+
+    const autoApprove =
+      riskLevel === "low" && process.env.BEAUTYOS_AUTO_APPROVE_LOW_RISK === "1";
+
     try {
       const db = await getDb();
       if (!db) return res.status(503).json({ error: "database unavailable" });
+
+      let appliedPath: string | null = null;
+      if (autoApprove) {
+        try {
+          const r = applyPatchToOverlay(tenantId, patch as Record<string, unknown>);
+          appliedPath = r.path;
+        } catch (e) {
+          return res.status(500).json({ error: `overlay write failed: ${(e as Error).message}` });
+        }
+      }
+
       const [row] = await db
         .insert(tenantConfigDrafts)
-        .values({ tenantId, proposedBy, proposerRef, reason, patch, riskLevel })
+        .values({
+          tenantId,
+          proposedBy,
+          proposerRef,
+          reason,
+          patch,
+          riskLevel,
+          status: autoApprove ? "approved" : "pending",
+          reviewedBy: autoApprove ? "system:auto-approve" : null,
+          reviewerRef: autoApprove ? "BEAUTYOS_AUTO_APPROVE_LOW_RISK=1" : null,
+          reviewNote: autoApprove ? "auto-approved (risk_level=low)" : null,
+          appliedAt: autoApprove ? drizzleSql`now()` : null,
+        })
         .returning();
 
       await persistAuditLog({
         tenantId,
-        kind: "tenant_config.draft.proposed",
-        actorKind: "agent",
-        actorRef: proposedBy,
+        kind: autoApprove
+          ? "tenant_config.draft.auto_approved"
+          : "tenant_config.draft.proposed",
+        actorKind: autoApprove ? "system" : "agent",
+        actorRef: autoApprove ? "auto-approve" : proposedBy,
         subjectKind: "tenant_config_draft",
         subjectRef: String(row.id),
-        payload: { reason, riskLevel, patch },
+        payload: {
+          reason,
+          riskLevel,
+          patch,
+          proposedBy,
+          ...(autoApprove ? { appliedPath } : {}),
+        },
       });
 
-      res.status(201).json({ ok: true, draft: serializeDraft(row) });
+      res.status(201).json({
+        ok: true,
+        draft: serializeDraft(row),
+        autoApproved: autoApprove,
+        ...(autoApprove ? { appliedPath } : {}),
+      });
     } catch (e) {
       res.status(500).json({ error: (e as Error).message });
     }
