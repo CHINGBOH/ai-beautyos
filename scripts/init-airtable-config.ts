@@ -15,11 +15,11 @@ async function initAirtableConfig() {
       process.exit(1);
     }
 
-    const token = process.env.AIRTABLE_API_KEY;
+    const token = process.env.AIRTABLE_API_TOKEN;
     const baseId = process.env.AIRTABLE_BASE_ID;
 
     if (!token || !baseId) {
-      console.error("❌ 请先配置 AIRTABLE_API_KEY 和 AIRTABLE_BASE_ID 环境变量");
+      console.error("❌ 请先配置 AIRTABLE_API_TOKEN 和 AIRTABLE_BASE_ID 环境变量");
       process.exit(1);
     }
 
