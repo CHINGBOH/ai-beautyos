@@ -116,11 +116,23 @@ function updatePreviewConversation(
 async function handlePreviewChat(sessionId: string, message: string) {
   ensurePreviewConversation(sessionId);
   const history = getPreviewHistory(sessionId);
+  let basePrompt: string;
+  try {
+    basePrompt = renderSystemPrompt({
+      tenantId: "00000000-0000-0000-0000-000000000001",
+      profile: "sales_assistant",
+    });
+  } catch (e) {
+    logger.warn(
+      `[PreviewChat] tenant prompt render failed, falling back: ${(e as Error).message}`,
+    );
+    basePrompt = MEDICAL_BEAUTY_SYSTEM_PROMPT;
+  }
   const rawAiResponse = await generateChatResponse([
     {
       role: "system",
       content:
-        MEDICAL_BEAUTY_SYSTEM_PROMPT +
+        basePrompt +
         "\n\n当前处于无数据库预览模式。请继续提供咨询建议，但不要假设客户资料已经保存到正式系统。",
     },
     ...history.slice(-10).map(item => ({

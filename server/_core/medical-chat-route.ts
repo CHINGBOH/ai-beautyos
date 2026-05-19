@@ -1,5 +1,6 @@
 import type { Request, Response } from "express";
 import { MEDICAL_BEAUTY_SYSTEM_PROMPT } from "../llm/medical-beauty-prompt";
+import { renderSystemPrompt } from "./tenant-config";
 
 const UPSTREAM = (process.env.LANGCHAIN_BACKEND_URL || "http://127.0.0.1:8000").replace(
   /\/$/,
@@ -51,8 +52,20 @@ async function replyViaLlm(body: ChatBody): Promise<string | null> {
   if (!userMessage) return null;
 
   const history = Array.isArray(body.history) ? body.history : [];
+  let systemPrompt: string;
+  try {
+    systemPrompt = renderSystemPrompt({
+      tenantId: "00000000-0000-0000-0000-000000000001",
+      profile: "sales_assistant",
+    });
+  } catch (e) {
+    console.warn(
+      `[MedicalChatRoute] tenant prompt render failed, falling back: ${(e as Error).message}`,
+    );
+    systemPrompt = MEDICAL_BEAUTY_SYSTEM_PROMPT;
+  }
   const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
-    { role: "system", content: MEDICAL_BEAUTY_SYSTEM_PROMPT },
+    { role: "system", content: systemPrompt },
   ];
 
   for (const turn of history) {
