@@ -1,8 +1,9 @@
 from datetime import datetime
-from typing import Optional, Dict, Any
+from typing import Any
+
 from fastapi import Request
+
 from ..core.logging import get_logger
-import time
 
 logger = get_logger(__name__)
 
@@ -14,11 +15,11 @@ class AuditLogger:
     def log(
         self,
         action: str,
-        user_id: Optional[str],
+        user_id: str | None,
         resource: str,
-        resource_id: Optional[str] = None,
-        details: Optional[Dict[str, Any]] = None,
-        request: Optional[Request] = None
+        resource_id: str | None = None,
+        details: dict[str, Any] | None = None,
+        request: Request | None = None
     ):
         client_ip = None
         request_id = None
@@ -40,7 +41,7 @@ class AuditLogger:
 
         logger.info("audit_log", **audit_entry)
 
-    def log_auth(self, user_id: str, action: str, success: bool, request: Request = None):
+    def log_auth(self, user_id: str, action: str, success: bool, request: Request | None = None):
         self.log(
             action=f"auth:{action}",
             user_id=user_id if success else None,
@@ -49,7 +50,7 @@ class AuditLogger:
             request=request
         )
 
-    def log_data_access(self, user_id: str, resource: str, resource_id: str, action: str, request: Request = None):
+    def log_data_access(self, user_id: str, resource: str, resource_id: str, action: str, request: Request | None = None):
         self.log(
             action=f"data:{action}",
             user_id=user_id,
@@ -58,7 +59,7 @@ class AuditLogger:
             request=request
         )
 
-    def log_consent(self, user_id: str, consent_type: str, granted: bool, request: Request = None):
+    def log_consent(self, user_id: str, consent_type: str, granted: bool, request: Request | None = None):
         self.log(
             action="consent",
             user_id=user_id,
@@ -67,7 +68,7 @@ class AuditLogger:
             request=request
         )
 
-    def log_data_export(self, user_id: str, request: Request = None):
+    def log_data_export(self, user_id: str, request: Request | None = None):
         self.log(
             action="data_export",
             user_id=user_id,
@@ -75,7 +76,7 @@ class AuditLogger:
             request=request
         )
 
-    def log_data_deletion(self, user_id: str, reason: Optional[str] = None, request: Request = None):
+    def log_data_deletion(self, user_id: str, reason: str | None = None, request: Request | None = None):
         self.log(
             action="data_deletion",
             user_id=user_id,

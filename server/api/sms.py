@@ -1,9 +1,10 @@
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Request, Depends
-from pydantic import BaseModel
-import time
 import hashlib
 import hmac
+import time
+
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+
 from ..core.config import get_settings
 from ..core.logging import get_logger
 
@@ -94,7 +95,7 @@ async def verify_sms_code(request: SMSVerifyRequest):
 
     record = sms_codes[phone]
 
-    if current_time := time.time() - record["created_at"] > 300:
+    if time.time() - record["created_at"] > 300:
         del sms_codes[phone]
         raise HTTPException(status_code=400, detail="验证码已过期")
 

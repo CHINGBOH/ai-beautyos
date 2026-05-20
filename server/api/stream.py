@@ -1,11 +1,13 @@
-from typing import Optional, Dict, Any
+import json
+from typing import Any
+
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
-import json
-from ..core.logging import get_logger
+
 from ..ai.llm_coordinator import coordinator
 from ..ai.semantic_cache import semantic_cache
 from ..core.config import get_settings
+from ..core.logging import get_logger
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -15,7 +17,7 @@ router_stream = APIRouter(prefix="/api/stream", tags=["stream"])
 async def generate_stream_response(
     message: str,
     history: list,
-    context: Optional[Dict[str, Any]] = None
+    context: dict[str, Any] | None = None
 ):
     cached = semantic_cache.get(message, context)
     if cached:

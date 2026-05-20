@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from enum import Enum
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any
 
 import httpx
 from openai import AsyncOpenAI
@@ -87,18 +87,17 @@ class KimiAnalyzer:
 
     async def analyze(
         self,
-        history: List[Dict[str, str]],
-        user_profile: Optional[Dict[str, Any]] = None,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        history: list[dict[str, str]],
+        user_profile: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         cache_key = self._get_cache_key(history, user_profile, context)
         if self.enable_cache and cache_key in self.cache:
             cached_result, timestamp = self.cache[cache_key]
             import time
             if time.time() - timestamp < self.cache_ttl:
                 return cached_result
-            else:
-                del self.cache[cache_key]
+            del self.cache[cache_key]
 
         if self.use_real_api and hasattr(self, 'kimi_client'):
             try:
@@ -123,7 +122,7 @@ class KimiAnalyzer:
         }
         return hashlib.md5(json.dumps(key_data, sort_keys=True, ensure_ascii=False).encode()).hexdigest()
 
-    def _add_to_cache(self, cache_key: str, result: Dict[str, Any]):
+    def _add_to_cache(self, cache_key: str, result: dict[str, Any]):
         import time
         if len(self.cache) >= self.cache_max_size:
             oldest_key = min(self.cache.keys(), key=lambda k: self.cache[k][1])
@@ -132,10 +131,10 @@ class KimiAnalyzer:
 
     async def _analyze_with_api(
         self,
-        history: List[Dict[str, str]],
-        user_profile: Optional[Dict[str, Any]] = None,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        history: list[dict[str, str]],
+        user_profile: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         history_text = "\n".join([f"{m['role']}: {m['content']}" for m in history[-6:]])
         ctx_text = json.dumps(context, ensure_ascii=False)[:400] if context else ""
 
@@ -158,10 +157,10 @@ class KimiAnalyzer:
 
     def _analyze_with_simulation(
         self,
-        history: List[Dict[str, str]],
-        user_profile: Optional[Dict[str, Any]] = None,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        history: list[dict[str, str]],
+        user_profile: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         if not history:
             return self._get_default_analysis()
 
@@ -195,7 +194,7 @@ class KimiAnalyzer:
             "confidence": confidence
         }
 
-    def _ensure_result_format(self, result: Dict[str, Any]) -> Dict[str, Any]:
+    def _ensure_result_format(self, result: dict[str, Any]) -> dict[str, Any]:
         required_fields = {
             "user_intent": "未知", "emotion": "中性", "needs": [],
             "stage": "共情", "recommended_product": "", "strategy": "继续了解用户需求",
@@ -247,7 +246,7 @@ class KimiAnalyzer:
             return EmotionLevel.POSITIVE
         return EmotionLevel.NEUTRAL
 
-    def _extract_needs(self, message: str) -> List[str]:
+    def _extract_needs(self, message: str) -> list[str]:
         needs = []
         message_lower = message.lower()
         need_mapping = {
@@ -262,7 +261,7 @@ class KimiAnalyzer:
                 needs.append(need)
         return needs if needs else ["了解需求"]
 
-    def _determine_stage(self, history: List[Dict[str, str]], intent: UserIntent, emotion: EmotionLevel) -> ConversationStage:
+    def _determine_stage(self, history: list[dict[str, str]], intent: UserIntent, emotion: EmotionLevel) -> ConversationStage:
         if emotion == EmotionLevel.ANGRY or intent == UserIntent.REJECTING:
             return ConversationStage.MAINTAIN
         if intent == UserIntent.PURCHASING:
@@ -270,7 +269,7 @@ class KimiAnalyzer:
         user_msg_count = sum(1 for msg in history if msg.get("role") == "user")
         if user_msg_count < 2:
             return ConversationStage.EMPATHY
-        elif user_msg_count < 5:
+        if user_msg_count < 5:
             return ConversationStage.RECOMMEND
         return ConversationStage.CONVERSION
 
@@ -283,13 +282,13 @@ class KimiAnalyzer:
             return "提供详细信息，促成转化"
         if stage == ConversationStage.EMPATHY:
             return "建立信任，了解需求，不急于推销"
-        elif stage == ConversationStage.RECOMMEND:
+        if stage == ConversationStage.RECOMMEND:
             return "根据需求推荐1个最适合的产品"
-        elif stage == ConversationStage.CONVERSION:
+        if stage == ConversationStage.CONVERSION:
             return "强调优惠和效果，引导预约"
         return "维护关系，留下好印象"
 
-    def _generate_instruction(self, intent: UserIntent, emotion: EmotionLevel, stage: ConversationStage, needs: List[str]) -> str:
+    def _generate_instruction(self, intent: UserIntent, emotion: EmotionLevel, stage: ConversationStage, needs: list[str]) -> str:
         if emotion == EmotionLevel.ANGRY:
             return "真诚道歉，表示理解，不再推销任何产品"
         if intent == UserIntent.REJECTING:
@@ -298,11 +297,11 @@ class KimiAnalyzer:
             return f"提供产品详情和价格，引导预约，需求：{','.join(needs)}"
         if stage == ConversationStage.EMPATHY:
             return f"温暖共情，询问具体需求，不推销，关注：{','.join(needs)}"
-        elif stage == ConversationStage.RECOMMEND:
+        if stage == ConversationStage.RECOMMEND:
             return f"推荐1个最适合的产品，说明理由，需求：{','.join(needs)}"
         return f"自然回复，适度引导，需求：{','.join(needs)}"
 
-    def _recommend_product(self, needs: List[str], stage: ConversationStage, emotion: EmotionLevel) -> str:
+    def _recommend_product(self, needs: list[str], stage: ConversationStage, emotion: EmotionLevel) -> str:
         if emotion in [EmotionLevel.ANGRY, EmotionLevel.NEGATIVE]:
             return ""
         if stage not in [ConversationStage.RECOMMEND, ConversationStage.CONVERSION]:
@@ -316,7 +315,7 @@ class KimiAnalyzer:
                 return product_mapping[need]
         return ""
 
-    def _calculate_confidence(self, message: str, history: List[Dict[str, str]]) -> float:
+    def _calculate_confidence(self, message: str, history: list[dict[str, str]]) -> float:
         confidence = 0.5
         if len(message) > 10:
             confidence += 0.1
@@ -328,7 +327,7 @@ class KimiAnalyzer:
             confidence += 0.1
         return min(confidence, 1.0)
 
-    def _get_default_analysis(self) -> Dict[str, Any]:
+    def _get_default_analysis(self) -> dict[str, Any]:
         return {
             "user_intent": UserIntent.UNKNOWN.value,
             "emotion": EmotionLevel.NEUTRAL.value,
@@ -372,9 +371,9 @@ class DeepSeekGenerator:
 
     async def generate(
         self,
-        history: List[Dict[str, str]],
-        instruction: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None
+        history: list[dict[str, str]],
+        instruction: dict[str, Any],
+        context: dict[str, Any] | None = None
     ) -> str:
         if self.use_real_api and hasattr(self, 'deepseek_client'):
             try:
@@ -386,9 +385,9 @@ class DeepSeekGenerator:
 
     async def _generate_with_api(
         self,
-        history: List[Dict[str, str]],
-        instruction: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None
+        history: list[dict[str, str]],
+        instruction: dict[str, Any],
+        context: dict[str, Any] | None = None
     ) -> str:
         deepseek_instruction = instruction.get("deepseek_instruction", "")
         strategy = instruction.get("strategy", "")
@@ -401,13 +400,13 @@ class DeepSeekGenerator:
             extra += f" | 可提及产品: {recommended_product}"
 
         if context:
-            if "products" in context and context["products"]:
+            if context.get("products"):
                 products_text = "\n【产品知识】"
                 for i, product in enumerate(context["products"][:2], 1):
                     products_text += f"\n{i}. {product[:100]}..."
                 extra += products_text
 
-            if "clinic_info" in context and context["clinic_info"]:
+            if context.get("clinic_info"):
                 clinic_text = "\n【重要】门诊部信息（必须使用以下信息回答地址相关问题）："
                 for i, clinic in enumerate(context["clinic_info"][:2], 1):
                     clinic_text += f"\n{i}. {clinic[:150]}..."
@@ -451,9 +450,9 @@ class DeepSeekGenerator:
 
     def _generate_with_simulation(
         self,
-        history: List[Dict[str, str]],
-        instruction: Dict[str, Any],
-        context: Optional[Dict[str, Any]] = None
+        history: list[dict[str, str]],
+        instruction: dict[str, Any],
+        context: dict[str, Any] | None = None
     ) -> str:
         deepseek_instruction = instruction.get("deepseek_instruction", "")
         strategy = instruction.get("strategy", "")
@@ -487,21 +486,21 @@ class DeepSeekGenerator:
     def _generate_empathy(self, user_msg: str) -> str:
         if "补水" in user_msg or "干" in user_msg:
             return "嗯嗯，我理解您的困扰～皮肤干燥确实很不舒服。您平时有用什么护肤品吗？"
-        elif "痘" in user_msg:
+        if "痘" in user_msg:
             return "我懂您的感受，长痘痘真的很烦人😔 您的痘痘主要长在哪个部位呢？"
         return "我理解您的需求～能跟我详细说说您的皮肤状况吗？这样我能更好地帮到您😊"
 
     def _generate_recommendation(self, user_msg: str, product: str) -> str:
         if "水光针" in product:
             return f"根据您的情况，我建议您可以试试{product}～它能深层补水，效果立竿见影，很多干皮姐妹都说好用😊"
-        elif "光子嫩肤" in product:
+        if "光子嫩肤" in product:
             return f"针对您的需求，{product}会比较适合您～它能淡化色斑，提亮肤色，而且安全无创～"
         return f"我觉得{product}应该挺适合您的～要不要了解一下详细信息？"
 
     def _generate_conversion(self, user_msg: str, product: str) -> str:
         if "多少钱" in user_msg or "价格" in user_msg:
             return "现在有活动价199元，原价2800呢～性价比超高！您要是感兴趣，我可以帮您预约一个体验名额😊"
-        elif "预约" in user_msg:
+        if "预约" in user_msg:
             return "好的！我这边帮您登记一下～请问您方便留个联系方式吗？我们会有专业顾问联系您确认时间～"
         return "您要是感兴趣的话，可以先来店里免费体验一下～我帮您预约？"
 
@@ -517,10 +516,10 @@ class LLMCoordinator:
     async def process(
         self,
         user_input: str,
-        history: List[Dict[str, str]],
-        user_profile: Optional[Dict[str, Any]] = None,
-        context: Optional[Dict[str, Any]] = None
-    ) -> Dict[str, Any]:
+        history: list[dict[str, str]],
+        user_profile: dict[str, Any] | None = None,
+        context: dict[str, Any] | None = None
+    ) -> dict[str, Any]:
         try:
             analysis = await self.kimi_analyzer.analyze(history, user_profile, context)
             response = await self.deepseek_generator.generate(history, analysis, context)

@@ -1,10 +1,10 @@
-from pydantic import BaseModel, validator, Field
-from typing import Optional, List, Any
-from enum import Enum
 import os
+from enum import StrEnum
+
+from pydantic import BaseModel, Field, validator
 
 
-class Environment(str, Enum):
+class Environment(StrEnum):
     DEVELOPMENT = "development"
     STAGING = "staging"
     PRODUCTION = "production"
@@ -23,7 +23,7 @@ class DatabaseConfig(BaseModel):
     pool_recycle: int = Field(default=3600)
 
     @validator("password")
-    def validate_password(cls, v):
+    def validate_password(self, v):
         if not v and os.getenv("ENVIRONMENT") == Environment.PRODUCTION:
             raise ValueError("Password is required in production")
         return v
@@ -72,9 +72,9 @@ class SecurityConfig(BaseModel):
     password_require_digits: bool = Field(default=True)
     password_require_special: bool = Field(default=False)
 
-    allowed_origins: List[str] = Field(default=["*"])
-    allowed_methods: List[str] = Field(default=["*"])
-    allowed_headers: List[str] = Field(default=["*"])
+    allowed_origins: list[str] = Field(default=["*"])
+    allowed_methods: list[str] = Field(default=["*"])
+    allowed_headers: list[str] = Field(default=["*"])
 
     rate_limit_per_minute: int = Field(default=60, ge=1)
     rate_limit_burst: int = Field(default=10, ge=1)
@@ -82,7 +82,7 @@ class SecurityConfig(BaseModel):
 
 class RAGConfig(BaseModel):
     qdrant_url: str = Field(default="http://localhost:6333")
-    qdrant_api_key: Optional[str] = Field(default=None)
+    qdrant_api_key: str | None = Field(default=None)
     qdrant_collection_prefix: str = Field(default="yanmei_")
     vector_dimension: int = Field(default=1024)
     similarity_threshold: float = Field(default=0.85, ge=0.0, le=1.0)
@@ -90,7 +90,7 @@ class RAGConfig(BaseModel):
 
 
 class MonitoringConfig(BaseModel):
-    sentry_dsn: Optional[str] = Field(default=None)
+    sentry_dsn: str | None = Field(default=None)
     prometheus_enabled: bool = Field(default=True)
     prometheus_port: int = Field(default=9090)
 
@@ -125,7 +125,7 @@ def load_config() -> AppConfig:
     return AppConfig()
 
 
-def validate_config(config: AppConfig) -> List[str]:
+def validate_config(config: AppConfig) -> list[str]:
     errors = []
 
     if config.environment == Environment.PRODUCTION:

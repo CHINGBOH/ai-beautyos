@@ -1,21 +1,21 @@
 import asyncio
+import logging
 import signal
 import sys
-from typing import Optional, Callable
-from datetime import datetime
-import logging
+from collections.abc import Callable
 
 
 class GracefulShutdown:
     def __init__(self):
         self._shutdown_requested = False
         self._cleanup_tasks: list = []
+        self._shutdown_task: asyncio.Task | None = None
         self._logger = logging.getLogger(__name__)
 
     def request_shutdown(self, sig=None):
         self._shutdown_requested = True
         self._logger.info(f"Shutdown requested by signal {sig if sig else 'code'}")
-        asyncio.create_task(self._execute_cleanup())
+        self._shutdown_task = asyncio.create_task(self._execute_cleanup())
 
     async def _execute_cleanup(self):
         self._logger.info("Starting graceful shutdown...")

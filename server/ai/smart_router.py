@@ -1,7 +1,8 @@
-from enum import Enum
-from typing import Dict, Any, List, Optional
 import time
 from dataclasses import dataclass, field
+from enum import Enum
+from typing import Any
+
 from ..core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -19,11 +20,11 @@ class RouteTarget(Enum):
 @dataclass
 class RouteMetrics:
     total_requests: int = 0
-    route_counts: Dict[str, int] = field(default_factory=lambda: {
+    route_counts: dict[str, int] = field(default_factory=lambda: {
         "kimi_analyze": 0, "deepseek_reply": 0, "vision_analyze": 0,
         "direct_reply": 0, "db_query": 0, "fallback": 0
     })
-    response_times: List[float] = field(default_factory=list)
+    response_times: list[float] = field(default_factory=list)
     cost_savings: float = 0.0
 
     def record_route(self, target: RouteTarget, response_time: float):
@@ -35,7 +36,7 @@ class RouteMetrics:
         elif target == RouteTarget.DEEPSEEK_REPLY:
             self.cost_savings += 0.001
 
-    def get_summary(self) -> Dict[str, Any]:
+    def get_summary(self) -> dict[str, Any]:
         if self.total_requests == 0:
             return {"error": "无数据"}
         avg_time = sum(self.response_times) / len(self.response_times) if self.response_times else 0
@@ -64,7 +65,7 @@ class SmartRouter:
         self.metrics = RouteMetrics()
         self.enable_monitoring = True
 
-    def route(self, message: str, history: List[Dict[str, str]], context: Dict[str, Any]) -> RouteTarget:
+    def route(self, message: str, history: list[dict[str, str]], context: dict[str, Any]) -> RouteTarget:
         start_time = time.time()
         for condition, target in self.rules:
             if condition(message, history, context):
@@ -119,7 +120,7 @@ class SmartRouter:
     def _default(self, msg: str, history: list, context: dict) -> bool:
         return True
 
-    def explain_route(self, message: str, history: List[Dict[str, str]], context: Dict[str, Any]) -> Dict[str, Any]:
+    def explain_route(self, message: str, history: list[dict[str, str]], context: dict[str, Any]) -> dict[str, Any]:
         start_time = time.time()
         target = self.route(message, history, context)
         decision_time = time.time() - start_time
@@ -133,13 +134,13 @@ class SmartRouter:
             "has_image": context.get("has_image", False),
             "decision_time_ms": round(decision_time * 1000, 2)
         }
-        for condition, target_rule in self.rules:
+        for condition, _target_rule in self.rules:
             if condition(message, history, context):
                 decision_info["matched_rule"] = condition.__name__
                 break
         return decision_info
 
-    def get_metrics(self) -> Dict[str, Any]:
+    def get_metrics(self) -> dict[str, Any]:
         return self.metrics.get_summary()
 
     def reset_metrics(self):

@@ -1,8 +1,8 @@
-from fastapi import Request, HTTPException
-from fastapi.responses import JSONResponse
-from typing import Optional
 import time
-import hashlib
+
+from fastapi import Request
+from fastapi.responses import JSONResponse
+
 from ..core.config import get_settings
 
 settings = get_settings()
@@ -41,7 +41,7 @@ class RateLimiter:
             for key in sorted_clients[: len(sorted_clients) // 2]:
                 del self.requests[key]
 
-    def is_allowed(self, request: Request) -> tuple[bool, Optional[str]]:
+    def is_allowed(self, request: Request) -> tuple[bool, str | None]:
         client_id = self._get_client_id(request)
         current_time = time.time()
 

@@ -1,5 +1,5 @@
-from typing import Optional, Dict, Any
 import httpx
+
 from ..core.config import get_settings
 from ..core.logging import get_logger
 
@@ -14,9 +14,9 @@ class WeWorkService:
         self.secret = getattr(settings, 'WEWORK_SECRET', '')
         self.token_url = "https://qyapi.weixin.qq.com/cgi-bin/gettoken"
         self.message_url = "https://qyapi.weixin.qq.com/cgi-bin/message/send"
-        self._access_token: Optional[str] = None
+        self._access_token: str | None = None
 
-    async def get_access_token(self) -> Optional[str]:
+    async def get_access_token(self) -> str | None:
         try:
             async with httpx.AsyncClient() as client:
                 resp = await client.get(
@@ -30,9 +30,8 @@ class WeWorkService:
                 if data.get("errcode") == 0:
                     self._access_token = data.get("access_token")
                     return self._access_token
-                else:
-                    logger.error("wework_token_error", errcode=data.get("errcode"), errmsg=data.get("errmsg"))
-                    return None
+                logger.error("wework_token_error", errcode=data.get("errcode"), errmsg=data.get("errmsg"))
+                return None
         except Exception as e:
             logger.error("wework_token_exception", error=str(e))
             return None
@@ -59,9 +58,8 @@ class WeWorkService:
                 if data.get("errcode") == 0:
                     logger.info("wework_message_sent", to_user=to_user)
                     return True
-                else:
-                    logger.error("wework_send_error", errcode=data.get("errcode"), errmsg=data.get("errmsg"))
-                    return False
+                logger.error("wework_send_error", errcode=data.get("errcode"), errmsg=data.get("errmsg"))
+                return False
         except Exception as e:
             logger.error("wework_send_exception", error=str(e))
             return False
@@ -87,9 +85,8 @@ class WeWorkService:
                 data = resp.json()
                 if data.get("errcode") == 0:
                     return True
-                else:
-                    logger.error("wework_markdown_error", errcode=data.get("errcode"), errmsg=data.get("errmsg"))
-                    return False
+                logger.error("wework_markdown_error", errcode=data.get("errcode"), errmsg=data.get("errmsg"))
+                return False
         except Exception as e:
             logger.error("wework_markdown_exception", error=str(e))
             return False

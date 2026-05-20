@@ -1,8 +1,10 @@
-from typing import Optional, Dict, Any, Callable
-from datetime import datetime, timedelta
-import json
 import asyncio
+import json
+from collections.abc import Callable
+from datetime import datetime
 from functools import wraps
+from typing import Any
+
 from ..core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -23,10 +25,10 @@ class ApolloConfigClient:
         self.namespace = namespace
         self.pull_interval = pull_interval
 
-        self._config: Dict[str, Any] = {}
-        self._local_cache: Dict[str, Any] = {}
-        self._callbacks: Dict[str, list[Callable]] = {}
-        self._last_pull: Optional[datetime] = None
+        self._config: dict[str, Any] = {}
+        self._local_cache: dict[str, Any] = {}
+        self._callbacks: dict[str, list[Callable]] = {}
+        self._last_pull: datetime | None = None
         self._running = False
         self._lock = asyncio.Lock()
 
@@ -38,7 +40,7 @@ class ApolloConfigClient:
         try:
             await self._pull_config()
             self._running = True
-            asyncio.create_task(self._periodic_pull())
+            self._pull_task = asyncio.create_task(self._periodic_pull())
             logger.info("apollo_client_connected", app_id=self.app_id)
             return True
         except Exception as e:
@@ -137,7 +139,7 @@ class ApolloConfigClient:
     def set_local_cache(self, key: str, value: Any):
         self._local_cache[key] = value
 
-    def get_all_config(self) -> Dict[str, Any]:
+    def get_all_config(self) -> dict[str, Any]:
         return self._config.copy()
 
     def is_connected(self) -> bool:

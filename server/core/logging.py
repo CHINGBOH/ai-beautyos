@@ -1,13 +1,16 @@
-import structlog
 import logging
-import sys
 import re
-from typing import Any, Optional
+import sys
+from typing import Any
+
+import structlog
+from structlog.typing import EventDict, WrappedLogger
+
 from .security import SecurityValidator
 
 
 class _SafeSecretsProcessor:
-    def __call__(self, logger: Any, method: str, event: dict) -> dict:
+    def __call__(self, logger: WrappedLogger, method: str, event: EventDict) -> EventDict:
         secrets_fields = ["api_key", "password", "token", "secret", "authorization"]
         sensitive_patterns = [
             (r"sk-[a-zA-Z0-9]{20,}", "sk-***"),
@@ -42,7 +45,7 @@ structlog.configure(
 )
 
 
-def get_logger(name: str = None):
+def get_logger(name: str | None = None):
     return structlog.get_logger(name)
 
 
@@ -52,7 +55,7 @@ logger = get_logger(__name__)
 
 class LogManager:
     @staticmethod
-    def log_api_request(endpoint: str, method: str, user_id: Optional[str] = None, **kwargs):
+    def log_api_request(endpoint: str, method: str, user_id: str | None = None, **kwargs):
         logger.info(
             "api_request",
             endpoint=endpoint,
@@ -83,7 +86,7 @@ class LogManager:
         )
 
     @staticmethod
-    def log_error(error: Exception, context: dict = None):
+    def log_error(error: Exception, context: dict[str, Any] | None = None):
         logger.error(
             "error_occurred",
             error_type=type(error).__name__,

@@ -1,8 +1,8 @@
-from typing import Optional, Dict, Any, Callable
-from datetime import datetime, timedelta
+from collections.abc import Callable
 from functools import wraps
-from fastapi import Request, HTTPException
-import time
+from typing import Any
+
+from fastapi import HTTPException, Request
 
 
 class APIVersion:
@@ -16,7 +16,7 @@ class DeprecationStatus:
     SUNSET = "sunset"
 
 
-API_VERSIONS: Dict[str, Dict[str, Any]] = {
+API_VERSIONS: dict[str, dict[str, Any]] = {
     "v1": {
         "released": "2026-01-01",
         "deprecated": None,
@@ -37,7 +37,7 @@ def get_api_version(request: Request) -> str:
 
     if "version=v2" in accept_header:
         return APIVersion.V2
-    elif "version=v1" in accept_header:
+    if "version=v1" in accept_header:
         return APIVersion.V1
 
     path_version = request.path_params.get("version")
@@ -47,7 +47,7 @@ def get_api_version(request: Request) -> str:
     return APIVersion.V2
 
 
-def check_api_deprecation(version: str) -> Optional[Dict[str, Any]]:
+def check_api_deprecation(version: str) -> dict[str, Any] | None:
     version_info = API_VERSIONS.get(version)
     if not version_info:
         return None

@@ -1,12 +1,13 @@
-from typing import Optional, List, Dict, Any
-from fastapi import APIRouter, HTTPException, Request, Depends
-from pydantic import BaseModel
-from datetime import datetime, date
-import time
 import hashlib
-from ..core.logging import get_logger
-from ..core.security import security
+import time
+from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, Request
+from pydantic import BaseModel
+
 from ..core.exceptions import ValidationException
+from ..core.logging import get_logger
 
 logger = get_logger(__name__)
 router_feedback = APIRouter(prefix="/api/feedback", tags=["feedback"])
@@ -15,19 +16,19 @@ router_feedback = APIRouter(prefix="/api/feedback", tags=["feedback"])
 class FeedbackCreate(BaseModel):
     type: str
     rating: int
-    content: Optional[str] = None
-    conversation_id: Optional[str] = None
+    content: str | None = None
+    conversation_id: str | None = None
 
 
 class FeedbackResponse(BaseModel):
     id: str
     type: str
     rating: int
-    content: Optional[str]
+    content: str | None
     created_at: str
 
 
-feedbacks_db: Dict[str, Dict[str, Any]] = {}
+feedbacks_db: dict[str, dict[str, Any]] = {}
 
 
 @router_feedback.post("/", response_model=FeedbackResponse)
@@ -59,7 +60,7 @@ async def create_feedback(feedback: FeedbackCreate, request: Request):
     )
 
 
-@router_feedback.get("/", response_model=List[FeedbackResponse])
+@router_feedback.get("/", response_model=list[FeedbackResponse])
 async def list_feedbacks(limit: int = 50, offset: int = 0):
     feedbacks = list(feedbacks_db.values())
     feedbacks.sort(key=lambda x: x["created_at"], reverse=True)

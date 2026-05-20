@@ -1,9 +1,8 @@
-import json
-import hashlib
-from typing import Optional, Any, Callable, List
-from datetime import datetime, timedelta
 import asyncio
-from functools import wraps
+import hashlib
+from collections.abc import Callable
+from typing import Any
+
 from ..core.config import get_settings
 
 settings = get_settings()
@@ -12,10 +11,10 @@ settings = get_settings()
 class RedisSentinelClient:
     def __init__(
         self,
-        sentinels: List[str] = None,
+        sentinels: list[str] | None = None,
         service_name: str = "mymaster",
-        sentinel_password: Optional[str] = None,
-        password: Optional[str] = None,
+        sentinel_password: str | None = None,
+        password: str | None = None,
         db: int = 0,
         max_connections: int = 50,
         socket_timeout: float = 5.0,
@@ -30,11 +29,11 @@ class RedisSentinelClient:
         self.socket_timeout = socket_timeout
         self.sentinel_timeout = sentinel_timeout
 
-        self._client = None
-        self._sentinel_client = None
+        self._client: Any | None = None
+        self._sentinel_client: Any | None = None
         self._connected = False
-        self._master_address: Optional[tuple] = None
-        self._slave_addresses: List[tuple] = []
+        self._master_address: tuple[str, int] | None = None
+        self._slave_addresses: list[tuple[str, int]] = []
         self._in_pool = False
         self._lock = asyncio.Lock()
 
@@ -57,13 +56,14 @@ class RedisSentinelClient:
     async def _connect_standalone(self) -> bool:
         try:
             import redis.asyncio as redis
-            self._client = redis.from_url(
+            client: Any = redis.from_url(
                 settings.REDIS_URL,
                 encoding="utf-8",
                 decode_responses=True,
                 max_connections=self.max_connections
             )
-            await self._client.ping()
+            await client.ping()
+            self._client = client
             self._connected = True
             return True
         except Exception:
@@ -73,43 +73,48 @@ class RedisSentinelClient:
     async def _connect_sentinel(self):
         import redis.asyncio as redis
 
-        self._sentinel_client = redis.Sentinel(
+        sentinel_client: Any = redis.Sentinel(
             sentinels=self.sentinels,
             sentinel_kwargs={"password": self.sentinel_password} if self.sentinel_password else {},
             socket_timeout=self.sentinel_timeout
         )
+        self._sentinel_client = sentinel_client
 
-        master = self._sentinel_client.master_for(
+        master: Any = sentinel_client.master_for(
             self.service_name,
             password=self.password,
             db=self.db,
             socket_timeout=self.socket_timeout
         )
 
-        self._master_address = await master.address
+        self._master_address = sentinel_client.discover_master(self.service_name)
         self._client = master
-        await self._client.ping()
+        await master.ping()
 
-        slave = self._sentinel_client.slave_for(
+        sentinel_client.slave_for(
             self.service_name,
             password=self.password,
             db=self.db,
             socket_timeout=self.socket_timeout
         )
-        self._slave_addresses = await slave.address
+        self._slave_addresses = list(sentinel_client.discover_slaves(self.service_name))
 
     async def disconnect(self):
         if self._client:
             await self._client.close()
+            self._client = None
         if self._sentinel_client:
             self._sentinel_client = None
         self._connected = False
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         if not self._connected:
             await self.connect()
+        client = self._client
+        if client is None:
+            return None
         try:
-            return await self._client.get(key)
+            return await client.get(key)
         except Exception:
             return None
 
@@ -117,55 +122,73 @@ class RedisSentinelClient:
         self,
         key: str,
         value: str,
-        ex: Optional[int] = None,
-        px: Optional[int] = None,
+        ex: int | None = None,
+        px: int | None = None,
         nx: bool = False,
         xx: bool = False
     ) -> bool:
         if not self._connected:
             await self.connect()
+        client = self._client
+        if client is None:
+            return False
         try:
-            return await self._client.set(key, value, ex=ex, px=px, nx=nx, xx=xx)
+            return await client.set(key, value, ex=ex, px=px, nx=nx, xx=xx)
         except Exception:
             return False
 
     async def delete(self, key: str) -> bool:
         if not self._connected:
             await self.connect()
+        client = self._client
+        if client is None:
+            return False
         try:
-            return await self._client.delete(key) > 0
+            return await client.delete(key) > 0
         except Exception:
             return False
 
     async def exists(self, key: str) -> bool:
         if not self._connected:
             await self.connect()
+        client = self._client
+        if client is None:
+            return False
         try:
-            return await self._client.exists(key) > 0
+            return await client.exists(key) > 0
         except Exception:
             return False
 
     async def incr(self, key: str) -> int:
         if not self._connected:
             await self.connect()
+        client = self._client
+        if client is None:
+            return 0
         try:
-            return await self._client.incr(key)
+            return await client.incr(key)
         except Exception:
             return 0
 
     async def expire(self, key: str, seconds: int) -> bool:
         if not self._connected:
             await self.connect()
+        client = self._client
+        if client is None:
+            return False
         try:
-            return await self._client.expire(key, seconds)
+            return await client.expire(key, seconds)
         except Exception:
             return False
 
     async def ttl(self, key: str) -> int:
         if not self._connected:
             await self.connect()
+        client = self._client
+        if client is None:
+            return -1
         try:
-            return await self._client.ttl(key)
+            return await client.ttl(key)
         except Exception:
             return -1
 
@@ -173,8 +196,10 @@ class RedisSentinelClient:
         if not self.sentinels:
             return self._client
 
-        import redis.asyncio as redis
-        return self._sentinel_client.master_for(
+        sentinel_client = self._sentinel_client
+        if sentinel_client is None:
+            return self._client
+        return sentinel_client.master_for(
             self.service_name,
             password=self.password,
             db=self.db
@@ -184,8 +209,10 @@ class RedisSentinelClient:
         if not self.sentinels or not self._slave_addresses:
             return self._client
 
-        import redis.asyncio as redis
-        return self._sentinel_client.slave_for(
+        sentinel_client = self._sentinel_client
+        if sentinel_client is None:
+            return self._client
+        return sentinel_client.slave_for(
             self.service_name,
             password=self.password,
             db=self.db
@@ -211,7 +238,7 @@ class DistributedLock:
         self.name = name
         self.timeout = timeout
         self._token = None
-        self._redis: Optional[RedisSentinelClient] = None
+        self._redis: RedisSentinelClient | None = None
 
     async def __aenter__(self):
         self._redis = redis_sentinel if redis_sentinel.is_connected() else None

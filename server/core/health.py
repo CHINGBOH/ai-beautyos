@@ -1,26 +1,27 @@
-from typing import Dict, Any, List, Optional
+import asyncio
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
-import asyncio
+from typing import Any
 
 
 @dataclass
 class HealthCheckResult:
     name: str
     status: str
-    message: Optional[str] = None
-    latency_ms: Optional[float] = None
-    details: Optional[Dict[str, Any]] = None
+    message: str | None = None
+    latency_ms: float | None = None
+    details: dict[str, Any] | None = None
 
 
 class HealthChecker:
     def __init__(self):
-        self._checks: Dict[str, callable] = {}
+        self._checks: dict[str, Callable[[], Any]] = {}
 
-    def register_check(self, name: str, check_func: callable):
+    def register_check(self, name: str, check_func: Callable[[], Any]):
         self._checks[name] = check_func
 
-    async def check_all(self) -> Dict[str, Any]:
+    async def check_all(self) -> dict[str, Any]:
         results = {}
         overall_status = "healthy"
 

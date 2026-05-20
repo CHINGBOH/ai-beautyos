@@ -1,8 +1,8 @@
 import asyncio
 import time
-from typing import Dict, Any, Optional
-from ..core.logging import get_logger
+
 from ..core.config import get_settings
+from ..core.logging import get_logger
 from .llm_coordinator import coordinator
 
 settings = get_settings()
@@ -12,14 +12,17 @@ logger = get_logger(__name__)
 class LLMWarmupper:
     def __init__(self):
         self.warmed_up = False
-        self.last_warmup: Optional[float] = None
+        self.last_warmup: float | None = None
         self.warmup_interval = 300
 
     async def warmup(self):
-        if self.warmed_up and self.last_warmup:
-            if time.time() - self.last_warmup < self.warmup_interval:
-                logger.info("llm_warmup_skipped", reason="recently_warmed")
-                return
+        if (
+            self.warmed_up
+            and self.last_warmup
+            and time.time() - self.last_warmup < self.warmup_interval
+        ):
+            logger.info("llm_warmup_skipped", reason="recently_warmed")
+            return
 
         logger.info("llm_warmup_started")
 

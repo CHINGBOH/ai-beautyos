@@ -1,12 +1,13 @@
 """语义分析增强 - 姓名/称呼智能识别"""
 import re
-from typing import Optional, Tuple, List
+from typing import ClassVar
+
 
 class SemanticAnalyzer:
     """语义分析器 - 智能识别姓名、称呼"""
 
     # 称呼关键词
-    TITLES = [
+    TITLES: ClassVar[list[str]] = [
         "女士", "先生", "太太", "夫人",
         "医生", "护士", "主任", "院长",
         "经理", "总监", "总裁", "总经理",
@@ -17,7 +18,7 @@ class SemanticAnalyzer:
     ]
 
     # 常见姓氏
-    COMMON_SURNAMES = [
+    COMMON_SURNAMES: ClassVar[list[str]] = [
         "张", "李", "王", "刘", "陈", "杨", "赵", "黄", "周", "吴",
         "徐", "孙", "胡", "朱", "高", "林", "何", "郭", "马", "罗",
         "梁", "宋", "郑", "谢", "韩", "唐", "冯", "于", "董", "萧",
@@ -25,7 +26,7 @@ class SemanticAnalyzer:
     ]
 
     # 纯称呼词
-    PURE_TITLES = ["女士", "先生", "太太", "夫人", "医生", "护士", "老师"]
+    PURE_TITLES: ClassVar[list[str]] = ["女士", "先生", "太太", "夫人", "医生", "护士", "老师"]
 
     @staticmethod
     def is_pure_title(text: str) -> bool:
@@ -33,7 +34,7 @@ class SemanticAnalyzer:
         return text in SemanticAnalyzer.PURE_TITLES
 
     @staticmethod
-    def extract_name_and_title(raw_name: str) -> Tuple[Optional[str], Optional[str]]:
+    def extract_name_and_title(raw_name: str) -> tuple[str | None, str | None]:
         """
         智能分离姓名和称呼
         返回: (clean_name, title)
@@ -72,14 +73,13 @@ class SemanticAnalyzer:
                     if clean_name.isdigit() and len(clean_name) >= 7:
                         return None, None
                     return clean_name, title
-                else:
-                    return None, title
+                return None, title
 
         # 没有称呼，返回原始
         return name, None
 
     @staticmethod
-    def is_valid_name(name: str) -> Tuple[bool, str]:
+    def is_valid_name(name: str) -> tuple[bool, str]:
         """
         验证姓名是否有效
         返回: (is_valid, error_message)
@@ -125,7 +125,7 @@ class SemanticAnalyzer:
         return True, ""
 
     @staticmethod
-    def is_valid_phone(phone: str) -> Tuple[bool, str]:
+    def is_valid_phone(phone: str) -> tuple[bool, str]:
         """
         验证手机号
         返回: (is_valid, error_message)
@@ -180,12 +180,15 @@ class SemanticAnalyzer:
                 # 纯称呼
                 result["valid"] = False
                 result["errors"].append("请输入有效姓名，不能只是称呼")
-            else:
+            elif clean_name is not None:
                 # 验证姓名
                 is_valid, error = SemanticAnalyzer.is_valid_name(clean_name)
                 if not is_valid:
                     result["valid"] = False
                     result["errors"].append(error)
+            else:
+                result["valid"] = False
+                result["errors"].append("姓名不能为空")
         else:
             result["valid"] = False
             result["errors"].append("姓名不能为空")
@@ -213,7 +216,6 @@ def test_semantic():
     print("=" * 60)
 
     test_cases = [
-        # (输入, 期望clean_name, 期望title)
         ("张三", "张三", None),
         ("张女士", "张", "女士"),
         ("李先生", "李", "先生"),

@@ -1,4 +1,3 @@
-import os
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -21,7 +20,7 @@ class DataRetentionPolicy:
     @staticmethod
     def should_delete_log(file_path: str) -> bool:
         try:
-            mtime = datetime.fromtimestamp(os.path.getmtime(file_path))
+            mtime = datetime.fromtimestamp(Path(file_path).stat().st_mtime)
             return datetime.now() - mtime > timedelta(days=DataRetentionPolicy.LOG_RETENTION_DAYS)
         except OSError:
             return False

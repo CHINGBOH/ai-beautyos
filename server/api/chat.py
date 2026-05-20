@@ -78,10 +78,10 @@ async def chat_message(request: ChatRequest):
             ),
             timeout_seconds=30.0
         )
-    except CircuitBreakerOpenException:
-        raise HTTPException(status_code=503, detail="AI服务暂时不可用，请稍后重试")
-    except TimeoutException:
-        raise HTTPException(status_code=504, detail="AI服务响应超时，请稍后重试")
+    except CircuitBreakerOpenException as exc:
+        raise HTTPException(status_code=503, detail="AI服务暂时不可用，请稍后重试") from exc
+    except TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="AI服务响应超时，请稍后重试") from exc
 
     if result["success"]:
         semantic_cache.set(request.message, {
@@ -101,7 +101,9 @@ async def chat_message(request: ChatRequest):
 
 
 @router_api.get("/route/explain")
-async def explain_route(message: str, history: list = [], context: dict[str, Any] | None = None):
+async def explain_route(message: str, history: list | None = None, context: dict[str, Any] | None = None):
+    if history is None:
+        history = []
     return smart_router.explain_route(message, history, context or {})
 
 

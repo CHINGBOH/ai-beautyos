@@ -1,4 +1,6 @@
 
+import contextlib
+
 import pytest
 
 from server.core.circuit_breaker import CircuitBreaker
@@ -20,10 +22,8 @@ class TestCircuitBreaker:
             raise Exception("test error")
 
         for _ in range(3):
-            try:
+            with contextlib.suppress(Exception):
                 await self.cb.call(failing_func)
-            except Exception:
-                pass
 
         assert self.cb.state == "open"
         assert self.cb.is_open() is True

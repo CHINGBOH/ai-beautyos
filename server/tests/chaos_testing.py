@@ -1,9 +1,9 @@
 import asyncio
-import random
-from typing import Callable, Any
-from dataclasses import dataclass
-from datetime import datetime
 import logging
+import random
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,8 +13,8 @@ class ChaosExperiment:
     name: str
     description: str
     target_component: str
-    action: Callable
-    rollback: Callable = None
+    action: Callable[[], Awaitable[Any]]
+    rollback: Callable[[], Awaitable[Any]] | None = None
     probability: float = 1.0
 
 

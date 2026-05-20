@@ -2,7 +2,7 @@ import hashlib
 import json
 import time
 from datetime import datetime
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel
@@ -15,9 +15,9 @@ router_analytics = APIRouter(prefix="/api/analytics", tags=["analytics"])
 
 class EventTrack(BaseModel):
     event: str
-    properties: Optional[Dict[str, Any]] = None
-    user_id: Optional[str] = None
-    timestamp: Optional[str] = None
+    properties: dict[str, Any] | None = None
+    user_id: str | None = None
+    timestamp: str | None = None
 
 
 class FunnelStep(BaseModel):
@@ -26,12 +26,12 @@ class FunnelStep(BaseModel):
 
 
 class FunnelRequest(BaseModel):
-    steps: List[FunnelStep]
+    steps: list[FunnelStep]
     start_date: str
     end_date: str
 
 
-events_db: List[Dict[str, Any]] = []
+events_db: list[dict[str, Any]] = []
 MAX_EVENTS = 100000
 
 
@@ -61,8 +61,8 @@ async def track_event(event: EventTrack, request: Request):
 
 @router_analytics.get("/events")
 async def list_events(
-    event_name: Optional[str] = None,
-    user_id: Optional[str] = None,
+    event_name: str | None = None,
+    user_id: str | None = None,
     limit: int = 100,
     offset: int = 0
 ):
@@ -87,8 +87,8 @@ async def analyze_funnel(
 ):
     try:
         step_list = json.loads(steps)
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail="步骤格式错误")
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="步骤格式错误") from exc
 
     funnel = []
     total_users = set()
@@ -103,7 +103,7 @@ async def analyze_funnel(
             and start_date <= e["timestamp"] <= end_date
         ]
 
-        unique_users = set(e.get("user_id") for e in matching_events if e.get("user_id"))
+        unique_users = {e.get("user_id") for e in matching_events if e.get("user_id")}
 
         funnel.append({
             "step": step_name,

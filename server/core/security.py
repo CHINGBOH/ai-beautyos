@@ -80,9 +80,7 @@ class SecurityValidator:
             return False
         if len(api_key) < 10:
             return False
-        if api_key.startswith("sk-") or api_key.startswith("sk-0"):
-            return True
-        return False
+        return bool(api_key.startswith(("sk-", "sk-0")))
 
 
 security = SecurityValidator()

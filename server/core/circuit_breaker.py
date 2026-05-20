@@ -1,7 +1,7 @@
 import asyncio
 import time
 from collections.abc import Callable
-from enum import Enum
+from enum import StrEnum
 from functools import wraps
 from typing import Any
 
@@ -13,7 +13,7 @@ settings = get_settings()
 logger = get_logger(__name__)
 
 
-class CircuitState(str, Enum):
+class CircuitState(StrEnum):
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
@@ -144,5 +144,5 @@ class TimeoutException(Exception):
 async def with_timeout(coro, timeout_seconds: float):
     try:
         return await asyncio.wait_for(coro, timeout=timeout_seconds)
-    except TimeoutError:
-        raise TimeoutException(f"操作超时 ({timeout_seconds}秒)")
+    except TimeoutError as exc:
+        raise TimeoutException(f"操作超时 ({timeout_seconds}秒)") from exc

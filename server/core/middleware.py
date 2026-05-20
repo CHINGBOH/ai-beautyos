@@ -1,10 +1,9 @@
-from fastapi import Request, HTTPException
-from fastapi.responses import JSONResponse
-from starlette.middleware.base import BaseHTTPMiddleware
-from typing import Callable
 import uuid
-import time
+from collections.abc import Callable
+
 import structlog
+from fastapi import Request
+from starlette.middleware.base import BaseHTTPMiddleware
 
 logger = structlog.get_logger()
 
@@ -41,7 +40,7 @@ class CSPMiddleware(BaseHTTPMiddleware):
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
-    def __init__(self, app, exempt_paths: list = None):
+    def __init__(self, app, exempt_paths: list[str] | None = None):
         super().__init__(app)
         self.exempt_paths = exempt_paths or ["/health", "/health/live", "/health/ready", "/api/chat/message"]
 
@@ -54,8 +53,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 if not csrf_token:
                     csrf_token = request.cookies.get("csrftoken")
 
-        response = await call_next(request)
-        return response
+        return await call_next(request)
 
 
 trace_middleware = RequestIDMiddleware

@@ -1,7 +1,10 @@
-from typing import Optional, Callable, Any, Tuple
-from enum import Enum
 import asyncio
+from collections.abc import Callable
 from contextlib import asynccontextmanager
+from enum import Enum
+from functools import wraps
+from typing import Any
+
 from ..core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -25,8 +28,8 @@ class ReadWriteRouter:
         self.max_connections = max_connections
         self.connection_timeout = connection_timeout
 
-        self._primary_pool = None
-        self._replica_pools = []
+        self._primary_pool: Any | None = None
+        self._replica_pools: list[Any] = []
         self._current_replica_index = 0
         self._lock = asyncio.Lock()
 
@@ -69,11 +72,16 @@ class ReadWriteRouter:
             pool = self._primary_pool
         else:
             async with self._lock:
-                pool = self._replica_pools[self._current_replica_index]
-                self._current_replica_index = (self._current_replica_index + 1) % max(1, len(self._replica_pools))
+                if self._replica_pools:
+                    pool = self._replica_pools[self._current_replica_index]
+                    self._current_replica_index = (self._current_replica_index + 1) % len(self._replica_pools)
+                else:
+                    pool = self._primary_pool
 
         if not pool:
             pool = self._primary_pool
+        if pool is None:
+            raise RuntimeError("Database router not connected")
 
         async with pool.acquire() as connection:
             yield connection
@@ -81,13 +89,12 @@ class ReadWriteRouter:
     async def execute(
         self,
         query: str,
-        params: tuple = None,
+        params: tuple[Any, ...] | None = None,
         operation: DBOperationType = DBOperationType.WRITE
     ) -> Any:
         async with self.acquire(operation) as conn:
             try:
-                result = await conn.fetch(query, *params) if params else await conn.fetch(query)
-                return result
+                return await conn.fetch(query, *params) if params else await conn.fetch(query)
             except Exception as e:
                 if operation == DBOperationType.READ:
                     logger.warning("replica_query_failed_trying_primary", error=str(e))
@@ -98,16 +105,16 @@ class ReadWriteRouter:
     async def execute_one(
         self,
         query: str,
-        params: tuple = None,
+        params: tuple[Any, ...] | None = None,
         operation: DBOperationType = DBOperationType.WRITE
-    ) -> Optional[Any]:
+    ) -> Any | None:
         result = await self.execute(query, params, operation)
         return result[0] if result else None
 
     async def execute_scalar(
         self,
         query: str,
-        params: tuple = None,
+        params: tuple[Any, ...] | None = None,
         operation: DBOperationType = DBOperationType.WRITE
     ) -> Any:
         row = await self.execute_one(query, params, operation)
@@ -118,7 +125,7 @@ class DatabaseSession:
     def __init__(self, router: ReadWriteRouter, operation: DBOperationType = DBOperationType.READ):
         self.router = router
         self.operation = operation
-        self._conn = None
+        self._conn: Any | None = None
 
     async def __aenter__(self):
         self._conn = self.router.acquire(self.operation)
@@ -129,12 +136,12 @@ class DatabaseSession:
             await self._conn.__aexit__(exc_type, exc_val, exc_tb)
 
 
-db_router: Optional[ReadWriteRouter] = None
+db_router: ReadWriteRouter | None = None
 
 
 async def init_db_router(
     primary_url: str,
-    replica_urls: list[str] = None,
+    replica_urls: list[str] | None = None,
     max_connections: int = 20
 ):
     global db_router
@@ -154,25 +161,25 @@ async def close_db_router():
         db_router = None
 
 
-async def read_query(query: str, params: tuple = None) -> Any:
+async def read_query(query: str, params: tuple[Any, ...] | None = None) -> Any:
     if not db_router:
         raise RuntimeError("Database router not initialized")
     return await db_router.execute(query, params, DBOperationType.READ)
 
 
-async def write_query(query: str, params: tuple = None) -> Any:
+async def write_query(query: str, params: tuple[Any, ...] | None = None) -> Any:
     if not db_router:
         raise RuntimeError("Database router not initialized")
     return await db_router.execute(query, params, DBOperationType.WRITE)
 
 
-async def read_query_one(query: str, params: tuple = None) -> Optional[Any]:
+async def read_query_one(query: str, params: tuple[Any, ...] | None = None) -> Any | None:
     if not db_router:
         raise RuntimeError("Database router not initialized")
     return await db_router.execute_one(query, params, DBOperationType.READ)
 
 
-async def write_query_one(query: str, params: tuple = None) -> Optional[Any]:
+async def write_query_one(query: str, params: tuple[Any, ...] | None = None) -> Any | None:
     if not db_router:
         raise RuntimeError("Database router not initialized")
     return await db_router.execute_one(query, params, DBOperationType.WRITE)
@@ -190,9 +197,8 @@ def with_retry(max_attempts: int = 3, delay: float = 0.5):
                     last_error = e
                     if attempt < max_attempts - 1:
                         await asyncio.sleep(delay * (attempt + 1))
-            raise last_error
+            if last_error is not None:
+                raise last_error
+            raise RuntimeError("Retry wrapper exhausted without running the function")
         return wrapper
     return decorator
-
-
-from functools import wraps

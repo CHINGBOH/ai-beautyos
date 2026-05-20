@@ -1,10 +1,9 @@
-from typing import Optional, Dict, Any
-from datetime import datetime
-from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
 import hashlib
-import random
 import time
+from datetime import datetime
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel
 
 logger = __import__('logging').getLogger(__name__)
 router_ab = APIRouter(prefix="/api/ab", tags=["ab_testing"])
@@ -14,13 +13,13 @@ class FeatureFlag(BaseModel):
     key: str
     enabled: bool
     rollout_percentage: int = 100
-    description: Optional[str] = None
+    description: str | None = None
 
 
 class ABTest(BaseModel):
     test_id: str
     name: str
-    variants: Dict[str, float]
+    variants: dict[str, float]
     start_date: str
     end_date: str
     status: str = "running"
@@ -33,9 +32,9 @@ class UserAssignment(BaseModel):
     assigned_at: str
 
 
-feature_flags_db: Dict[str, FeatureFlag] = {}
-ab_tests_db: Dict[str, ABTest] = {}
-user_assignments_db: Dict[str, UserAssignment] = {}
+feature_flags_db: dict[str, FeatureFlag] = {}
+ab_tests_db: dict[str, ABTest] = {}
+user_assignments_db: dict[str, UserAssignment] = {}
 
 
 def hash_user(user_id: str, test_id: str) -> float:
@@ -73,7 +72,7 @@ async def update_feature_flag(key: str, flag: FeatureFlag):
 
 
 @router_ab.get("/flags/{key}/enabled")
-async def is_flag_enabled(key: str, user_id: Optional[str] = None):
+async def is_flag_enabled(key: str, user_id: str | None = None):
     if key not in feature_flags_db:
         return {"enabled": False, "reason": "flag_not_found"}
 
@@ -154,7 +153,7 @@ async def get_test_results(test_id: str):
     test = ab_tests_db[test_id]
 
     variant_stats = {}
-    for variant in test.variants.keys():
+    for variant in test.variants:
         variant_assignments = [
             a for a in user_assignments_db.values()
             if a.test_id == test_id and a.variant == variant

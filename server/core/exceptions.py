@@ -1,13 +1,13 @@
-from fastapi import HTTPException, Request
-from fastapi.responses import JSONResponse
-from typing import Optional
+
 import structlog
+from fastapi import Request
+from fastapi.responses import JSONResponse
 
 logger = structlog.get_logger()
 
 
 class AppException(Exception):
-    def __init__(self, message: str, status_code: int = 500, error_code: Optional[str] = None):
+    def __init__(self, message: str, status_code: int = 500, error_code: str | None = None):
         self.message = message
         self.status_code = status_code
         self.error_code = error_code or f"ERR_{status_code}"
@@ -15,7 +15,7 @@ class AppException(Exception):
 
 
 class ValidationException(AppException):
-    def __init__(self, message: str, field: Optional[str] = None):
+    def __init__(self, message: str, field: str | None = None):
         super().__init__(message=message, status_code=400, error_code="VALIDATION_ERROR")
         self.field = field
 
@@ -62,7 +62,10 @@ class CircuitBreakerOpenException(AppException):
         self.service = service
 
 
-async def app_exception_handler(request: Request, exc: AppException) -> JSONResponse:
+async def app_exception_handler(request: Request, exc: Exception) -> JSONResponse:
+    if not isinstance(exc, AppException):
+        return await generic_exception_handler(request, exc)
+
     logger.warning(
         "app_exception",
         error_code=exc.error_code,

@@ -1,8 +1,10 @@
-from typing import Optional, List, Dict, Any
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-from ..services.rag_service import rag_service
+
 from ..core.logging import get_logger
+from ..services.rag_service import rag_service
 
 logger = get_logger(__name__)
 router_rag = APIRouter(prefix="/api/rag", tags=["rag"])
@@ -10,22 +12,22 @@ router_rag = APIRouter(prefix="/api/rag", tags=["rag"])
 
 class Document(BaseModel):
     content: str
-    metadata: Optional[Dict[str, Any]] = None
+    metadata: dict[str, Any] | None = None
 
 
 class AddDocumentsRequest(BaseModel):
-    documents: List[Document]
-    ids: Optional[List[str]] = None
+    documents: list[Document]
+    ids: list[str] | None = None
 
 
 class SearchRequest(BaseModel):
     query: str
     limit: int = 5
-    filter_conditions: Optional[Dict[str, Any]] = None
+    filter_conditions: dict[str, Any] | None = None
 
 
 class SearchResponse(BaseModel):
-    results: List[Dict[str, Any]]
+    results: list[dict[str, Any]]
     query: str
 
 

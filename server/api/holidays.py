@@ -1,9 +1,9 @@
-from datetime import datetime, date
-from typing import Optional, List
+import json
+from datetime import date, datetime
+from pathlib import Path
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
-import json
-from pathlib import Path
 
 logger = __import__('logging').getLogger(__name__)
 router_holiday = APIRouter(prefix="/api/holidays", tags=["holidays"])
@@ -29,7 +29,7 @@ DEFAULT_HOLIDAYS = {
 def load_holidays() -> dict:
     try:
         if HOLIDAY_DATA_FILE.exists():
-            with open(HOLIDAY_DATA_FILE, 'r', encoding='utf-8') as f:
+            with HOLIDAY_DATA_FILE.open(encoding='utf-8') as f:
                 return json.load(f)
     except Exception:
         pass
@@ -39,13 +39,13 @@ def load_holidays() -> dict:
 def save_holidays(holidays: dict):
     try:
         HOLIDAY_DATA_FILE.parent.mkdir(parents=True, exist_ok=True)
-        with open(HOLIDAY_DATA_FILE, 'w', encoding='utf-8') as f:
+        with HOLIDAY_DATA_FILE.open('w', encoding='utf-8') as f:
             json.dump(holidays, f, ensure_ascii=False, indent=2)
     except Exception as e:
         logger.error("failed_to_save_holidays", error=str(e))
 
 
-def is_holiday(check_date: date) -> Optional[dict]:
+def is_holiday(check_date: date) -> dict | None:
     holidays = load_holidays()
     date_str = check_date.isoformat()
     year_str = str(check_date.year)
@@ -63,9 +63,7 @@ def is_holiday(check_date: date) -> Optional[dict]:
 def is_business_day(check_date: date) -> bool:
     if check_date.weekday() >= 5:
         return False
-    if is_holiday(check_date):
-        return False
-    return True
+    return not is_holiday(check_date)
 
 
 class HolidayResponse(BaseModel):
@@ -78,8 +76,8 @@ class HolidayResponse(BaseModel):
 async def check_date(date_str: str):
     try:
         check_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="日期格式错误，请使用 YYYY-MM-DD")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="日期格式错误，请使用 YYYY-MM-DD") from exc
 
     holiday = is_holiday(check_date)
     is_holiday_flag = holiday is not None
@@ -111,8 +109,8 @@ async def validate_appointment_time(
     try:
         appointment_date = datetime.strptime(date_str, "%Y-%m-%d").date()
         appointment_time = datetime.strptime(time_str, "%H:%M").time()
-    except ValueError:
-        raise HTTPException(status_code=400, detail="日期或时间格式错误")
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail="日期或时间格式错误") from exc
 
     errors = []
 

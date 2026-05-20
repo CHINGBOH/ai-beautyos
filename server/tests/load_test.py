@@ -1,6 +1,7 @@
-from locust import HttpUser, task, between, events
+# pyright: reportMissingImports=false
 import random
-import json
+
+from locust import HttpUser, between, events, task
 
 
 class ChatUser(HttpUser):

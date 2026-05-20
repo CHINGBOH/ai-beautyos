@@ -1,5 +1,4 @@
 import re
-from typing import Optional
 
 import bcrypt
 
@@ -20,7 +19,7 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
     return bcrypt.checkpw(password_bytes, hashed_password.encode("utf-8"))
 
 
-def validate_password_strength(password: str) -> tuple[bool, Optional[str]]:
+def validate_password_strength(password: str) -> tuple[bool, str | None]:
     if len(password) < 8:
         return False, "密码长度至少8位"
     if not re.search(r"[A-Za-z]", password):

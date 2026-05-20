@@ -1,6 +1,7 @@
-import time
 import hashlib
-from typing import Optional, Dict, Any, List, Tuple
+import time
+from typing import Any
+
 from ..core.config import get_settings
 from ..core.logging import get_logger
 
@@ -11,19 +12,19 @@ logger = get_logger(__name__)
 class SemanticCache:
     def __init__(self, threshold: float = 0.85):
         self.threshold = threshold
-        self.cache: Dict[str, Tuple[Any, float]] = {}
+        self.cache: dict[str, tuple[Any, float]] = {}
         self.max_size = settings.CACHE_MAX_SIZE
         self.ttl = settings.CACHE_TTL
         self.hits = 0
         self.misses = 0
 
-    def _get_embedding(self, text: str) -> List[float]:
+    def _get_embedding(self, text: str) -> list[float]:
         import hashlib
         hash_bytes = hashlib.md5(text.encode()).digest()
         return [float(b) / 255.0 for b in hash_bytes[:16]]
 
-    def _cosine_similarity(self, vec1: List[float], vec2: List[float]) -> float:
-        dot_product = sum(a * b for a, b in zip(vec1, vec2))
+    def _cosine_similarity(self, vec1: list[float], vec2: list[float]) -> float:
+        dot_product = sum(a * b for a, b in zip(vec1, vec2, strict=False))
         magnitude1 = sum(a * a for a in vec1) ** 0.5
         magnitude2 = sum(b * b for b in vec2) ** 0.5
         if magnitude1 == 0 or magnitude2 == 0:
@@ -34,7 +35,7 @@ class SemanticCache:
         combined = f"{text}:{context_hash}"
         return hashlib.sha256(combined.encode()).hexdigest()
 
-    def get(self, query: str, context: Optional[Dict[str, Any]] = None) -> Optional[Any]:
+    def get(self, query: str, context: dict[str, Any] | None = None) -> Any | None:
         if not settings.ENABLE_SEMANTIC_CACHE:
             return None
 
@@ -47,8 +48,7 @@ class SemanticCache:
                 self.hits += 1
                 logger.info("semantic_cache_hit", query_length=len(query))
                 return cached_result
-            else:
-                del self.cache[query_key]
+            del self.cache[query_key]
 
         query_embedding = self._get_embedding(query)
 
@@ -70,7 +70,7 @@ class SemanticCache:
         self.misses += 1
         return None
 
-    def set(self, query: str, result: Any, context: Optional[Dict[str, Any]] = None):
+    def set(self, query: str, result: Any, context: dict[str, Any] | None = None):
         if not settings.ENABLE_SEMANTIC_CACHE:
             return
 
@@ -90,7 +90,7 @@ class SemanticCache:
         self.misses = 0
         logger.info("semantic_cache_cleared")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         total = self.hits + self.misses
         hit_rate = (self.hits / total * 100) if total > 0 else 0
         return {

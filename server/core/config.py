@@ -1,16 +1,15 @@
-from pydantic_settings import BaseSettings
-from pydantic import ConfigDict
-from typing import Optional
 from functools import lru_cache
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = ConfigDict(
+    model_config = SettingsConfigDict(
         env_file=".env",
         case_sensitive=True,
         extra='ignore'  # Ignore extra environment variables
     )
-    
+
     APP_NAME: str = "医美智能营销系统"
     APP_VERSION: str = "1.0.0"
     DEBUG: bool = False
@@ -30,7 +29,7 @@ class Settings(BaseSettings):
     KIMI_MAX_TOKENS: int = 300
 
     QDRANT_URL: str = "http://localhost:6333"
-    QDRANT_API_KEY: Optional[str] = None
+    QDRANT_API_KEY: str | None = None
     QDRANT_COLLECTION_PREFIX: str = "yanmei_"
 
     REDIS_URL: str = "redis://localhost:6379/0"
@@ -63,6 +62,6 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
 
 
-@lru_cache()
+@lru_cache
 def get_settings() -> Settings:
     return Settings()

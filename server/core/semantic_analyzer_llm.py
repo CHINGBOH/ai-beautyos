@@ -1,6 +1,7 @@
 """LLM增强的预约语义分析 - 规则+LLM混合决策"""
 import json
 import re
+from typing import ClassVar
 
 # 尝试导入OpenAI
 try:
@@ -16,7 +17,7 @@ class SemanticAnalyzer:
     """混合语义分析器：规则优先 + LLM增强"""
 
     # 称呼关键词
-    TITLES = [
+    TITLES: ClassVar[list[str]] = [
         "女士", "先生", "太太", "夫人",
         "医生", "护士", "主任", "院长",
         "经理", "总监", "总裁", "总经理",
@@ -26,7 +27,7 @@ class SemanticAnalyzer:
         "小", "老"
     ]
 
-    PURE_TITLES = ["女士", "先生", "太太", "夫人", "医生", "护士", "老师"]
+    PURE_TITLES: ClassVar[list[str]] = ["女士", "先生", "太太", "夫人", "医生", "护士", "老师"]
 
     def __init__(self, llm_api_key: str | None = None, llm_base_url: str | None = None):
         self.llm_enabled = False
@@ -166,10 +167,9 @@ class SemanticAnalyzer:
 
         # 判断是否需要LLM增强
         # 规则无法确定的情况
-        if result["valid"]:
-            if result["clean_name"] and len(result["clean_name"]) == 1:
-                result["needs_llm"] = True
-                result["llm_reason"] = "单字姓名，可能需要LLM确认"
+        if result["valid"] and result["clean_name"] and len(result["clean_name"]) == 1:
+            result["needs_llm"] = True
+            result["llm_reason"] = "单字姓名，可能需要LLM确认"
 
         return result
 

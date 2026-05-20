@@ -1,9 +1,11 @@
-from typing import Optional, List
+import time
+
+from fastapi import APIRouter
 from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException
+
+from ..core.exceptions import NotFoundException, ValidationException
 from ..core.logging import get_logger
 from ..core.security import security
-from ..core.exceptions import ValidationException, NotFoundException
 
 logger = get_logger(__name__)
 router_appointment = APIRouter(prefix="/api/appointments", tags=["appointments"])
@@ -12,14 +14,14 @@ router_appointment = APIRouter(prefix="/api/appointments", tags=["appointments"]
 class AppointmentRequest(BaseModel):
     name: str
     phone: str
-    service_type: Optional[str] = None
-    appointment_time: Optional[str] = None
-    notes: Optional[str] = None
+    service_type: str | None = None
+    appointment_time: str | None = None
+    notes: str | None = None
 
 
 class AppointmentResponse(BaseModel):
     success: bool
-    appointment_id: Optional[str] = None
+    appointment_id: str | None = None
     message: str
 
 
@@ -80,7 +82,4 @@ async def list_appointments():
     return list(appointments_db.values())
 
 
-# Export router with standard name for main.py import
 router = router_appointment
-
-import time

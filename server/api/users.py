@@ -1,12 +1,14 @@
-from datetime import datetime
-from typing import Optional, List, Dict, Any
-from pydantic import BaseModel
-from fastapi import APIRouter, HTTPException, Depends, Request
-from ..core.logging import get_logger
-from ..core.auth import require_auth, AuthenticatedUser
-from ..core.security import security, SecurityValidator
-from ..core.exceptions import NotFoundException, AuthorizationException
 import time
+from datetime import datetime
+from typing import Any
+
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel
+
+from ..core.auth import AuthenticatedUser, require_auth
+from ..core.exceptions import NotFoundException
+from ..core.logging import get_logger
+from ..core.security import SecurityValidator, security
 
 logger = get_logger(__name__)
 router_user = APIRouter(prefix="/api/users", tags=["users"])
@@ -16,15 +18,15 @@ class UserProfile(BaseModel):
     user_id: str
     name: str
     phone: str
-    email: Optional[str] = None
-    created_at: Optional[str] = None
+    email: str | None = None
+    created_at: str | None = None
     role: str = "user"
 
 
 class UserCreate(BaseModel):
     name: str
     phone: str
-    email: Optional[str] = None
+    email: str | None = None
     password: str
 
 
@@ -32,7 +34,7 @@ class UserResponse(BaseModel):
     user_id: str
     name: str
     masked_phone: str
-    email: Optional[str] = None
+    email: str | None = None
     role: str
     created_at: str
 
@@ -47,11 +49,11 @@ class DataExport(BaseModel):
 
 class DataDeleteRequest(BaseModel):
     confirm: bool
-    reason: Optional[str] = None
+    reason: str | None = None
 
 
-users_db: Dict[str, Dict[str, Any]] = {}
-user_data_storage: Dict[str, Dict[str, Any]] = {}
+users_db: dict[str, dict[str, Any]] = {}
+user_data_storage: dict[str, dict[str, Any]] = {}
 
 
 @router_user.post("/", response_model=UserResponse)

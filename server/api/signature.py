@@ -1,9 +1,10 @@
-from typing import Optional, Dict, Any
-from fastapi import APIRouter, HTTPException, Header
-from pydantic import BaseModel
-import time
 import hashlib
 import hmac
+import time
+
+from fastapi import APIRouter, Header, HTTPException
+from pydantic import BaseModel
+
 from ..core.config import get_settings
 from ..core.logging import get_logger
 
@@ -68,7 +69,7 @@ async def require_signature(
 class AppointmentWithSignature(BaseModel):
     name: str
     phone: str
-    service_type: Optional[str] = None
+    service_type: str | None = None
     timestamp: str
     nonce: str
     signature: str

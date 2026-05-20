@@ -1,8 +1,9 @@
-from fastapi import FastAPI, Request
-from prometheus_client import Counter, Histogram, Gauge, generate_latest, CONTENT_TYPE_LATEST
-from starlette.responses import Response
 import time
-from typing import Callable
+from collections.abc import Callable
+
+from fastapi import FastAPI, Request
+from prometheus_client import CONTENT_TYPE_LATEST, Counter, Gauge, Histogram, generate_latest
+from starlette.responses import Response
 
 app = FastAPI()
 

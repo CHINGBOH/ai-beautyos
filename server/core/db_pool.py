@@ -1,10 +1,15 @@
-import time
 import asyncio
-from typing import Optional, Dict, Any
+import time
 from contextlib import asynccontextmanager
+from typing import Any
+
 from ..core.logging import get_logger
 
 logger = get_logger(__name__)
+
+
+class ConnectionPoolError(RuntimeError):
+    pass
 
 
 class DBPoolManager:
@@ -20,10 +25,10 @@ class DBPoolManager:
         self.max_idle_time = max_idle_time
         self.checkout_timeout = checkout_timeout
 
-        self._pool: Dict[str, Any] = {}
+        self._pool: dict[str, Any] = {}
         self._available: asyncio.Queue = asyncio.Queue()
-        self._created_at: Dict[str, float] = {}
-        self._in_use: Dict[str, bool] = {}
+        self._created_at: dict[str, float] = {}
+        self._in_use: dict[str, bool] = {}
         self._lock = asyncio.Lock()
 
     @asynccontextmanager
@@ -37,7 +42,7 @@ class DBPoolManager:
                 timeout=self.checkout_timeout
             )
             conn = self._pool.get(conn_id)
-        except asyncio.TimeoutError:
+        except TimeoutError as exc:
             if len(self._pool) < self.max_size:
                 async with self._lock:
                     conn_id = f"conn_{int(time.time() * 1000)}"
@@ -46,7 +51,7 @@ class DBPoolManager:
                     self._created_at[conn_id] = time.time()
                     logger.info("db_connection_created", conn_id=conn_id, pool_size=len(self._pool))
             else:
-                raise Exception("Connection pool exhausted")
+                raise ConnectionPoolError("Connection pool exhausted") from exc
 
         self._in_use[conn_id] = True
         logger.debug("db_connection_acquired", conn_id=conn_id)
@@ -82,7 +87,7 @@ class DBPoolManager:
                 await self._close_connection(conn_id)
             logger.info("db_pool_closed")
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         return {
             "total_connections": len(self._pool),
             "available": self._available.qsize(),

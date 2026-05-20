@@ -11,21 +11,31 @@
 #       app.use("/py-api", createProxyMiddleware({ target: "http://python-api:8000" }))
 #   - 农历节日计算 (holidays.py) 可被 Node.js 侧 birthday-holiday.ts 通过 HTTP 调用
 
+import time
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
-from contextlib import asynccontextmanager
-import time
+
+from .api import (
+    ab_router,
+    analytics_router,
+    appointment_router,
+    chat_router,
+    feedback_router,
+    holiday_router,
+    rag_router,
+    signature_router,
+    sms_router,
+    stream_router,
+    users_router,
+    wework_router,
+)
 from .core.config import get_settings
 from .core.exceptions import AppException, app_exception_handler, generic_exception_handler
 from .core.logging import get_logger, log_manager
-from .api import (
-    chat_router, appointment_router, users_router, rag_router, wework_router,
-    sms_router, stream_router, signature_router, feedback_router,
-    holiday_router, analytics_router, ab_router, medical_chat_router
-)
+from .core.middleware import CSPMiddleware, RequestIDMiddleware
 from .core.rate_limit import rate_limit_middleware
-from .core.middleware import RequestIDMiddleware, CSPMiddleware
 
 settings = get_settings()
 logger = get_logger(__name__)

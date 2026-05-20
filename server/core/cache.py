@@ -1,9 +1,11 @@
-import json
-import hashlib
-from typing import Optional, Any, Callable
-from datetime import datetime, timedelta
 import asyncio
+import contextlib
+import hashlib
+import json
+from collections.abc import Callable
 from functools import wraps
+from typing import Any
+
 from ..core.config import get_settings
 
 settings = get_settings()
@@ -11,7 +13,7 @@ settings = get_settings()
 
 class RedisCache:
     def __init__(self):
-        self._client = None
+        self._client: Any | None = None
         self._connected = False
         self._lock = asyncio.Lock()
 
@@ -25,28 +27,34 @@ class RedisCache:
 
             try:
                 import redis.asyncio as redis
-                self._client = redis.from_url(
+                client: Any = redis.from_url(
                     settings.REDIS_URL,
                     encoding="utf-8",
                     decode_responses=True,
                     max_connections=settings.REDIS_MAX_CONNECTIONS
                 )
-                await self._client.ping()
+                await client.ping()
+                self._client = client
                 self._connected = True
-            except Exception as e:
+            except Exception:
                 self._client = None
                 self._connected = False
 
     async def disconnect(self):
-        if self._client:
-            await self._client.close()
+        client = self._client
+        if client:
+            await client.close()
             self._connected = False
+            self._client = None
 
-    async def get(self, key: str) -> Optional[str]:
+    async def get(self, key: str) -> str | None:
         if not self._connected:
             return None
+        client = self._client
+        if client is None:
+            return None
         try:
-            return await self._client.get(key)
+            return await client.get(key)
         except Exception:
             return None
 
@@ -54,13 +62,16 @@ class RedisCache:
         self,
         key: str,
         value: str,
-        ex: Optional[int] = None,
-        px: Optional[int] = None
+        ex: int | None = None,
+        px: int | None = None
     ) -> bool:
         if not self._connected:
             return False
+        client = self._client
+        if client is None:
+            return False
         try:
-            await self._client.set(key, value, ex=ex, px=px)
+            await client.set(key, value, ex=ex, px=px)
             return True
         except Exception:
             return False
@@ -68,8 +79,11 @@ class RedisCache:
     async def delete(self, key: str) -> bool:
         if not self._connected:
             return False
+        client = self._client
+        if client is None:
+            return False
         try:
-            await self._client.delete(key)
+            await client.delete(key)
             return True
         except Exception:
             return False
@@ -77,32 +91,44 @@ class RedisCache:
     async def exists(self, key: str) -> bool:
         if not self._connected:
             return False
+        client = self._client
+        if client is None:
+            return False
         try:
-            return await self._client.exists(key) > 0
+            return await client.exists(key) > 0
         except Exception:
             return False
 
     async def incr(self, key: str) -> int:
         if not self._connected:
             return 0
+        client = self._client
+        if client is None:
+            return 0
         try:
-            return await self._client.incr(key)
+            return await client.incr(key)
         except Exception:
             return 0
 
     async def expire(self, key: str, seconds: int) -> bool:
         if not self._connected:
             return False
+        client = self._client
+        if client is None:
+            return False
         try:
-            return await self._client.expire(key, seconds)
+            return await client.expire(key, seconds)
         except Exception:
             return False
 
     async def ttl(self, key: str) -> int:
         if not self._connected:
             return -1
+        client = self._client
+        if client is None:
+            return -1
         try:
-            return await self._client.ttl(key)
+            return await client.ttl(key)
         except Exception:
             return -1
 
@@ -135,14 +161,12 @@ def cached(ttl: int = 300, key_prefix: str = ""):
             result = await func(*args, **kwargs)
 
             if result is not None:
-                try:
+                with contextlib.suppress(Exception):
                     await redis_cache.set(
                         cache_key_str,
                         json.dumps(result, default=str),
                         ex=ttl
                     )
-                except Exception:
-                    pass
 
             return result
         return wrapper

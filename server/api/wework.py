@@ -1,9 +1,9 @@
-from typing import Optional
-from fastapi import APIRouter, HTTPException, Request, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from ..integrations.wework import wework_service
+
+from ..core.auth import AuthenticatedUser, require_auth
 from ..core.logging import get_logger
-from ..core.auth import require_auth, AuthenticatedUser
+from ..integrations.wework import wework_service
 
 logger = get_logger(__name__)
 router_wework = APIRouter(prefix="/api/wework", tags=["wework"])
