@@ -26,9 +26,11 @@ import {
   Search,
   Home,
   AlertCircle,
+  Globe,
+  Download,
 } from "lucide-react";
-import DashboardLayout from "@/components/DashboardLayout";
 import { toast } from "sonner";
+import DashboardLayout from "@/components/DashboardLayout";
 import {
   KNOWLEDGE_MODULES,
   MODULE_NAMES,
@@ -221,6 +223,24 @@ export default function DashboardKnowledgeTree() {
           </p>
         </div>
 
+        {/* 知识库树 + 详情 (Tabs: 浏览 / 爬虫导入) */}
+        <Tabs defaultValue="browse">
+          <TabsList className="mb-3">
+            <TabsTrigger value="browse">
+              <BookOpen className="w-4 h-4 mr-1.5" />
+              浏览知识树
+            </TabsTrigger>
+            <TabsTrigger value="crawl">
+              <Globe className="w-4 h-4 mr-1.5" />
+              爬虫导入
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="crawl">
+            <CrawlerImport module={selectedModule} onImported={() => refetchTree()} />
+          </TabsContent>
+
+          <TabsContent value="browse">
         {/* 知识库树 + 详情 */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           {/* 左侧：知识树 */}
@@ -301,8 +321,108 @@ export default function DashboardKnowledgeTree() {
             </CardContent>
           </Card>
         </div>
+          </TabsContent>
+        </Tabs>
       </div>
     </DashboardLayout>
+  );
+}
+
+// 爬虫导入组件
+function CrawlerImport({ module, onImported }: { module: string; onImported: () => void }) {
+  const [url, setUrl] = useState("");
+  const [crawlResult, setCrawlResult] = useState<{ title?: string; content?: string; text?: string } | null>(null);
+
+  const crawlMutation = trpc.crawler.crawlHtml.useMutation({
+    onSuccess(data) {
+      setCrawlResult(data.data as { title?: string; content?: string; text?: string });
+      toast.success("页面爬取成功");
+    },
+    onError(e) {
+      toast.error(`爬取失败: ${e.message}`);
+    },
+  });
+
+  const importMutation = trpc.knowledge.create.useMutation({
+    onSuccess() {
+      toast.success("已导入知识库");
+      setCrawlResult(null);
+      setUrl("");
+      onImported();
+    },
+    onError(e) {
+      toast.error(`导入失败: ${e.message}`);
+    },
+  });
+
+  const title = crawlResult?.title || "";
+  const content = crawlResult?.text || crawlResult?.content || "";
+
+  return (
+    <div className="space-y-4 max-w-2xl">
+      <Card>
+        <CardHeader className="py-4">
+          <CardTitle className="text-base flex items-center gap-2">
+            <Globe className="w-4 h-4" />
+            从 URL 爬取内容
+          </CardTitle>
+          <CardDescription>
+            输入公开页面地址，自动提取标题和正文，导入到当前模块知识库
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex gap-2">
+            <Input
+              placeholder="https://example.com/article"
+              value={url}
+              onChange={e => setUrl(e.target.value)}
+              className="flex-1"
+            />
+            <Button
+              onClick={() => crawlMutation.mutate({ url, extractImages: false })}
+              disabled={!url || crawlMutation.isPending}
+            >
+              {crawlMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin" /> : "爬取"}
+            </Button>
+          </div>
+
+          {crawlResult && (
+            <div className="space-y-3 pt-2 border-t">
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">标题</p>
+                <p className="text-sm font-medium">{title || "（未识别到标题）"}</p>
+              </div>
+              <div>
+                <p className="text-xs text-muted-foreground mb-1">内容预览</p>
+                <div className="rounded border bg-muted/30 p-3 text-xs max-h-48 overflow-y-auto whitespace-pre-wrap">
+                  {content ? content.slice(0, 2000) : "（未提取到内容）"}
+                </div>
+              </div>
+              <Button
+                className="w-full"
+                disabled={!title || !content || importMutation.isPending}
+                onClick={() =>
+                  importMutation.mutate({
+                    title: title || url,
+                    content,
+                    module,
+                    sources: JSON.stringify([url]),
+                    credibility: 5,
+                  })
+                }
+              >
+                {importMutation.isPending ? (
+                  <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                ) : (
+                  <Download className="w-4 h-4 mr-2" />
+                )}
+                导入到「{module}」知识库
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
   );
 }
 

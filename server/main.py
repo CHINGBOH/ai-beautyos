@@ -1,3 +1,16 @@
+# Python FastAPI 服务 — 独立运行，与 Node.js 主服务并列。
+#
+# 架构决策（#38）：本服务保持独立，不合并进 Node.js。
+# 原因：Node.js 侧已覆盖 tRPC analytics / wework / triggers 核心能力；
+#       Python 侧独有能力（RAG、SMS、A/B Testing、医美问诊流）如需对外
+#       暴露，可在 Node.js 侧添加 http-proxy-middleware 代理至本服务的端口。
+#
+# 当前状态：
+#   - 随 docker-compose 可选启动（service: python-api）
+#   - 前端不直接调用本服务；如需对接，在 Node.js express 中添加：
+#       app.use("/py-api", createProxyMiddleware({ target: "http://python-api:8000" }))
+#   - 农历节日计算 (holidays.py) 可被 Node.js 侧 birthday-holiday.ts 通过 HTTP 调用
+
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
