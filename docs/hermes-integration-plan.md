@@ -31,6 +31,111 @@ beautyos-hermes
 
 Hermes should not directly write the production database or execute unbounded shell commands. It should operate through explicit tools, policies, dry-run flows, and audit logs.
 
+## Two-Hermes Operating Model
+
+BeautyOS should run two separate Hermes profiles instead of one all-powerful
+agent. This keeps deployment authority away from business-data authority.
+
+```text
+human owner
+  -> Hermes-Ops
+       -> GitHub / CI / deployment runner
+       -> builds image, runs checks, deploys or rolls back server
+
+production server
+  -> Hermes-App
+       -> BeautyOS Tool Server only
+       -> queries data, drafts content, prepares reports and tasks
+```
+
+### Hermes-Ops
+
+Hermes-Ops is the operational agent. It may run in a local workstation, CI
+runner, self-hosted runner, or bastion-style operations host. It owns repository
+and deployment workflows, not business workflows.
+
+Allowed responsibilities:
+
+- inspect GitHub repository state, branches, PRs, commits, and workflow runs
+- edit repository code through normal Git history
+- run tests, builds, migrations, and deployment runbooks
+- trigger CI/CD or controlled server deploy/rollback
+- inspect logs and health checks during rollout
+
+Hard boundaries:
+
+- no direct PostgreSQL credentials
+- no raw SQL against production
+- no customer outreach or external business messaging
+- no hot-patching production files outside Git-tracked deployment artifacts
+- destructive deployment actions require an explicit human confirmation step
+
+### Hermes-App
+
+Hermes-App is the production business agent. It runs near the BeautyOS server,
+inside the private Docker/network boundary. It only talks to BeautyOS through
+the System Registry and Tool Server.
+
+Allowed responsibilities:
+
+- query business overview, customers, conversations, knowledge, and content data
+- generate daily reports, follow-up suggestions, and Xiaohongshu/content drafts
+- prepare write proposals through dry-run capable tools
+- create low-risk database records only through approved Tool Server endpoints
+
+Hard boundaries:
+
+- no GitHub token
+- no SSH key
+- no shell execution
+- no raw SQL
+- no direct `DATABASE_URL`
+- no public access to Tool Server, PostgreSQL, or Redis
+- write tools must support dry-run or require `confirmed: true`
+
+### Runtime split
+
+Use separate bootstrap profiles:
+
+```text
+config/hermes-ops-profile.yaml   # operations/deployment profile
+config/hermes-app-profile.yaml   # server-side business profile
+```
+
+`config/hermes-profile.yaml` remains a compatibility profile for older
+launchers. New deployments should mount one of the explicit split profiles.
+
+### Tooling rule
+
+If Hermes-App needs a new capability, add a Tool Server endpoint with schema,
+policy, audit, rate limit, and dry-run/confirmation behavior. Do not let
+Hermes-App call tRPC, REST internals, PostgreSQL, or shell directly.
+
+If Hermes-Ops needs a new deployment action, add it as a GitHub workflow,
+CI job, or whitelisted runbook. Do not grant it business-data write access.
+
+### Immediate tool backlog
+
+Existing tools already cover customer search, business overview, recent
+conversations, reports, follow-up suggestions, content-topic generation, health,
+logs, Git status/diff, test execution, and whitelisted runbooks.
+
+Add these Tool Server capabilities before enabling Hermes-App to perform richer
+business operations:
+
+- `create_content_draft`: generate and save a Xiaohongshu/private-domain draft
+  through the existing content service
+- `update_content_draft`: revise title/content/tags for an existing draft
+- `schedule_xiaohongshu_post`: schedule a post; must require confirmation
+- `create_marketing_task`: create a follow-up/marketing task from a suggestion
+- `update_customer_followup`: update customer status/follow-up date/notes; must
+  support dry-run
+- `query_knowledge_base`: search imported knowledge/repo docs with source links
+- `create_knowledge_entry`: add internal knowledge; must require confirmation
+
+All write tools must return a dry-run preview with the exact rows/fields to be
+created or updated before accepting `confirmed: true`.
+
 ## Repository Strategy
 
 Use a two-repository model:

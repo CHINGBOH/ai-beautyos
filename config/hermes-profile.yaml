@@ -1,6 +1,11 @@
 # BeautyOS x Hermes runtime profile.
 # Consumed by the beautyos-hermes wrapper at container start.
 # See docs/architecture/hermes-adapter.md for the protocol.
+#
+# Compatibility profile: new deployments should prefer the explicit split
+# profiles:
+#   - config/hermes-ops-profile.yaml for GitHub/CI/deployment operations
+#   - config/hermes-app-profile.yaml for server-side business tool calls
 
 schemaVersion: "1.0.0"
 

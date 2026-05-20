@@ -1,0 +1,68 @@
+# Operations Hermes profile.
+# Runs outside the app container boundary and owns GitHub/CI/deploy workflows.
+
+schemaVersion: "1.0.0"
+profile: ops
+
+beautyos:
+  base: "${BEAUTYOS_BASE_URL}"
+  toolBase: "${BEAUTYOS_TOOL_BASE_URL}"
+  endpoints:
+    manifest:    "/system/manifest"
+    tools:       "/system/tools"
+    permissions: "/system/permissions"
+    health:      "/system/health"
+    invoke:      "/tools/{name}/invoke"
+
+compatible:
+  beautyosManifest: ">=1.0.0 <2.0.0"
+
+policy:
+  file: "config/policies/hermes/ops-deployer.yaml"
+
+identity:
+  tenantId: "${BEAUTYOS_TENANT_ID}"
+  agentId: "hermes-ops-deployer-v1"
+  userIdHeader: "x-end-user-id"
+
+repository:
+  owner: "CHINGBOH"
+  name: "ai-beautyos"
+  protectedBranch: "main"
+  deploymentBranch: "main"
+  releaseImage: "ghcr.io/chingboh/ai-beautyos"
+
+operations:
+  changePath: "branch_pr_or_commit"
+  deployPath: "github_actions_or_whitelisted_runbook"
+  serverHotPatch: false
+  requireHumanConfirmation:
+    - production_deploy
+    - rollback
+    - migration
+    - destructive_change
+
+retry:
+  manifestBootMaxAttempts: 5
+  manifestBootBaseDelayMs: 1000
+  toolMaxAttempts: 1
+  honourRetryAfter: true
+
+logging:
+  format: json
+  level: info
+  fields:
+    - tenantId
+    - agentId
+    - requestId
+    - traceId
+    - tool
+    - outcome
+
+hardRefuse:
+  rawSql: true
+  directDatabase: true
+  businessDataWrite: true
+  externalSend: true
+  productionHotPatch: true
+  unboundedShellExec: true

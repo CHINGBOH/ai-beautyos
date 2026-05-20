@@ -11,6 +11,8 @@ allowedTools:
   - search_customers
   - get_business_overview
   - list_recent_conversations
+  - generate_daily_report
+  - generate_content_topics
 
 forbiddenTools:
   - "*:write:*"

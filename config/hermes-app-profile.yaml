@@ -1,0 +1,52 @@
+# Server-side business Hermes profile.
+# Runs inside the production private network and calls BeautyOS tools only.
+
+schemaVersion: "1.0.0"
+profile: app
+
+beautyos:
+  base: "http://web:3000"
+  toolBase: "http://tool-server:5001"
+  endpoints:
+    manifest:    "/system/manifest"
+    tools:       "/system/tools"
+    permissions: "/system/permissions"
+    health:      "/system/health"
+    invoke:      "/tools/{name}/invoke"
+
+compatible:
+  beautyosManifest: ">=1.0.0 <2.0.0"
+
+policy:
+  file: "config/policies/hermes/content-operator.yaml"
+
+identity:
+  tenantId: "${BEAUTYOS_TENANT_ID}"
+  agentId: "hermes-app-business-v1"
+  userIdHeader: "x-end-user-id"
+
+retry:
+  manifestBootMaxAttempts: 10
+  manifestBootBaseDelayMs: 1000
+  toolMaxAttempts: 2
+  honourRetryAfter: true
+
+logging:
+  format: json
+  level: info
+  fields:
+    - tenantId
+    - agentId
+    - requestId
+    - traceId
+    - tool
+    - outcome
+
+hardRefuse:
+  shellExec: true
+  rawSql: true
+  directDatabase: true
+  gitHubWrite: true
+  ssh: true
+  externalSend: true
+  fileSystemWrites: true

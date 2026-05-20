@@ -8,7 +8,7 @@ shared sockets, no shared filesystems, no shared databases.
 ## Startup sequence (Hermes side)
 
 ```
-1. Read config/hermes-profile.yaml (this repo) for endpoint + policy refs
+1. Read the mounted Hermes profile YAML for endpoint + policy refs
 2. GET  ${beautyos_base}/system/manifest         # confirm version match
 3. GET  ${beautyos_base}/system/tools            # learn tool catalogue
 4. GET  ${beautyos_base}/system/permissions      # learn allow/forbid
@@ -85,9 +85,17 @@ same identity headers reversed.
   tool calling format directly. If they diverge in future, the
   translation belongs in `beautyos-hermes`, never here.
 
-## Profile file
+## Profile files
 
-The companion profile YAML in this repo
-(`config/hermes-profile.yaml`) is the canonical bootstrap input for
-`beautyos-hermes`. Copy / mount it into the Hermes image at runtime;
-do not duplicate.
+The companion profile YAML files in this repo are bootstrap inputs for
+`beautyos-hermes`. Copy / mount exactly one profile into each Hermes runtime.
+
+| Profile | Runtime | Purpose |
+|---------|---------|---------|
+| `config/hermes-ops-profile.yaml` | Operations host / CI / runner | GitHub, tests, deployment, rollback, logs |
+| `config/hermes-app-profile.yaml` | Production private network | Business queries, reports, content drafts through Tool Server |
+| `config/hermes-profile.yaml` | Compatibility | Legacy single-profile launchers |
+
+Do not merge the operations and app profiles. The operations profile may own
+GitHub/deployment authority, while the app profile may see production business
+tools. Combining those permissions creates an unnecessary blast radius.
