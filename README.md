@@ -1,6 +1,8 @@
-# AI Beauty CRM
+# AI BeautyOS
 
-AI customer management system for:
+Agent-Native 美业经营系统 — 可由 Hermes 常驻 Agent 驱动的 AI CRM 工具系统。
+
+适用于：
 
 - Beauty salons
 - Medical beauty clinics
@@ -112,6 +114,27 @@ Operational Analytics
 | Database | PostgreSQL + pgvector |
 | AI | DeepSeek / Qwen / RAG |
 | Deploy | Docker + Docker Compose |
+
+---
+
+# 三层架构 (Agent-Native)
+
+```text
+┌──────────────────────────────┐
+│        Hermes Agent          │  常驻 Agent：理解意图 / 调度工具 / 定时任务
+└──────────────┬───────────────┘
+               │ MCP / Tool Calls
+┌──────────────▼───────────────┐
+│    BeautyOS Tool Server       │  工具层：稳定 Schema / 权限审计 / Dry-run
+│      /tools/* (port 5001)     │
+└──────────────┬───────────────┘
+               │ Service Calls
+┌──────────────▼───────────────┐
+│      BeautyOS Core (port 3000)│  核心层：CRM / 内容 / 知识库 / 企微 / Web
+└──────────────────────────────┘
+```
+
+**部署原则**：仓库为唯一代码源，生产环境容器化运行，不允许在服务器直接热修未提交代码。
 
 ---
 
