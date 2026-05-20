@@ -3,14 +3,41 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import DashboardLayout from '@/components/DashboardLayout';
 
+interface ConversationRow {
+  id: number;
+  sessionId: string;
+  visitorName: string | null;
+  visitorPhone: string | null;
+  visitorWechat: string | null;
+  source: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  messageCount: number;
+  lastMessage: string | null;
+  lastActivity: string;
+}
+
+interface ConversationsEnvelope {
+  conversations: ConversationRow[];
+}
+
+function isConversationsEnvelope(value: unknown): value is ConversationsEnvelope {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "conversations" in value &&
+    Array.isArray(value.conversations)
+  );
+}
+
 export default function DashboardConversations() {
-  const [conversations, setConversations] = useState<any[]>([]);
+  const [conversations, setConversations] = useState<ConversationRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -22,11 +49,12 @@ export default function DashboardConversations() {
       if (!response.ok) {
         throw new Error('Failed to fetch conversations');
       }
-      const data = await response.json();
-      setConversations(data.conversations || []);
+      const data: unknown = await response.json();
+      setConversations(
+        Array.isArray(data) ? data : isConversationsEnvelope(data) ? data.conversations : []
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load conversations');
-      console.error('Error fetching conversations:', err);
     } finally {
       setLoading(false);
     }
@@ -118,20 +146,20 @@ export default function DashboardConversations() {
                             <div className="flex items-center gap-2">
                               <Avatar className="h-6 w-6">
                                 <AvatarFallback>
-                                  {conv.user_id ? conv.user_id.slice(0, 1) : 'U'}
+                                  {conv.visitorName?.slice(0, 1) ?? '访'}
                                 </AvatarFallback>
                               </Avatar>
                               <span className="font-medium">
-                                {conv.user_id || '匿名用户'}
+                                {conv.visitorName || conv.visitorPhone || conv.visitorWechat || '匿名访客'}
                               </span>
                             </div>
-                            {conv.last_message && (
+                            {conv.lastMessage && (
                               <p className="text-sm text-gray-500 dark:text-gray-400 truncate max-w-xs">
-                                {conv.last_message}
+                                {conv.lastMessage}
                               </p>
                             )}
                             <p className="text-xs text-gray-400">
-                              Session: {conv.session_id}
+                              Session: {conv.sessionId}
                             </p>
                           </div>
                         </TableCell>
@@ -143,13 +171,13 @@ export default function DashboardConversations() {
                           </Badge>
                         </TableCell>
                         <TableCell className="text-sm">
-                          {formatDate(conv.created_at)}
+                          {formatDate(conv.createdAt)}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {formatDate(conv.last_activity)}
+                          {formatDate(conv.lastActivity)}
                         </TableCell>
                         <TableCell className="text-sm">
-                          {conv.message_count}
+                          {conv.messageCount}
                         </TableCell>
                       </TableRow>
                     ))}
@@ -182,7 +210,7 @@ export default function DashboardConversations() {
               <div className="p-4 bg-stone-50 rounded-lg dark:bg-stone-800">
                 <p className="text-sm text-[#B8A68D] dark:text-stone-300">总消息数</p>
                 <p className="text-2xl font-bold text-stone-600 dark:text-stone-200">
-                  {conversations.reduce((sum, c) => sum + c.message_count, 0)}
+                  {conversations.reduce((sum, c) => sum + c.messageCount, 0)}
                 </p>
               </div>
             </div>

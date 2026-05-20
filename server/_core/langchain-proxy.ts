@@ -179,7 +179,10 @@ export function registerLangchainBackendProxy(app: Express): void {
     const { limit = 50, offset = 0 } = req.query;
     try {
       const { getAllConversations } = await import("../db");
-      const conversations = await getAllConversations();
+      const conversations = await getAllConversations(
+        Number(limit) || 50,
+        Number(offset) || 0
+      );
       res.status(200).json(conversations);
     } catch (err) {
       console.error("[conversations] 查询失败:", err);

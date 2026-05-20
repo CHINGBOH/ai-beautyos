@@ -1,4 +1,4 @@
-import { eq, desc, and, or, like, ilike, isNull, sql } from "drizzle-orm";
+import { eq, desc, and, or, like, ilike, isNull, sql, inArray } from "drizzle-orm";
 import { drizzle, type PostgresJsDatabase } from "drizzle-orm/postgres-js";
 import postgres from "postgres";
 import type { ExtractTablesWithRelations } from "drizzle-orm";
@@ -534,11 +534,58 @@ export async function updateConversation(
     .where(eq(conversations.sessionId, sessionId));
 }
 
-export async function getAllConversations() {
+export async function getAllConversations(limit = 50, offset = 0) {
   const db = await getDb();
   if (!db) throw new Error("Database not available");
 
-  return db.select().from(conversations).orderBy(desc(conversations.createdAt));
+  const conversationRows = await db
+    .select()
+    .from(conversations)
+    .orderBy(desc(conversations.createdAt))
+    .limit(limit)
+    .offset(offset);
+
+  const conversationIds = conversationRows.map((conversation) => conversation.id);
+  if (conversationIds.length === 0) return [];
+
+  const messageRows = await db
+    .select({
+      conversationId: messages.conversationId,
+      content: messages.content,
+      createdAt: messages.createdAt,
+    })
+    .from(messages)
+    .where(inArray(messages.conversationId, conversationIds))
+    .orderBy(desc(messages.createdAt));
+
+  const messageStats = new Map<
+    number,
+    { count: number; lastMessage: string | null; lastActivity: string | null }
+  >();
+
+  for (const message of messageRows) {
+    const current = messageStats.get(message.conversationId);
+    if (current) {
+      current.count += 1;
+      continue;
+    }
+
+    messageStats.set(message.conversationId, {
+      count: 1,
+      lastMessage: message.content,
+      lastActivity: message.createdAt,
+    });
+  }
+
+  return conversationRows.map((conversation) => {
+    const stats = messageStats.get(conversation.id);
+    return {
+      ...conversation,
+      messageCount: stats?.count ?? 0,
+      lastMessage: stats?.lastMessage ?? null,
+      lastActivity: stats?.lastActivity ?? conversation.updatedAt,
+    };
+  });
 }
 
 // ==================== 消息相关 ====================
