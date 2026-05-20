@@ -188,9 +188,7 @@ export const analyticsRouter = router({
         return acc;
       }, {}),
       projectDistribution: allLeads.reduce((acc: any, lead) => {
-        const projects = Array.isArray(lead.interestedServices)
-          ? lead.interestedServices
-          : [];
+        const projects = toLeadData(lead).interestedServices ?? [];
         projects.forEach((proj: string) => {
           acc[proj] = (acc[proj] || 0) + 1;
         });
@@ -395,9 +393,7 @@ async function fetchOverview() {
     }, {});
 
     const projectDistribution = allLeads.reduce((acc: any, lead) => {
-      const projects = Array.isArray(lead.interestedServices)
-        ? lead.interestedServices
-        : [];
+      const projects = toLeadData(lead).interestedServices ?? [];
       projects.forEach((proj: string) => {
         acc[proj] = (acc[proj] || 0) + 1;
       });

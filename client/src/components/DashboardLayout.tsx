@@ -136,7 +136,7 @@ export default function DashboardLayout({
     return document.documentElement.classList.contains('dark');
   });
   
-  const { loading, user } = useAuth();
+  const { loading, user } = useAuth({ redirectOnUnauthenticated: true });
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -155,6 +155,14 @@ export default function DashboardLayout({
     }
   };
 
+  if (loading || !user) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <SidebarProvider
       style={
@@ -163,7 +171,7 @@ export default function DashboardLayout({
         } as CSSProperties
       }
     >
-      <DashboardLayoutContent 
+      <DashboardLayoutContent
         setSidebarWidth={setSidebarWidth}
         isDarkMode={isDarkMode}
         toggleTheme={toggleTheme}
