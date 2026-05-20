@@ -138,13 +138,13 @@ function BrandStory() {
       <div className="max-w-6xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-12 items-center">
           <FadeIn>
-            <div className="relative">
+            <div className="relative isolate">
               <img
                 src="https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?w=1200&q=80"
                 alt="LUMIÈRE 诊所"
                 className="rounded-2xl w-full h-96 object-cover"
               />
-              <div className="absolute -bottom-6 -right-6 w-48 h-48 bg-stone-100 rounded-2xl -z-10" />
+              <div className="absolute -bottom-6 -right-6 w-48 h-48 bg-[#EFE7DA] rounded-2xl -z-10" />
             </div>
           </FadeIn>
 

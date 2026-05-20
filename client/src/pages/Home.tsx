@@ -502,7 +502,7 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
   return (
     <section
       ref={sectionRef}
-      className="relative h-screen w-full overflow-hidden"
+      className="relative h-screen w-full overflow-hidden bg-[#1f1712]"
     >
       {/* 背景层 - 轮播 */}
       {featuredHeroSlides.map((s, index) => (
@@ -520,6 +520,7 @@ function Hero({ onOpenChat }: { onOpenChat: () => void }) {
             alt={s.title}
             className="w-full h-full object-cover"
             fetchPriority={index === 0 ? "high" : "auto"}
+            loading={index === 0 ? "eager" : "lazy"}
           />
           <div className="absolute inset-0 bg-gradient-to-r from-[#1f1712]/72 via-[#6f5847]/32 to-[#f8efe2]/14" />
           <div className="absolute inset-0 bg-gradient-to-t from-[#1f1712]/55 via-transparent to-[#1f1712]/20" />
@@ -985,7 +986,7 @@ function ServicesPreview() {
       <div className="max-w-6xl mx-auto">
         <FadeIn>
           <div className="text-center mb-12">
-            <p className="text-amber-600 text-xs tracking-[0.3em] uppercase mb-2">
+            <p className="text-[#B8A68D] text-xs tracking-[0.3em] uppercase mb-2">
               Our Services
             </p>
             <h2 className="text-3xl lg:text-4xl font-light text-stone-900 mb-4">
@@ -1188,7 +1189,7 @@ function Process() {
       <div className="max-w-6xl mx-auto">
         <FadeIn>
           <div className="text-center mb-16">
-            <p className="text-amber-600 text-xs tracking-[0.3em] uppercase mb-2">
+            <p className="text-[#B8A68D] text-xs tracking-[0.3em] uppercase mb-2">
               Process
             </p>
             <h2 className="text-3xl lg:text-4xl font-light text-stone-900 mb-4">
@@ -1248,21 +1249,21 @@ function WhyUs() {
       <div className="max-w-6xl mx-auto">
         <div className="grid lg:grid-cols-2 gap-12 lg:gap-20 items-center">
           <FadeIn>
-            <div className="relative">
+            <div className="relative isolate">
               <img
                 src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?w=800&q=80"
                 alt="专业团队"
                 className="rounded-2xl w-full h-80 lg:h-96 object-cover"
               />
-              <div className="absolute -bottom-6 -right-6 w-48 h-48 bg-amber-100 rounded-2xl -z-10" />
-              <div className="absolute -top-6 -left-6 w-32 h-32 bg-rose-100 rounded-2xl -z-10" />
+              <div className="absolute -bottom-6 -right-6 w-48 h-48 bg-[#EFE7DA] rounded-2xl -z-10" />
+              <div className="absolute -top-6 -left-6 w-32 h-32 bg-[#DED2C4] rounded-2xl -z-10" />
             </div>
           </FadeIn>
 
           <FadeIn delay={0.2}>
             <div className="space-y-8">
               <div>
-                <p className="text-amber-600 text-xs tracking-[0.3em] uppercase mb-2">
+                <p className="text-[#B8A68D] text-xs tracking-[0.3em] uppercase mb-2">
                   Why Choose Us
                 </p>
                 <h2 className="text-3xl lg:text-4xl font-light text-stone-900 mb-4">
@@ -1370,14 +1371,14 @@ function CTA() {
 
       <div className="max-w-4xl mx-auto text-center relative z-10">
         <FadeIn>
-          <p className="text-amber-600 text-xs tracking-[0.3em] uppercase mb-4">
+          <p className="text-[#B8A68D] text-xs tracking-[0.3em] uppercase mb-4">
             Limited Consultation
           </p>
           <h2 className="text-4xl lg:text-6xl font-light text-stone-900 mb-4">
             最好的投资，<span className="text-stone-400">是投资自己</span>
           </h2>
           <p className="text-stone-500 mb-8 max-w-xl mx-auto">
-            本月仅剩 <span className="text-amber-600 font-medium">17</span>{" "}
+            本月仅剩 <span className="text-[#B8A68D] font-medium">17</span>{" "}
             个免费面诊名额
           </p>
 
