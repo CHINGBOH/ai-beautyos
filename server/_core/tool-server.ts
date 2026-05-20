@@ -87,7 +87,14 @@ function loadToolConfigs(): Record<string, ToolConfig> {
   return out;
 }
 
-type Handler = (input: any, ctx: { tenantId: string }) => Promise<any>;
+type HandlerContext = {
+  tenantId: string;
+  agentId: string;
+  dryRun: boolean;
+  confirmed: boolean;
+};
+
+type Handler = (input: any, ctx: HandlerContext) => Promise<any>;
 
 const TOOL_HANDLERS: Record<string, Handler> = {
   async search_customers(input) {
@@ -178,6 +185,41 @@ const TOOL_HANDLERS: Record<string, Handler> = {
     return generateTodoDraft();
   },
 
+  async query_knowledge_base(input) {
+    const { queryKnowledgeBaseTool } = await import("../services/hermes-app-tools.service");
+    return queryKnowledgeBaseTool(input ?? {});
+  },
+
+  async create_content_draft(input, ctx) {
+    const { createContentDraftTool } = await import("../services/hermes-app-tools.service");
+    return createContentDraftTool(input ?? {}, ctx);
+  },
+
+  async update_content_draft(input, ctx) {
+    const { updateContentDraftTool } = await import("../services/hermes-app-tools.service");
+    return updateContentDraftTool(input ?? {}, ctx);
+  },
+
+  async schedule_xiaohongshu_post(input, ctx) {
+    const { scheduleXiaohongshuPostTool } = await import("../services/hermes-app-tools.service");
+    return scheduleXiaohongshuPostTool(input ?? {}, ctx);
+  },
+
+  async update_customer_followup(input, ctx) {
+    const { updateCustomerFollowupTool } = await import("../services/hermes-app-tools.service");
+    return updateCustomerFollowupTool(input ?? {}, ctx);
+  },
+
+  async create_marketing_task(input, ctx) {
+    const { createMarketingTaskTool } = await import("../services/hermes-app-tools.service");
+    return createMarketingTaskTool(input ?? {}, ctx);
+  },
+
+  async create_knowledge_entry(input, ctx) {
+    const { createKnowledgeEntryTool } = await import("../services/hermes-app-tools.service");
+    return createKnowledgeEntryTool(input ?? {}, ctx);
+  },
+
   async read_beautyos_log(input) {
     const { readLog } = await import("../services/maintenance.service");
     return readLog(input?.lines ?? 50, input?.filter);
@@ -209,8 +251,15 @@ const TOOL_HANDLERS: Record<string, Handler> = {
     return runTests(input?.suite);
   },
 
-  async run_whitelist_script(input) {
+  async run_whitelist_script(input, ctx) {
     if (!input?.name) throw new Error("name required");
+    if (ctx.dryRun) {
+      return {
+        wouldRun: "whitelisted script",
+        script: String(input.name),
+        requiresConfirmedInvoke: true,
+      };
+    }
     const { runWhitelistScript } = await import("../services/maintenance.service");
     return runWhitelistScript(String(input.name));
   },
@@ -360,7 +409,11 @@ export function registerToolServerRoutes(app: Express) {
 
     const t0 = Date.now();
     try {
-      const result = await withTimeout(handler(input, { tenantId }), cfg.timeoutMs, name);
+      const result = await withTimeout(
+        handler(input, { tenantId, agentId, dryRun, confirmed }),
+        cfg.timeoutMs,
+        name
+      );
       const dt = Date.now() - t0;
       recordAudit({
         kind: dryRun ? "tool.invoke.dryrun" : "tool.invoke.ok",

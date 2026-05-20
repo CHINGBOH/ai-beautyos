@@ -1,0 +1,24 @@
+schemaVersion: "1.0.0"
+name: create_marketing_task
+description: 为客户创建营销/跟进任务；当前以客户跟进备注和 followUpDate 形式落库
+risk: medium
+access: rw
+timeoutMs: 10000
+maxRows: 0
+rateLimitPerMin: 20
+requiresConfirm: true
+supportsDryRun: true
+input:
+  customerId: { type: number, required: true }
+  title: { type: string, required: true, maxLength: 200 }
+  description: { type: string, required: false, maxLength: 2000 }
+  dueAt: { type: string, required: false, format: date-time }
+  status: { type: string, required: false, default: follow_up }
+output:
+  success: boolean
+  storedAs: string
+  customer: object
+audit: full
+tags:
+  - "customer:write"
+  - "marketing:write"

@@ -1,0 +1,22 @@
+schemaVersion: "1.0.0"
+name: update_content_draft
+description: 更新已有小红书内容草稿的标题、正文或标签
+risk: medium
+access: rw
+timeoutMs: 10000
+maxRows: 0
+rateLimitPerMin: 10
+requiresConfirm: true
+supportsDryRun: true
+input:
+  postId: { type: number, required: true }
+  title: { type: string, required: false, maxLength: 200 }
+  content: { type: string, required: false, maxLength: 10000 }
+  tags: { type: array, required: false }
+output:
+  id: number
+  title: string
+  status: string
+audit: full
+tags:
+  - "content:write"

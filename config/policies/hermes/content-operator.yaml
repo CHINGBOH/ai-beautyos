@@ -13,14 +13,29 @@ allowedTools:
   - list_recent_conversations
   - generate_daily_report
   - generate_content_topics
+  - query_knowledge_base
+  - create_content_draft
+  - update_content_draft
+  - schedule_xiaohongshu_post
+  - create_marketing_task
+  - update_customer_followup
+  - create_knowledge_entry
 
 forbiddenTools:
-  - "*:write:*"
   - send_followup_message
-  - schedule_post
+  - run_whitelist_script
+  - get_beautyos_git_diff
+  - get_beautyos_git_status
+  - read_beautyos_file
+  - read_beautyos_log
 
 confirmRequired:
-  - schedule_post
+  - create_content_draft
+  - update_content_draft
+  - schedule_xiaohongshu_post
+  - create_marketing_task
+  - update_customer_followup
+  - create_knowledge_entry
 
 outputFormat:
   preferred: structured_then_prose

@@ -1,0 +1,26 @@
+schemaVersion: "1.0.0"
+name: create_knowledge_entry
+description: 添加内部知识库条目，需要 dry-run 预览和人工确认
+risk: medium
+access: rw
+timeoutMs: 10000
+maxRows: 0
+rateLimitPerMin: 10
+requiresConfirm: true
+supportsDryRun: true
+input:
+  title: { type: string, required: true, maxLength: 200 }
+  content: { type: string, required: true, maxLength: 100000 }
+  summary: { type: string, required: false, maxLength: 10000 }
+  module: { type: string, required: false, default: repo_docs }
+  category: { type: string, required: false, default: Hermes }
+  type: { type: string, required: false, enum: ["customer", "internal"], default: internal }
+  tags: { type: array, required: false }
+  sources: { type: string, required: false }
+  credibility: { type: number, required: false, default: 5 }
+  difficulty: { type: string, required: false, enum: ["beginner", "intermediate", "advanced"] }
+output:
+  success: boolean
+audit: full
+tags:
+  - "knowledge:write"

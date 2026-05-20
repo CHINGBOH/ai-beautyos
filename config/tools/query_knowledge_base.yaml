@@ -1,0 +1,25 @@
+schemaVersion: "1.0.0"
+name: query_knowledge_base
+description: 查询知识库和导入的仓库文档，返回标题、摘要、来源和标签
+risk: low
+access: ro
+timeoutMs: 8000
+maxRows: 50
+rateLimitPerMin: 60
+requiresConfirm: false
+supportsDryRun: false
+input:
+  keyword: { type: string, required: false, maxLength: 200 }
+  query: { type: string, required: false, maxLength: 200 }
+  module: { type: string, required: false }
+  type: { type: string, required: false, enum: ["customer", "internal"] }
+  limit: { type: number, required: false, default: 20, max: 50 }
+  offset: { type: number, required: false, default: 0 }
+output:
+  rows: array
+  total: number
+  limit: number
+  offset: number
+audit: summary
+tags:
+  - "knowledge:read"
