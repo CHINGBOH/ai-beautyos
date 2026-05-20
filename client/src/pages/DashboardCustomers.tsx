@@ -69,6 +69,8 @@ export default function DashboardCustomers() {
     birthday: "",
     importantHolidays: "",
   });
+  const [followupDraft, setFollowupDraft] = useState<string | null>(null);
+  const [profileText, setProfileText] = useState<string | null>(null);
 
   // 获取客户列表
   const { data: customers, isLoading } = trpc.customers.list.useQuery();
@@ -77,6 +79,11 @@ export default function DashboardCustomers() {
     onSuccess: updated => {
       utils.customers.list.invalidate();
       if (updated) setSelectedCustomer(updated);
+    },
+  });
+  const generateProfileMutation = trpc.analytics.generateCustomerProfile.useMutation({
+    onSuccess: data => {
+      if (data.success) setProfileText(data.profile || null);
     },
   });
 
@@ -674,11 +681,55 @@ export default function DashboardCustomers() {
                     </div>
                   )}
                 </div>
+                {/* AI 操作区 */}
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={generateProfileMutation.isPending}
+                      onClick={() => {
+                        setProfileText(null);
+                        setFollowupDraft(null);
+                        generateProfileMutation.mutate({ leadId: selectedCustomer.id });
+                      }}
+                    >
+                      {generateProfileMutation.isPending ? "生成中..." : "AI 客户画像"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setProfileText(null);
+                        setFollowupDraft("生成中...");
+                        fetch(`/tools/generate_followup_suggestion/invoke`, {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({ input: { customerId: selectedCustomer.id, tone: "warm_concierge" } }),
+                        })
+                          .then(r => r.json())
+                          .then(d => setFollowupDraft(d.result?.draft || "生成失败"))
+                          .catch(() => setFollowupDraft("生成失败，请检查网络"));
+                      }}
+                    >
+                      AI 生成跟进话术
+                    </Button>
+                  </div>
+                  {profileText && (
+                    <div className="rounded-lg bg-muted p-3 text-sm whitespace-pre-wrap">{profileText}</div>
+                  )}
+                  {followupDraft && followupDraft !== "生成中..." && (
+                    <div className="rounded-lg bg-stone-50 border p-3 text-sm">
+                      <p className="text-xs text-muted-foreground mb-1">建议话术（可直接复制使用）</p>
+                      <p>{followupDraft}</p>
+                    </div>
+                  )}
+                </div>
                 <div className="border-t pt-4 flex justify-between items-center">
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setSelectedCustomer(null)}
+                    onClick={() => { setSelectedCustomer(null); setFollowupDraft(null); setProfileText(null); }}
                   >
                     ← 返回客户列表
                   </Button>

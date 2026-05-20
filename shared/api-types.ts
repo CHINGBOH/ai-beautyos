@@ -221,9 +221,13 @@ export interface ContentGenerationOutput {
 export interface ContentTemplate {
   id: string;
   name: string;
-  title: string;
-  content: string;
-  tags: string[];
+  title?: string;
+  content?: string;
+  tags?: string[];
+  type?: string;
+  description?: string;
+  structure?: string;
+  example?: string;
 }
 
 // ==================== API Response Types ====================

@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { TRPCError } from "@trpc/server";
 import { protectedProcedure, router } from "../_core/trpc";
-import { invokeLLMWithRetry } from "../llm";
+import { invokeLLMWithRetry, invokeLLM } from "../llm";
 import {
   getActiveKnowledge,
   createXiaohongshuPost,
@@ -431,13 +431,15 @@ Requirements:
 Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
 
       try {
-        const result = await generateImage({
-          prompt: imagePrompt,
-        });
-
-        logger.info(`[Content] Image generated successfully`);
+        const result = await generateImage({ prompt: imagePrompt });
+        const FALLBACK_URL = "https://images.unsplash.com/photo-1522335789203-aabd1fc54bc9";
+        const imageUrl = result.url ?? FALLBACK_URL;
+        const isFallback = imageUrl.startsWith(FALLBACK_URL);
+        logger.info(`[Content] Image generated, fallback=${isFallback}`);
         return {
-          url: result.url,
+          url: imageUrl,
+          isFallback,
+          fallbackReason: isFallback ? "未配置图片生成服务（VOLC_IMAGE_API），使用了占位图。请配置环境变量启用真实图片生成。" : undefined,
         };
       } catch (error) {
         logger.error("[Content] Image generation failed:", error);
@@ -510,33 +512,118 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
       };
     }),
 
-  /**
-   * 获取小红书写作技巧和建议
-   * TODO: 将写作技巧数据迁移到数据库，支持动态配置
-   */
-  getWritingTips: protectedProcedure.query(async () => {
+  getWritingTips: protectedProcedure.query(async ({ ctx }) => {
+    const contentType = "xiaohongshu";
+    const tips: Record<string, string[]> = {
+      project: [
+        "标题用数字增强可信度：「28天改善肤色」比「改善肤色」更有吸引力",
+        "开头3秒留住读者：用痛点提问或意外结论开场",
+        "正文结构：痛点 → 解决方案 → 效果展示 → 行动召唤",
+        "用「我」的视角代入感更强，避免纯广告语气",
+        "结尾加互动引导：「你们有同样烦恼吗？评论区聊聊」",
+      ],
+      case: [
+        "前后对比图最吸睛，确保光线、角度、妆容一致",
+        "真实客户故事比营销文字更有说服力",
+        "说明改善周期和次数，增加可参考性",
+        "提及客户的具体肤质问题，让读者产生共鸣",
+        "用数据量化效果：「3次疗程后毛孔缩小约40%」",
+      ],
+      price: [
+        "不要直接说价格，先说价值，再说优惠",
+        "锚定高价参考：「市场价通常8000-12000，活动价4800」",
+        "限时/限量制造紧迫感，但要真实可信",
+        "套餐组合比单项更能提高客单价",
+        "结尾引导私信咨询，不要在评论区公开详细价格",
+      ],
+      guide: [
+        "步骤清晰，用数字列表，方便读者收藏",
+        "加入专业名词解释，体现权威性",
+        "穿插自身经验，增强亲和力",
+        "提示常见误区，帮读者避坑",
+        "末尾加总结和推荐，提供行动指引",
+      ],
+      holiday: [
+        "节日内容要提前7-10天发布，趁流量高峰",
+        "结合节日情感诉求，比如母亲节主打「送给妈妈的礼物」",
+        "限定礼盒/套餐设计，增强节日仪式感",
+        "节日祝福文案真诚，不要太商业化",
+        "配合节日色系配图，提升视觉一致性",
+      ],
+      new_product: [
+        "新品发布要制造期待感，可以提前预告",
+        "说清楚「新在哪里」：成分升级、技术迭代、使用体验",
+        "对比旧方案，突出改进点",
+        "邀请粉丝体验官，用UGC增加可信度",
+        "首发优惠吸引早期用户，形成口碑传播",
+      ],
+    };
+
+    const generalTips = [
+      "封面图决定点击率，文字不超过10个字",
+      "标签选择精准 > 热门，覆盖3-5个垂直标签",
+      "发布时间：工作日晚7-9点，周末早10-11点流量最高",
+      "前5条评论的互动决定算法推荐力度，发布后及时回复",
+      "图片9张优先，视频笔记完播率影响推荐",
+    ];
+
+    const typeKey = contentType as keyof typeof tips;
     return {
-      tips: [],
-      generalTips: [],
-      message: "写作技巧数据尚未配置，请联系管理员添加",
+      tips: tips[typeKey] || tips.project,
+      generalTips,
     };
   }),
 
-  /**
-   * 获取预设模板
-   * TODO: 将模板数据迁移到数据库，支持用户自定义模板
-   */
   getTemplates: protectedProcedure.query(async () => {
+    const templates: ContentTemplate[] = [
+      {
+        id: "tpl_project_intro",
+        name: "项目介绍模板",
+        type: "project" as any,
+        description: "适合介绍单个医美项目，包含原理、适应症、效果",
+        structure: "【标题】项目名称 + 核心效果\n【开场】痛点共鸣\n【正文】项目原理 + 适合人群 + 效果说明\n【结尾】预约/咨询引导",
+        example: "28天淡斑实测！超皮秒真的有用吗？\n...",
+      },
+      {
+        id: "tpl_case_story",
+        name: "客户案例模板",
+        type: "case" as any,
+        description: "真实客户改善案例，前后对比，增强可信度",
+        structure: "【标题】改善效果 + 时间周期\n【背景】客户肤质问题\n【过程】治疗方案和次数\n【效果】具体数据化描述\n【结尾】同类问题欢迎咨询",
+        example: "油皮痘印3个月消退80%！记录我的超皮秒修复之旅\n...",
+      },
+      {
+        id: "tpl_holiday_promo",
+        name: "节日促销模板",
+        type: "holiday" as any,
+        description: "节日限定套餐推广，制造稀缺感和情感共鸣",
+        structure: "【标题】节日 + 专属优惠\n【情感】节日祝福和情感共鸣\n【内容】套餐详情和优惠力度\n【结尾】限时提醒 + 私信咨询",
+        example: "母亲节专属丨送妈妈最好的礼物，就是让她变美\n...",
+      },
+      {
+        id: "tpl_science_guide",
+        name: "科普指南模板",
+        type: "guide" as any,
+        description: "专业知识科普，建立权威形象，吸引精准客户",
+        structure: "【标题】问题/误区 + 正确答案\n【误区点】常见错误认知\n【正解】专业解释\n【建议】实操指南\n【总结】收藏备用引导",
+        example: "玻尿酸≠无限补水！皮肤科医生揭秘4个注射误区\n...",
+      },
+      {
+        id: "tpl_price_reveal",
+        name: "价格揭秘模板",
+        type: "price" as any,
+        description: "透明化价格，结合价值说明，降低咨询门槛",
+        structure: "【标题】项目名称 + 价格区间\n【说明】影响价格的因素\n【对比】市场均价 vs 机构价格\n【建议】如何选择适合自己的方案\n【结尾】预约面诊了解个性化方案",
+        example: "热玛吉到底多少钱？全面拆解价格背后的秘密\n...",
+      },
+    ];
+
     return {
-      templates: [] as ContentTemplate[],
+      templates,
       allTypes: ["project", "case", "price", "guide", "holiday", "new_product"],
-      message: "模板数据尚未配置，请使用「一键爽文」功能自动生成内容",
     };
   }),
 
-  /**
-   * 使用模板生成内容
-   */
   generateFromTemplate: protectedProcedure
     .input(
       z.object({
@@ -544,12 +631,57 @@ Color palette: Soft pinks, whites, golds, or pastels depending on the style.`;
         customizations: z.record(z.string(), z.string().max(1000)).optional(),
       })
     )
-    .mutation(async ({ input }) => {
-      // TODO: 基于模板生成内容 — 需要模板库表和 LLM 填充逻辑
-      throw new TRPCError({
-        code: "NOT_IMPLEMENTED",
-        message: "模板生成功能尚未实现，请使用「一键爽文」功能生成内容",
-      });
+    .mutation(async ({ input, ctx }) => {
+      const templatesRes = await (async () => {
+        const templates: ContentTemplate[] = [
+          { id: "tpl_project_intro", name: "项目介绍模板", type: "project" as any, description: "", structure: "【标题】项目名称 + 核心效果\n【开场】痛点共鸣\n【正文】项目原理 + 适合人群 + 效果说明\n【结尾】预约/咨询引导", example: "" },
+          { id: "tpl_case_story", name: "客户案例模板", type: "case" as any, description: "", structure: "【标题】改善效果 + 时间周期\n【背景】客户肤质问题\n【过程】治疗方案和次数\n【效果】具体数据化描述\n【结尾】同类问题欢迎咨询", example: "" },
+          { id: "tpl_holiday_promo", name: "节日促销模板", type: "holiday" as any, description: "", structure: "【标题】节日 + 专属优惠\n【情感】节日祝福和情感共鸣\n【内容】套餐详情和优惠力度\n【结尾】限时提醒 + 私信咨询", example: "" },
+          { id: "tpl_science_guide", name: "科普指南模板", type: "guide" as any, description: "", structure: "【标题】问题/误区 + 正确答案\n【误区点】常见错误认知\n【正解】专业解释\n【建议】实操指南\n【总结】收藏备用引导", example: "" },
+          { id: "tpl_price_reveal", name: "价格揭秘模板", type: "price" as any, description: "", structure: "【标题】项目名称 + 价格区间\n【说明】影响价格的因素\n【对比】市场均价 vs 机构价格\n【建议】如何选择适合自己的方案\n【结尾】预约面诊了解个性化方案", example: "" },
+        ];
+        return templates;
+      })();
+
+      const tpl = templatesRes.find(t => t.id === input.templateId);
+      if (!tpl) throw new TRPCError({ code: "NOT_FOUND", message: "模板不存在" });
+
+      const customText = input.customizations
+        ? Object.entries(input.customizations).map(([k, v]) => `${k}: ${v}`).join("\n")
+        : "";
+
+      const rateLimit = contentGenerationLimiter.check(ctx.user.openId || "anonymous");
+      if (!rateLimit.allowed) {
+        throw new Error(`生成次数过多，请 ${Math.ceil((rateLimit.resetAt - Date.now()) / 1000)} 秒后重试`);
+      }
+
+      const prompt = `你是小红书医美内容创作专家。请根据以下模板结构生成一篇完整的小红书笔记。
+
+模板名称：${tpl.name}
+模板结构：
+${tpl.structure}
+
+${customText ? `用户自定义信息：\n${customText}\n` : ""}
+要求：
+- 语气自然、真实，不要太商业化
+- 标题吸引人，正文500-800字
+- 结尾加3-5个相关话题标签
+- 返回格式：{"title": "标题", "content": "正文内容（不含标题）", "tags": ["标签1", "标签2"]}
+
+只返回JSON，不要有其他内容。`;
+
+      const raw = await invokeLLM({ messages: [{ role: "user" as const, content: prompt }] });
+      const text = typeof raw === "string" ? raw : (raw as any).content || "";
+
+      const jsonMatch = text.match(/\{[\s\S]*\}/);
+      if (!jsonMatch) throw new TRPCError({ code: "INTERNAL_SERVER_ERROR", message: "生成内容解析失败" });
+
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        title: parsed.title || "",
+        content: parsed.content || "",
+        tags: Array.isArray(parsed.tags) ? parsed.tags : [],
+      };
     }),
 
   /**

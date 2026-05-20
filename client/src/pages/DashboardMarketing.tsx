@@ -1,11 +1,14 @@
 import DashboardLayout from "@/components/DashboardLayout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { useLocation } from "wouter";
-import { FileText, Users, MessageSquare, Zap, Instagram, Smartphone } from "lucide-react";
+import { FileText, Users, MessageSquare, Zap, Instagram, Smartphone, AlertCircle, Info } from "lucide-react";
+import { trpc } from "@/lib/trpc";
 
 export default function DashboardMarketing() {
   const [, setLocation] = useLocation();
+  const { data: priorities } = trpc.analytics.getTodayPriorities.useQuery();
 
   const shortcuts = [
     {
@@ -60,15 +63,33 @@ export default function DashboardMarketing() {
 
         <Card>
           <CardHeader>
-            <CardTitle>今日优先事项（建议）</CardTitle>
-            <CardDescription>根据常规运营节奏给出的通用建议，后续可接入真实数据自动生成</CardDescription>
+            <CardTitle>今日优先事项</CardTitle>
+            <CardDescription>基于当前客户数据自动生成的跟进建议</CardDescription>
           </CardHeader>
           <CardContent>
-            <ul className="list-disc list-inside space-y-1 text-sm text-muted-foreground">
-              <li>检查昨日新增线索，并为高价值客户创建跟进计划</li>
-              <li>根据近期项目重点，生成 1–2 条小红书/朋友圈文案</li>
-              <li>查看本周生日与术后回访客户名单，确认是否已完成触达</li>
-            </ul>
+            {!priorities ? (
+              <p className="text-sm text-muted-foreground">加载中...</p>
+            ) : priorities.priorities.length === 0 ? (
+              <p className="text-sm text-muted-foreground">暂无待处理事项</p>
+            ) : (
+              <ul className="space-y-2">
+                {priorities.priorities.map((p, i) => (
+                  <li key={i} className="flex items-start gap-2 text-sm">
+                    {p.level === "high" ? (
+                      <AlertCircle className="w-4 h-4 mt-0.5 text-red-500 shrink-0" />
+                    ) : (
+                      <Info className="w-4 h-4 mt-0.5 text-stone-400 shrink-0" />
+                    )}
+                    <span className={p.level === "high" ? "text-foreground font-medium" : "text-muted-foreground"}>
+                      {p.text}
+                    </span>
+                    {p.level === "high" && (
+                      <Badge variant="destructive" className="ml-auto shrink-0 text-xs">紧急</Badge>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
           </CardContent>
         </Card>
 

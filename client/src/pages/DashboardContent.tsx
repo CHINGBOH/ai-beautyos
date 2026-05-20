@@ -69,7 +69,11 @@ export default function DashboardContent() {
   const generateImageMutation = trpc.contentEnhanced.generateImage.useMutation({
     onSuccess: data => {
       setGeneratedImage(data.url || null);
-      toast.success("图片生成成功！");
+      if (data.isFallback) {
+        toast.warning(data.fallbackReason || "使用了占位图（未配置图片生成服务）");
+      } else {
+        toast.success("图片生成成功！");
+      }
     },
     onError: error => {
       toast.error(`图片生成失败：${error.message}`);
@@ -1083,11 +1087,11 @@ export default function DashboardContent() {
                                           {template.title}
                                         </p>
                                         <p className="text-xs text-muted-foreground line-clamp-3">
-                                          {template.content.substring(0, 100)}
+                                          {(template.content ?? template.description ?? "").substring(0, 100)}
                                           ...
                                         </p>
                                         <div className="flex flex-wrap gap-1 mt-2">
-                                          {template.tags
+                                          {(template.tags ?? [])
                                             .slice(0, 3)
                                             .map((tag, idx) => (
                                               <Badge

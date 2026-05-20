@@ -169,6 +169,17 @@ export async function listWeworkCustomers() {
   return await db.select().from(weworkCustomers);
 }
 
+export async function getWeworkCustomerByLeadId(leadId: number) {
+  const db = await getDb();
+  if (!db) return null;
+  const rows = await db
+    .select()
+    .from(weworkCustomers)
+    .where(eq(weworkCustomers.leadId, String(leadId)))
+    .limit(1);
+  return rows[0] || null;
+}
+
 export async function updateWeworkCustomer(
   externalUserId: string,
   data: Partial<typeof weworkCustomers.$inferInsert>

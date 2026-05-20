@@ -9,6 +9,8 @@ import {
   updateLead,
 } from "../db";
 import { logger } from "../_core/logger";
+import { getWeworkCustomerByLeadId } from "../wework-db";
+import { sendTextMessage } from "../wework-api";
 
 /**
  * 内存级幂等性缓存（生产环境建议使用Redis）
@@ -169,6 +171,23 @@ export async function runBirthdayHolidayTrigger(trigger: {
         const followUp = new Date();
         followUp.setDate(followUp.getDate() + 1);
         await updateLead(lead.id, { followUpDate: followUp.toISOString() });
+
+        // 尝试通过企业微信发送提醒消息
+        try {
+          const weworkCustomer = await getWeworkCustomerByLeadId(lead.id);
+          if (weworkCustomer?.externalUserId) {
+            const msgContent = trigger.type === "birthday_reminder"
+              ? `您好 ${lead.name}～生日快乐！🎂 感谢一直以来的信任，我们为您准备了专属生日惊喜，方便的话来店里让我们为您庆生吧！`
+              : `您好 ${lead.name}，节日快乐！🌸 ${reason}，特别想到您，希望您和家人一切都好。有任何肌肤护理的需要欢迎随时联系我～`;
+            await sendTextMessage(weworkCustomer.externalUserId, msgContent);
+            logger.info(`[birthday-holiday] 已发送企业微信消息给 ${lead.name} (leadId=${lead.id})`);
+          }
+        } catch (msgErr) {
+          logger.warn("[birthday-holiday] 企业微信消息发送失败（不影响任务创建）", {
+            leadId: lead.id,
+            error: msgErr instanceof Error ? msgErr.message : String(msgErr),
+          });
+        }
 
         // 标记为已执行
         executedCache.set(cacheKey, now);

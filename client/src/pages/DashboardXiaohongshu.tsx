@@ -255,8 +255,9 @@ export default function DashboardXiaohongshu() {
                   })
                 }
                 disabled={updateStats.isPending}
+                title="小红书无官方开放API，数据需手动录入。此按钮仅用于演示/测试目的。"
               >
-                同步模拟数据
+                手动录入数据（演示）
               </Button>
               <Button variant="outline" size="sm" onClick={() => setLocation(`/dashboard/content?postId=${selectedPost.id}`)}>
                 编辑内容

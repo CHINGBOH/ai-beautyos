@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { 
   Users, 
   MessageSquare, 
@@ -20,22 +19,18 @@ import { useLocation } from "wouter";
 
 export default function DashboardOverview() {
   const [, setLocation] = useLocation();
-  
-  // 获取统计数据
+
   const { data: stats } = trpc.analytics.getDashboardStats.useQuery();
-  const { data: customers } = trpc.customers.list.useQuery();
-  const totalLeads = stats?.totalLeads || customers?.length || 0;
-  const trendData = Array.from({ length: 6 }, (_, index) => {
-    const ratio = (index + 1) / 6;
-    return {
-      label: `第${index + 1}周`,
-      leads: Math.max(0, Math.round(totalLeads * (0.45 + ratio * 0.55))),
-      conversations: Math.max(0, Math.round((stats?.totalConversations || 0) * (0.4 + ratio * 0.6))),
-    };
-  });
+  const { data: weeklyTrend } = trpc.analytics.getWeeklyTrend.useQuery();
+  const { data: activitiesData } = trpc.analytics.getRecentActivities.useQuery();
+
+  const trendData = weeklyTrend?.weeks?.length
+    ? weeklyTrend.weeks
+    : Array.from({ length: 6 }, (_, i) => ({ label: `第${i + 1}周`, leads: 0, conversations: 0 }));
   const trendMax = Math.max(1, ...trendData.flatMap(item => [item.leads, item.conversations]));
-  
-  // 快速操作
+
+  const recentActivities = activitiesData?.activities || [];
+
   const quickActions = [
     {
       icon: MessageSquare,
@@ -60,14 +55,6 @@ export default function DashboardOverview() {
     },
   ];
 
-  // 最近活动模拟数据
-  const recentActivities = [
-    { id: 1, type: "对话", content: "与客户 张小姐 进行AI咨询", time: "5分钟前", icon: MessageSquare },
-    { id: 2, type: "客户", content: "新增客户 李女士", time: "15分钟前", icon: Users },
-    { id: 3, type: "知识", content: "更新 玻尿酸填充 知识库", time: "1小时前", icon: BookOpen },
-    { id: 4, type: "数据", content: "生成月度数据分析报告", time: "2小时前", icon: TrendingUp },
-  ];
-
   return (
     <div className="animate-fade-in">
       <PageHeader
@@ -80,38 +67,42 @@ export default function DashboardOverview() {
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
           title="总客户数"
-          value={stats?.totalLeads || customers?.length || 0}
-          description="较上月增长 12%"
+          value={stats?.totalLeads || 0}
+          description="累计线索数"
           icon={Users}
-          trend="up"
-          trendValue="+12%"
+          trend="neutral"
+          trendValue="累计"
           variant="gradient"
         />
         <StatCard
-          title="今日对话"
+          title="总对话数"
           value={stats?.totalConversations || 0}
-          description="活跃对话数"
+          description="AI 对话总量"
           icon={MessageSquare}
-          trend="up"
-          trendValue="+5"
+          trend="neutral"
+          trendValue="累计"
           variant="default"
         />
         <StatCard
-          title="知识库"
-          value="15"
-          description="专业知识条目"
+          title="本周新增"
+          value={trendData[trendData.length - 1]?.leads ?? 0}
+          description="本周新增线索"
           icon={BookOpen}
           trend="neutral"
-          trendValue="稳定"
+          trendValue="本周"
           variant="glass"
         />
         <StatCard
-          title="转化率"
-          value="68%"
+          title="转化客户"
+          value={(() => {
+            const converted = stats?.recentLeads?.filter((l: any) => l.status === "converted").length ?? 0;
+            const total = stats?.totalLeads || 1;
+            return `${Math.round((converted / total) * 100)}%`;
+          })()}
           description="线索转化率"
           icon={Target}
-          trend="up"
-          trendValue="+3%"
+          trend="neutral"
+          trendValue="实时"
           variant="default"
         />
       </div>
@@ -226,24 +217,34 @@ export default function DashboardOverview() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {recentActivities.map((activity) => (
-                  <div
-                    key={activity.id}
-                    className="flex items-start gap-3 p-3 rounded-xl hover:bg-accent/50 transition-colors"
-                  >
-                    <div className="p-2 rounded-lg bg-primary/10">
-                      <activity.icon className="h-4 w-4 text-primary" />
+                {recentActivities.length === 0 ? (
+                  <p className="text-sm text-muted-foreground text-center py-4">暂无活动记录</p>
+                ) : recentActivities.map((activity) => {
+                  const Icon = activity.type === "对话" ? MessageSquare : Users;
+                  const timeAgo = activity.createdAt
+                    ? (() => {
+                        const diff = Date.now() - new Date(activity.createdAt).getTime();
+                        if (diff < 60000) return "刚刚";
+                        if (diff < 3600000) return `${Math.floor(diff / 60000)} 分钟前`;
+                        if (diff < 86400000) return `${Math.floor(diff / 3600000)} 小时前`;
+                        return `${Math.floor(diff / 86400000)} 天前`;
+                      })()
+                    : "";
+                  return (
+                    <div
+                      key={activity.id}
+                      className="flex items-start gap-3 p-3 rounded-xl hover:bg-accent/50 transition-colors"
+                    >
+                      <div className="p-2 rounded-lg bg-primary/10">
+                        <Icon className="h-4 w-4 text-primary" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium text-foreground">{activity.content}</p>
+                        <p className="text-xs text-muted-foreground mt-0.5">{timeAgo}</p>
+                      </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground">
-                        {activity.content}
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-0.5">
-                        {activity.time}
-                      </p>
-                    </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             </CardContent>
           </Card>

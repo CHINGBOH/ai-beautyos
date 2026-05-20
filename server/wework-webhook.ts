@@ -5,7 +5,9 @@
 import type { Express, Request, Response } from "express";
 import { getWeworkConfig } from "./wework-db";
 import { createWeworkCustomer, getWeworkCustomer, createWeworkMessage } from "./wework-db";
-import { getExternalContact } from "./wework-api";
+import { getExternalContact, sendTextMessage } from "./wework-api";
+import { getActiveTriggersByTypes } from "./db";
+import { callQwen } from "./qwen";
 import crypto from "crypto";
 import { parseString } from "xml2js";
 
@@ -83,12 +85,32 @@ async function handleCustomerAddEvent(data: {
       const { logger } = await import("./_core/logger");
       logger.info(`[企业微信Webhook] 客户已保存: ${contact.name} (${contact.external_userid})`);
 
-      // TODO: 触发自动化营销流程
-      // 计划功能：
-      // 1. 检查是否有匹配的触发器（如：新客户欢迎消息）
-      // 2. 根据客户来源（state）触发相应的营销流程
-      // 3. 发送欢迎消息或引导消息
-      // 当前暂未实现，不影响核心功能
+      // 触发自动化营销流程：查找激活的触发器并发送欢迎消息
+      try {
+        const activeTriggers = await getActiveTriggersByTypes(["time"]);
+        const welcomeTrigger = activeTriggers.find(t => {
+          try {
+            const cfg = JSON.parse(t.actionConfig || "{}");
+            return cfg.type === "welcome" || t.name?.includes("欢迎") || t.name?.includes("welcome");
+          } catch { return false; }
+        });
+
+        if (contact.external_userid) {
+          let welcomeMsg = `您好！感谢添加，我是您的专属顾问。\n\n有任何关于肌肤护理的问题都可以直接问我，也欢迎预约免费面诊～`;
+          if (welcomeTrigger) {
+            try {
+              const cfg = JSON.parse(welcomeTrigger.actionConfig || "{}");
+              if (cfg.message) welcomeMsg = cfg.message;
+            } catch {}
+          }
+          await sendTextMessage(contact.external_userid, welcomeMsg);
+          const { logger } = await import("./_core/logger");
+          logger.info(`[企业微信Webhook] 已发送欢迎消息给 ${contact.name}`);
+        }
+      } catch (triggerErr) {
+        const { logger } = await import("./_core/logger");
+        logger.warn("[企业微信Webhook] 欢迎消息发送失败", { error: triggerErr });
+      }
     }
   } catch (error) {
     const { logger } = await import("./_core/logger");
@@ -119,12 +141,24 @@ async function handleMessageEvent(data: {
       status: "sent",
     });
 
-    // TODO: 可选 - 调用AI客服生成自动回复
-    // 计划功能：
-    // 1. 识别客户消息意图
-    // 2. 调用AI客服生成回复
-    // 3. 自动发送回复消息
-    // 当前暂未实现，需要手动回复
+    // 仅对文字消息触发 AI 自动回复（图片等非文字类型跳过）
+    if (data.msgType === "text" && data.content?.trim()) {
+      try {
+        const reply = await callQwen([
+          {
+            role: "system",
+            content: "你是一名医美机构的AI客服助手，专业、亲切、简洁。回复客户问题时，优先解答疑虑，适时引导预约面诊，不超过120字。",
+          },
+          { role: "user", content: data.content },
+        ]);
+        if (reply && data.externalUserId) {
+          await sendTextMessage(data.externalUserId, reply.trim());
+        }
+      } catch (aiErr) {
+        const { logger } = await import("./_core/logger");
+        logger.warn("[企业微信Webhook] AI自动回复失败（需人工跟进）", { error: aiErr });
+      }
+    }
   } catch (error) {
     const { logger } = await import("./_core/logger");
     logger.error("[企业微信Webhook] 处理消息事件失败:", error);

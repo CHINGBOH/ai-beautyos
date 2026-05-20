@@ -522,7 +522,7 @@ export default function DashboardWework() {
                         <CardContent className="pt-6">
                           <div className="flex items-center gap-4">
                             <img
-                              src={customer.avatar || "https://via.placeholder.com/48"}
+                              src={customer.avatar || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(customer.name || "U")}`}
                               alt={customer.name || "客户"}
                               className="w-12 h-12 rounded-full"
                             />
