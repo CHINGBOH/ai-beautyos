@@ -1,6 +1,5 @@
-import pytest
-from core.security import SecurityValidator
-from core.password import hash_password, verify_password, validate_password_strength
+from server.core.password import hash_password, validate_password_strength, verify_password
+from server.core.security import SecurityValidator
 
 
 class TestSecurityValidator:
@@ -19,7 +18,7 @@ class TestSecurityValidator:
     def test_mask_name(self):
         assert SecurityValidator.mask_name("张三") == "张*"
         assert SecurityValidator.mask_name("李四") == "李*"
-        assert SecurityValidator.mask_name("王五") == "王*五"
+        assert SecurityValidator.mask_name("王五") == "王*"
         assert SecurityValidator.mask_name("") == ""
 
     def test_detect_prompt_injection(self):
@@ -62,14 +61,17 @@ class TestPassword:
     def test_validate_password_strength_too_short(self):
         valid, msg = validate_password_strength("Short1")
         assert valid is False
+        assert msg is not None
         assert "至少8位" in msg
 
     def test_validate_password_strength_no_number(self):
         valid, msg = validate_password_strength("NoDigits")
         assert valid is False
+        assert msg is not None
         assert "必须包含数字" in msg
 
     def test_validate_password_strength_no_letter(self):
         valid, msg = validate_password_strength("12345678")
         assert valid is False
+        assert msg is not None
         assert "必须包含字母" in msg

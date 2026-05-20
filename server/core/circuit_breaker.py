@@ -1,16 +1,19 @@
-import time
 import asyncio
+import time
+from collections.abc import Callable
 from enum import Enum
-from typing import Callable, Any, Optional
 from functools import wraps
+from typing import Any
+
 from ..core.config import get_settings
+from ..core.exceptions import CircuitBreakerOpenException
 from ..core.logging import get_logger
 
 settings = get_settings()
 logger = get_logger(__name__)
 
 
-class CircuitState(Enum):
+class CircuitState(str, Enum):
     CLOSED = "closed"
     OPEN = "open"
     HALF_OPEN = "half_open"
@@ -19,10 +22,10 @@ class CircuitState(Enum):
 class CircuitBreaker:
     def __init__(
         self,
-        name: str,
+        name: str = "default",
         failure_limit: int = 5,
         recovery_timeout: int = 30,
-        expected_exception: type = Exception
+        expected_exception: type[BaseException] = Exception
     ):
         self.name = name
         self.failure_limit = failure_limit
@@ -30,7 +33,7 @@ class CircuitBreaker:
         self.expected_exception = expected_exception
 
         self._failure_count = 0
-        self._last_failure_time: Optional[float] = None
+        self._last_failure_time: float | None = None
         self._state = CircuitState.CLOSED
         self._lock = asyncio.Lock()
 
@@ -44,7 +47,10 @@ class CircuitBreaker:
 
     def is_open(self) -> bool:
         if self._state == CircuitState.OPEN:
-            if time.time() - self._last_failure_time >= self.recovery_timeout:
+            if (
+                self._last_failure_time is not None
+                and time.time() - self._last_failure_time >= self.recovery_timeout
+            ):
                 self._state = CircuitState.HALF_OPEN
                 logger.info("circuit_breaker_half_open", service=self.name)
                 return False
@@ -54,7 +60,6 @@ class CircuitBreaker:
     async def call(self, func: Callable, *args, **kwargs) -> Any:
         if self.is_open():
             logger.warning("circuit_breaker_rejected", service=self.name)
-            from ..core.exceptions import CircuitBreakerOpenException
             raise CircuitBreakerOpenException(self.name)
 
         try:
@@ -66,7 +71,7 @@ class CircuitBreaker:
             await self._on_success()
             return result
 
-        except self.expected_exception as e:
+        except self.expected_exception:
             await self._on_failure()
             raise
 
@@ -134,8 +139,10 @@ class TimeoutException(Exception):
     pass
 
 
+
+
 async def with_timeout(coro, timeout_seconds: float):
     try:
         return await asyncio.wait_for(coro, timeout=timeout_seconds)
-    except asyncio.TimeoutError:
+    except TimeoutError:
         raise TimeoutException(f"操作超时 ({timeout_seconds}秒)")

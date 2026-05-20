@@ -1,5 +1,8 @@
 import asyncio
-from typing import Optional, Dict, Any
+import inspect
+from collections.abc import Awaitable, Callable
+from typing import Any
+
 from ..core.logging import get_logger
 
 logger = get_logger(__name__)
@@ -24,10 +27,10 @@ class RetryStrategy:
 
 
 async def with_retry(
-    coro,
-    strategy: Optional[RetryStrategy] = None,
-    exceptions: tuple = (Exception,),
-    on_retry: Optional[callable] = None
+    coro: Callable[[], Awaitable[Any] | Any] | Awaitable[Any],
+    strategy: RetryStrategy | None = None,
+    exceptions: tuple[type[BaseException], ...] = (Exception,),
+    on_retry: Callable[[int, BaseException], Awaitable[Any] | Any] | None = None,
 ):
     if strategy is None:
         strategy = RetryStrategy()
@@ -36,7 +39,8 @@ async def with_retry(
 
     for attempt in range(1, strategy.max_attempts + 1):
         try:
-            return await coro
+            result = coro() if callable(coro) else coro
+            return await result if inspect.isawaitable(result) else result
         except exceptions as e:
             last_exception = e
 
@@ -54,11 +58,15 @@ async def with_retry(
             )
 
             if on_retry:
-                await on_retry(attempt, e)
+                retry_result = on_retry(attempt, e)
+                if inspect.isawaitable(retry_result):
+                    await retry_result
 
             await asyncio.sleep(delay)
 
-    raise last_exception
+    if last_exception is not None:
+        raise last_exception
+    raise RuntimeError("retry exhausted without an exception")
 
 
 class CircuitBreakerOpenException(Exception):
@@ -70,13 +78,13 @@ class CircuitBreaker:
         self,
         failure_limit: int = 5,
         recovery_timeout: int = 30,
-        expected_exception: type = Exception
+        expected_exception: type[BaseException] = Exception
     ):
         self.failure_limit = failure_limit
         self.recovery_timeout = recovery_timeout
         self.expected_exception = expected_exception
         self._failure_count = 0
-        self._last_failure_time: Optional[float] = None
+        self._last_failure_time: float | None = None
         self._state = "closed"
         self._lock = asyncio.Lock()
 
@@ -87,7 +95,10 @@ class CircuitBreaker:
     def is_open(self) -> bool:
         if self._state == "open":
             import time
-            if time.time() - self._last_failure_time >= self.recovery_timeout:
+            if (
+                self._last_failure_time is not None
+                and time.time() - self._last_failure_time >= self.recovery_timeout
+            ):
                 self._state = "half_open"
                 logger.info("circuit_breaker_half_open")
                 return False
@@ -104,7 +115,7 @@ class CircuitBreaker:
                 self._failure_count = 0
                 self._state = "closed"
             return result
-        except self.expected_exception as e:
+        except self.expected_exception:
             async with self._lock:
                 self._failure_count += 1
                 self._last_failure_time = __import__("time").time()

@@ -1,10 +1,18 @@
-from typing import List, Dict, Optional, Any
 import hashlib
+from typing import Any
+
 from qdrant_client import QdrantClient
-from qdrant_client.http.models import Distance, VectorParams, PointStruct, Filter, FieldCondition, MatchValue
+from qdrant_client.http.models import (
+    Distance,
+    FieldCondition,
+    Filter,
+    MatchValue,
+    PointStruct,
+    VectorParams,
+)
+
 from ..core.config import get_settings
 from ..core.logging import get_logger
-from ..core.circuit_breaker import get_circuit_breaker
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -21,7 +29,8 @@ class RAGService:
         self.client = QdrantClient(
             url=settings.QDRANT_URL,
             api_key=settings.QDRANT_API_KEY,
-            timeout=10
+            timeout=10,
+            trust_env=False,
         )
 
     def _ensure_collection(self):
@@ -41,7 +50,7 @@ class RAGService:
         except Exception as e:
             logger.error("collection_init_error", error=str(e))
 
-    def _get_embedding(self, text: str) -> List[float]:
+    def _get_embedding(self, text: str) -> list[float]:
         # TODO: replace with real embedding model (e.g. OpenAI text-embedding-3-small or BGE)
         # Current implementation uses MD5 hash which produces meaningless vectors
         hash_bytes = hashlib.md5(text.encode()).digest()
@@ -49,11 +58,9 @@ class RAGService:
 
     def add_documents(
         self,
-        documents: List[Dict[str, Any]],
-        ids: Optional[List[str]] = None
+        documents: list[dict[str, Any]],
+        ids: list[str] | None = None
     ) -> bool:
-        circuit_breaker = get_circuit_breaker("qdrant_service")
-
         try:
             points = []
             for i, doc in enumerate(documents):
@@ -69,7 +76,7 @@ class RAGService:
                     }
                 ))
 
-            circuit_breaker.call(self.client.upsert, self.collection_name, points)
+            self.client.upsert(collection_name=self.collection_name, points=points)
             logger.info("documents_added", count=len(documents), collection=self.collection_name)
             return True
         except Exception as e:
@@ -80,10 +87,8 @@ class RAGService:
         self,
         query: str,
         limit: int = 5,
-        filter_conditions: Optional[Dict[str, Any]] = None
-    ) -> List[Dict[str, Any]]:
-        circuit_breaker = get_circuit_breaker("qdrant_service")
-
+        filter_conditions: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         try:
             query_vector = self._get_embedding(query)
 
@@ -99,19 +104,19 @@ class RAGService:
                     )
                 search_filter = Filter(must=must_conditions)
 
-            results = circuit_breaker.call(
-                self.client.search,
+            response = self.client.query_points(
                 collection_name=self.collection_name,
-                query_vector=query_vector,
+                query=query_vector,
                 limit=limit,
                 query_filter=search_filter
             )
+            results = response.points
 
             return [
                 {
                     "id": r.id,
-                    "content": r.payload.get("content", ""),
-                    "metadata": r.payload.get("metadata", {}),
+                    "content": (r.payload or {}).get("content", ""),
+                    "metadata": (r.payload or {}).get("metadata", {}),
                     "score": r.score
                 }
                 for r in results
@@ -129,12 +134,12 @@ class RAGService:
             logger.error("delete_collection_error", error=str(e))
             return False
 
-    def get_stats(self) -> Dict[str, Any]:
+    def get_stats(self) -> dict[str, Any]:
         try:
             info = self.client.get_collection(self.collection_name)
             return {
                 "collection": self.collection_name,
-                "vectors_count": info.vectors_count,
+                "vectors_count": info.points_count,
                 "points_count": info.points_count,
                 "status": info.status
             }

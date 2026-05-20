@@ -1,11 +1,13 @@
-from typing import Optional, Dict, Any, List
-from datetime import datetime
-from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
-from ..core.logging import get_logger
 import hashlib
 import json
 import time
+from datetime import datetime
+from typing import Any, Dict, List, Optional
+
+from fastapi import APIRouter, HTTPException, Request
+from pydantic import BaseModel
+
+from ..core.logging import get_logger
 
 logger = get_logger(__name__)
 router_analytics = APIRouter(prefix="/api/analytics", tags=["analytics"])
@@ -52,7 +54,7 @@ async def track_event(event: EventTrack, request: Request):
     if len(events_db) > MAX_EVENTS:
         events_db.clear()
 
-    logger.info("event_tracked", event=event.event, properties=event.properties)
+    logger.info("event_tracked", event_name=event.event, properties=event.properties)
 
     return {"success": True, "event_id": event_id}
 

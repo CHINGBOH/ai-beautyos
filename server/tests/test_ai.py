@@ -1,7 +1,8 @@
 import pytest
-from ai.smart_router import SmartRouter, RouteTarget
-from ai.semantic_cache import SemanticCache
-from ai.llm_coordinator import LLMCoordinator
+
+from server.ai.llm_coordinator import LLMCoordinator
+from server.ai.semantic_cache import SemanticCache
+from server.ai.smart_router import RouteTarget, SmartRouter
 
 
 class TestSmartRouter:

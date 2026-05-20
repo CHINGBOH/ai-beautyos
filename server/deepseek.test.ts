@@ -3,6 +3,11 @@ import { generateChatResponse } from "./deepseek";
 
 describe("DeepSeek API Integration", () => {
   it("should successfully authenticate and generate a response", async () => {
+    if (!process.env.DEEPSEEK_API_KEY) {
+      console.log("Skipping test: DEEPSEEK_API_KEY not set");
+      return;
+    }
+
     const messages = [
       { role: "user" as const, content: "你好" }
     ];

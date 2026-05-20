@@ -1,6 +1,6 @@
-import re
 import html
-from typing import Optional
+import re
+
 import structlog
 
 logger = structlog.get_logger()
@@ -11,9 +11,10 @@ class SecurityValidator:
     def sanitize_input(text: str) -> str:
         if not text:
             return ""
-        text = html.escape(text)
-        text = re.sub(r'[<>"\';]', '', text)
-        return text.strip()
+        text = re.sub(r"<[^>]*>", "", text)
+        text = html.unescape(text)
+        text = re.sub(r"[\"';]", "", text)
+        return html.escape(text, quote=False).strip()
 
     @staticmethod
     def mask_phone(phone: str) -> str:
@@ -49,9 +50,9 @@ class SecurityValidator:
         if not text:
             return False
         injection_patterns = [
-            r"ignore\s+(previous|all)\s+(instructions|prompts)",
-            r"disregard\s+(previous|all)\s+(instructions|prompts)",
-            r"forget\s+(previous|all)\s+(instructions|prompts|your)",
+            r"ignore\s+(all\s+)?(previous\s+)?(instructions|prompts)",
+            r"disregard\s+(all\s+)?(previous\s+)?(instructions|prompts)",
+            r"forget\s+(all\s+)?(previous\s+)?(instructions|prompts|your)",
             r"you\s+are\s+now\s+(a|an)\s+",
             r"pretend\s+you\s+are\s+",
             r"roleplay\s+as\s+",

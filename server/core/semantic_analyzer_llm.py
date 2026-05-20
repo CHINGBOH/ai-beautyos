@@ -1,14 +1,15 @@
 """LLM增强的预约语义分析 - 规则+LLM混合决策"""
-import os
 import json
 import re
-from typing import Optional, Tuple, Dict, Any
 
 # 尝试导入OpenAI
 try:
+    import httpx
     from openai import AsyncOpenAI
     HAS_OPENAI = True
-except:
+except ImportError:
+    httpx = None
+    AsyncOpenAI = None
     HAS_OPENAI = False
 
 class SemanticAnalyzer:
@@ -27,17 +28,18 @@ class SemanticAnalyzer:
 
     PURE_TITLES = ["女士", "先生", "太太", "夫人", "医生", "护士", "老师"]
 
-    def __init__(self, llm_api_key: str = None, llm_base_url: str = None):
+    def __init__(self, llm_api_key: str | None = None, llm_base_url: str | None = None):
         self.llm_enabled = False
 
-        if HAS_OPENAI and llm_api_key:
+        if HAS_OPENAI and AsyncOpenAI is not None and httpx is not None and llm_api_key:
             self.llm_client = AsyncOpenAI(
                 api_key=llm_api_key,
-                base_url=llm_base_url or "https://api.deepseek.com/v1"
+                base_url=llm_base_url or "https://api.deepseek.com/v1",
+                http_client=httpx.AsyncClient(trust_env=False) if httpx else None,
             )
             self.llm_enabled = True
 
-    def extract_name_and_title(self, raw_name: str) -> Tuple[Optional[str], Optional[str]]:
+    def extract_name_and_title(self, raw_name: str) -> tuple[str | None, str | None]:
         """智能分离姓名和称呼"""
         if not raw_name:
             return None, None
@@ -71,7 +73,7 @@ class SemanticAnalyzer:
 
         return name, None
 
-    def is_valid_name(self, name: str) -> Tuple[bool, str]:
+    def is_valid_name(self, name: str) -> tuple[bool, str]:
         """验证姓名"""
         if not name:
             return False, "姓名不能为空"
@@ -101,7 +103,7 @@ class SemanticAnalyzer:
 
         return True, ""
 
-    def is_valid_phone(self, phone: str) -> Tuple[bool, str]:
+    def is_valid_phone(self, phone: str) -> tuple[bool, str]:
         """验证手机号"""
         if not phone:
             return False, "手机号不能为空"
@@ -122,7 +124,7 @@ class SemanticAnalyzer:
 
         return False, "手机号格式不正确"
 
-    def analyze_basic(self, raw_name: str, phone: str) -> Dict:
+    def analyze_basic(self, raw_name: str, phone: str) -> dict:
         """基础规则分析"""
         result = {
             "valid": True,
@@ -142,9 +144,9 @@ class SemanticAnalyzer:
             result["clean_name"] = clean_name
             result["title"] = title
 
-            if clean_name is None and title:
+            if clean_name is None:
                 result["valid"] = False
-                result["errors"].append("请输入有效姓名，不能只是称呼")
+                result["errors"].append("请输入有效姓名，不能只是称呼" if title else "请输入有效姓名")
             else:
                 is_valid, error = self.is_valid_name(clean_name)
                 if not is_valid:
@@ -171,7 +173,7 @@ class SemanticAnalyzer:
 
         return result
 
-    async def analyze_with_llm(self, raw_name: str, phone: str) -> Dict:
+    async def analyze_with_llm(self, raw_name: str, phone: str) -> dict:
         """LLM增强分析"""
         # 先做基础分析
         result = self.analyze_basic(raw_name, phone)
@@ -209,7 +211,8 @@ class SemanticAnalyzer:
                 max_tokens=200
             )
 
-            llm_result = json.loads(response.choices[0].message.content)
+            content = response.choices[0].message.content or "{}"
+            llm_result = json.loads(content)
 
             # 合并结果
             if "valid" in llm_result:
@@ -223,7 +226,7 @@ class SemanticAnalyzer:
 
         return result
 
-    def analyze(self, raw_name: str, phone: str) -> Dict:
+    def analyze(self, raw_name: str, phone: str) -> dict:
         """同步接口 - 仅使用规则"""
         return self.analyze_basic(raw_name, phone)
 
@@ -254,7 +257,7 @@ async def test():
         if result['errors']:
             print(f"  错误: {result['errors']}")
         if result['needs_llm']:
-            print(f"  ⚠️  需要LLM增强")
+            print("  ⚠️  需要LLM增强")
 
 
 if __name__ == "__main__":

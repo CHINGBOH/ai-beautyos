@@ -1,10 +1,17 @@
-import os
+from __future__ import annotations
+
 import json
-from typing import Dict, List, Optional, Any
 from enum import Enum
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+
+import httpx
 from openai import AsyncOpenAI
+
 from ..core.config import get_settings
 from ..core.logging import get_logger
+
+if TYPE_CHECKING:
+    from openai.types.chat import ChatCompletionMessageParam
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -45,7 +52,8 @@ class KimiAnalyzer:
         if use_real_api and settings.KIMI_API_KEY:
             self.kimi_client = AsyncOpenAI(
                 api_key=settings.KIMI_API_KEY,
-                base_url=settings.KIMI_BASE_URL
+                base_url=settings.KIMI_BASE_URL,
+                http_client=httpx.AsyncClient(trust_env=False),
             )
 
     def _build_system_prompt(self) -> str:
@@ -141,7 +149,10 @@ class KimiAnalyzer:
             max_tokens=settings.KIMI_MAX_TOKENS,
         )
 
-        raw = resp.choices[0].message.content.strip()
+        content = resp.choices[0].message.content
+        if content is None:
+            raise ValueError("Kimi API returned an empty message")
+        raw = content.strip()
         raw = raw.removeprefix("```json").removeprefix("```").removesuffix("```").strip()
         return self._ensure_result_format(json.loads(raw))
 
@@ -338,7 +349,8 @@ class DeepSeekGenerator:
         if use_real_api and settings.DEEPSEEK_API_KEY:
             self.deepseek_client = AsyncOpenAI(
                 api_key=settings.DEEPSEEK_API_KEY,
-                base_url=settings.DEEPSEEK_BASE_URL
+                base_url=settings.DEEPSEEK_BASE_URL,
+                http_client=httpx.AsyncClient(trust_env=False),
             )
 
     def _build_system_prompt(self) -> str:
@@ -415,8 +427,16 @@ class DeepSeekGenerator:
                     extra += f"\n【真实门诊部信息】深圳妍美医疗美容门诊部：{address}，{hours}。"
 
         system_prompt = self.system_prompt + extra
-        messages = [{"role": "system", "content": system_prompt}]
-        messages += history[-8:]
+        messages: list[ChatCompletionMessageParam] = [{"role": "system", "content": system_prompt}]
+        for message in history[-8:]:
+            role = message.get("role")
+            content = message.get("content", "")
+            if role == "assistant":
+                messages.append({"role": "assistant", "content": content})
+            elif role == "system":
+                messages.append({"role": "system", "content": content})
+            else:
+                messages.append({"role": "user", "content": content})
 
         resp = await self.deepseek_client.chat.completions.create(
             model=settings.DEEPSEEK_MODEL,
@@ -424,7 +444,10 @@ class DeepSeekGenerator:
             temperature=settings.DEEPSEEK_TEMPERATURE,
             max_tokens=settings.DEEPSEEK_MAX_TOKENS,
         )
-        return resp.choices[0].message.content
+        content = resp.choices[0].message.content
+        if content is None:
+            raise ValueError("DeepSeek API returned an empty message")
+        return content
 
     def _generate_with_simulation(
         self,
@@ -435,6 +458,7 @@ class DeepSeekGenerator:
         deepseek_instruction = instruction.get("deepseek_instruction", "")
         strategy = instruction.get("strategy", "")
         recommended_product = instruction.get("recommended_product", "")
+        guidance = f"{deepseek_instruction} {strategy}"
 
         last_user_msg = ""
         for msg in reversed(history):
@@ -442,15 +466,15 @@ class DeepSeekGenerator:
                 last_user_msg = msg.get("content", "")
                 break
 
-        if "道歉" in instruction or "道歉" in strategy:
+        if "道歉" in guidance:
             return self._generate_apology(last_user_msg)
-        if "共情" in instruction:
+        if "共情" in guidance:
             return self._generate_empathy(last_user_msg)
-        if "尊重意愿" in instruction or "不推销" in instruction:
+        if "尊重意愿" in guidance or "不推销" in guidance:
             return self._generate_respect(last_user_msg)
-        if "推荐" in instruction and recommended_product:
+        if "推荐" in guidance and recommended_product:
             return self._generate_recommendation(last_user_msg, recommended_product)
-        if "价格" in instruction or "预约" in instruction:
+        if "价格" in guidance or "预约" in guidance:
             return self._generate_conversion(last_user_msg, recommended_product)
         return self._generate_default(last_user_msg)
 

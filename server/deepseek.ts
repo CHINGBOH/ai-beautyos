@@ -6,16 +6,18 @@
 import { httpPost, HttpError } from "./_core/http-service";
 import { logger } from "./_core/logger";
 
-// 强制从环境变量读取，不允许硬编码
-const DEEPSEEK_API_KEY = process.env.DEEPSEEK_API_KEY;
-if (!DEEPSEEK_API_KEY) {
-  throw new Error(
-    "DEEPSEEK_API_KEY environment variable is required. " +
-    "Please set it in your .env file or environment variables."
-  );
-}
-
 const DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions";
+
+function getDeepSeekApiKey(): string {
+  const apiKey = process.env.DEEPSEEK_API_KEY;
+  if (!apiKey) {
+    throw new Error(
+      "DEEPSEEK_API_KEY environment variable is required. " +
+      "Please set it in your .env file or environment variables."
+    );
+  }
+  return apiKey;
+}
 
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
@@ -46,6 +48,7 @@ export async function generateChatResponse(
   temperature = 0.7
 ): Promise<string> {
   try {
+    const apiKey = getDeepSeekApiKey();
     const data = await httpPost<ChatCompletionResponse>(
       DEEPSEEK_API_URL,
       {
@@ -56,7 +59,7 @@ export async function generateChatResponse(
       },
       {
         headers: {
-          Authorization: `Bearer ${DEEPSEEK_API_KEY}`,
+          Authorization: `Bearer ${apiKey}`,
         },
         retries: 2,
         retryDelay: 1000,

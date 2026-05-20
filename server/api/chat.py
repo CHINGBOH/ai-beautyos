@@ -1,14 +1,17 @@
-from typing import Optional, Dict, Any
+from typing import Any
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+
 from ..ai.llm_coordinator import coordinator
 from ..ai.semantic_cache import semantic_cache
-from ..ai.smart_router import router, RouteTarget
+from ..ai.smart_router import RouteTarget
+from ..ai.smart_router import router as smart_router
+from ..core.circuit_breaker import TimeoutException, get_circuit_breaker, with_timeout
+from ..core.config import get_settings
+from ..core.exceptions import CircuitBreakerOpenException, ValidationException
 from ..core.logging import get_logger
 from ..core.security import security
-from ..core.exceptions import ValidationException, CircuitBreakerOpenException
-from ..core.circuit_breaker import get_circuit_breaker, with_timeout, TimeoutException
-from ..core.config import get_settings
 
 settings = get_settings()
 logger = get_logger(__name__)
@@ -18,17 +21,17 @@ router_api = APIRouter(prefix="/api/chat", tags=["chat"])
 class ChatRequest(BaseModel):
     message: str
     history: list = []
-    user_id: Optional[str] = None
-    context: Optional[Dict[str, Any]] = None
+    user_id: str | None = None
+    context: dict[str, Any] | None = None
 
 
 class ChatResponse(BaseModel):
     success: bool
     response: str
-    analysis: Optional[Dict[str, Any]] = None
-    route_target: Optional[str] = None
+    analysis: dict[str, Any] | None = None
+    route_target: str | None = None
     cached: bool = False
-    error: Optional[str] = None
+    error: str | None = None
 
 
 @router_api.post("/message", response_model=ChatResponse)
@@ -52,7 +55,7 @@ async def chat_message(request: ChatRequest):
             cached=True
         )
 
-    route_target = router.route(request.message, request.history, request.context or {})
+    route_target = smart_router.route(request.message, request.history, request.context or {})
     logger.info("route_decision", target=route_target.value, message_length=len(request.message))
 
     if route_target == RouteTarget.DIRECT_REPLY:
@@ -98,8 +101,8 @@ async def chat_message(request: ChatRequest):
 
 
 @router_api.get("/route/explain")
-async def explain_route(message: str, history: list = [], context: Dict[str, Any] = None):
-    return router.explain_route(message, history, context or {})
+async def explain_route(message: str, history: list = [], context: dict[str, Any] | None = None):
+    return smart_router.explain_route(message, history, context or {})
 
 
 @router_api.get("/cache/stats")
@@ -116,7 +119,7 @@ async def clear_cache():
 @router_api.get("/metrics")
 async def get_metrics():
     return {
-        "router": router.get_metrics(),
+        "router": smart_router.get_metrics(),
         "cache": semantic_cache.get_stats()
     }
 

@@ -1,16 +1,17 @@
-from typing import Optional, Dict, Any, List
-from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
 from datetime import datetime
+
+from fastapi import APIRouter, HTTPException
+from pydantic import BaseModel, Field
 
 from ..ai.llm_coordinator import coordinator
 from ..ai.semantic_cache import semantic_cache
-from ..ai.smart_router import router, RouteTarget
+from ..ai.smart_router import RouteTarget
+from ..ai.smart_router import router as smart_router
+from ..core.circuit_breaker import TimeoutException, get_circuit_breaker, with_timeout
+from ..core.config import get_settings
+from ..core.exceptions import CircuitBreakerOpenException, ValidationException
 from ..core.logging import get_logger
 from ..core.security import security
-from ..core.exceptions import ValidationException, CircuitBreakerOpenException
-from ..core.circuit_breaker import get_circuit_breaker, with_timeout, TimeoutException
-from ..core.config import get_settings
 
 # NOTE: DB persistence imports removed — TypeScript Drizzle modules are not available in Python.
 # Conversation endpoints below return 501 until a Python-native DB layer is implemented.
@@ -22,16 +23,16 @@ router_api = APIRouter(prefix="/api", tags=["medical_chat"])
 
 class MedicalChatRequest(BaseModel):
     message: str
-    history: List[Dict[str, str]] = []
-    session_id: Optional[str] = None
-    user_id: Optional[str] = None
+    history: list[dict[str, str]] = Field(default_factory=list)
+    session_id: str | None = None
+    user_id: str | None = None
 
 
 class MedicalChatResponse(BaseModel):
     reply: str
-    session_id: Optional[str] = None
-    conversation_id: Optional[int] = None
-    route_target: Optional[str] = None
+    session_id: str | None = None
+    conversation_id: int | None = None
+    route_target: str | None = None
     cached: bool = False
 
 
@@ -64,11 +65,11 @@ async def medical_chat(
         )
 
     # 智能路由
-    route_target = router.route(request.message, request.history, {"session_id": session_id})
+    route_target = smart_router.route(request.message, request.history, {"session_id": session_id})
     logger.info("route_decision", target=route_target.value, message_length=len(request.message))
 
     # 直接回复
-    if route_target == RouteTarget.DIRECT:
+    if route_target == RouteTarget.DIRECT_REPLY:
         reply = "您好！有什么可以帮助您的吗？😊"
     else:
         # LLM处理
@@ -143,3 +144,6 @@ async def close_conversation(
         status_code=501,
         detail="关闭对话功能暂不可用：需要实现 Python 原生数据库访问层"
     )
+
+
+router = router_api
