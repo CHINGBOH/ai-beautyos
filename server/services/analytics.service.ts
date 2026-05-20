@@ -12,7 +12,18 @@ import {
 import type { LeadData, LeadInfo } from "../qwen";
 import { getDb } from "../db";
 import { ENV } from "../_core/env";
-import { leads, conversations, messages, customers } from "../../drizzle/schema";
+import {
+  appointments,
+  conversations,
+  customers,
+  knowledgeBase,
+  leads,
+  medicalProjects,
+  messages,
+  triggers,
+  weworkCustomers,
+  xiaohongshuPosts,
+} from "../../drizzle/schema";
 import type { Customer } from "../../drizzle/schema";
 
 // ---------------------------------------------------------------------------
@@ -137,10 +148,28 @@ export async function getOverview() {
       throw new Error("Database not configured");
     }
 
-    const [allLeads, allCustomers, allConversations] = await Promise.all([
+    const [
+      allLeads,
+      allCustomers,
+      allConversations,
+      messageCountRows,
+      knowledgeCountRows,
+      projectCountRows,
+      appointmentCountRows,
+      triggerCountRows,
+      xiaohongshuCountRows,
+      weworkCountRows,
+    ] = await Promise.all([
       db.select().from(leads),
       db.select().from(customers),
       db.select().from(conversations),
+      db.select({ count: sql<number>`count(*)::int` }).from(messages),
+      db.select({ count: sql<number>`count(*)::int` }).from(knowledgeBase),
+      db.select({ count: sql<number>`count(*)::int` }).from(medicalProjects),
+      db.select({ count: sql<number>`count(*)::int` }).from(appointments),
+      db.select({ count: sql<number>`count(*)::int` }).from(triggers),
+      db.select({ count: sql<number>`count(*)::int` }).from(xiaohongshuPosts),
+      db.select({ count: sql<number>`count(*)::int` }).from(weworkCustomers),
     ]);
     const customerLikeRows = allCustomers.map(customerToLeadLike);
     const mergedCustomerRows = [
@@ -156,6 +185,19 @@ export async function getOverview() {
       totalContacts: mergedCustomerRows.length,
       totalConversations: allConversations.length,
       convertedCustomers,
+      tableCounts: {
+        customers: allCustomers.length,
+        leads: allLeads.length,
+        contacts: mergedCustomerRows.length,
+        conversations: allConversations.length,
+        messages: messageCountRows[0]?.count ?? 0,
+        knowledgeBase: knowledgeCountRows[0]?.count ?? 0,
+        medicalProjects: projectCountRows[0]?.count ?? 0,
+        appointments: appointmentCountRows[0]?.count ?? 0,
+        triggers: triggerCountRows[0]?.count ?? 0,
+        xiaohongshuPosts: xiaohongshuCountRows[0]?.count ?? 0,
+        weworkCustomers: weworkCountRows[0]?.count ?? 0,
+      },
       sourceDistribution: buildSourceDistribution(mergedCustomerRows),
       projectDistribution: buildProjectDistribution(mergedCustomerRows),
       recentLeads: mergedCustomerRows.slice(0, 10),

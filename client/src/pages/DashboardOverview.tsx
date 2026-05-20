@@ -10,6 +10,11 @@ import {
   Target,
   Zap,
   AlertCircle,
+  Database,
+  FileText,
+  Instagram,
+  Workflow,
+  Building2,
 } from "lucide-react";
 import { StatCard } from "@/components/StatCard";
 import { PageHeader } from "@/components/PageHeader";
@@ -70,6 +75,75 @@ function SystemStatusList({
   );
 }
 
+type DataFoundationItem = {
+  label: string;
+  value: number;
+  path: string;
+};
+
+function DataFoundationGrid({
+  items,
+  onNavigate,
+}: {
+  items: DataFoundationItem[];
+  onNavigate: (path: string) => void;
+}) {
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      {items.map(item => (
+        <button
+          key={item.label}
+          type="button"
+          onClick={() => onNavigate(item.path)}
+          className="rounded-xl border bg-background/60 p-4 text-left transition hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm"
+        >
+          <p className="text-sm text-muted-foreground">{item.label}</p>
+          <p className="mt-2 text-2xl font-semibold text-foreground">{item.value}</p>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function DistributionList({
+  title,
+  rows,
+  emptyText,
+}: {
+  title: string;
+  rows: Array<[string, number]>;
+  emptyText: string;
+}) {
+  const total = rows.reduce((sum, [, value]) => sum + value, 0);
+  return (
+    <div>
+      <h3 className="mb-3 text-sm font-medium text-foreground">{title}</h3>
+      {rows.length === 0 ? (
+        <p className="rounded-lg bg-muted/50 px-3 py-4 text-center text-sm text-muted-foreground">
+          {emptyText}
+        </p>
+      ) : (
+        <div className="space-y-3">
+          {rows.slice(0, 6).map(([label, value]) => (
+            <div key={label}>
+              <div className="mb-1 flex items-center justify-between text-sm">
+                <span className="truncate text-muted-foreground">{label}</span>
+                <span className="font-medium">{value}</span>
+              </div>
+              <div className="h-2 overflow-hidden rounded-full bg-muted">
+                <div
+                  className="h-full rounded-full bg-primary/70"
+                  style={{ width: `${Math.max(8, (value / Math.max(1, total)) * 100)}%` }}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function DashboardOverviewContent() {
   const [, setLocation] = useLocation();
 
@@ -85,7 +159,20 @@ function DashboardOverviewContent() {
   const weeklyTrend = weeklyTrendQuery.data;
   const activitiesData = activitiesQuery.data;
   const systemStatus = systemStatusQuery.data;
-  const totalContacts = stats?.totalContacts ?? stats?.totalCustomers ?? stats?.totalLeads ?? 0;
+  const tableCounts = stats?.tableCounts;
+  const totalContacts = tableCounts?.contacts ?? stats?.totalContacts ?? stats?.totalCustomers ?? stats?.totalLeads ?? 0;
+  const sourceRows = Object.entries(stats?.sourceDistribution ?? {}).sort(([, a], [, b]) => b - a);
+  const projectRows = Object.entries(stats?.projectDistribution ?? {}).sort(([, a], [, b]) => b - a);
+  const dataFoundationItems: DataFoundationItem[] = [
+    { label: "客户档案", value: tableCounts?.customers ?? 0, path: "/dashboard/customers" },
+    { label: "线索池", value: tableCounts?.leads ?? 0, path: "/dashboard/customers" },
+    { label: "对话消息", value: tableCounts?.messages ?? 0, path: "/dashboard/conversations" },
+    { label: "知识库", value: tableCounts?.knowledgeBase ?? 0, path: "/dashboard/knowledge" },
+    { label: "医美项目", value: tableCounts?.medicalProjects ?? 0, path: "/dashboard/content" },
+    { label: "内容笔记", value: tableCounts?.xiaohongshuPosts ?? 0, path: "/dashboard/xiaohongshu" },
+    { label: "自动化", value: tableCounts?.triggers ?? 0, path: "/dashboard/triggers" },
+    { label: "企微客户", value: tableCounts?.weworkCustomers ?? 0, path: "/dashboard/wework" },
+  ];
 
   const trendData = weeklyTrend?.weeks?.length
     ? weeklyTrend.weeks
@@ -97,24 +184,45 @@ function DashboardOverviewContent() {
   const quickActions = [
     {
       icon: MessageSquare,
-      label: "开始对话",
-      description: "与客户进行AI对话",
+      label: "AI 数据助手",
+      description: `${tableCounts?.conversations ?? 0} 个会话可查询`,
       path: "/dashboard/ai",
       color: "from-stone-500 to-stone-600",
     },
     {
       icon: Users,
-      label: "添加客户",
-      description: "录入新客户信息",
+      label: "客户运营",
+      description: `${totalContacts} 个客户/线索`,
       path: "/dashboard/customers",
       color: "from-stone-400 to-stone-500",
     },
     {
       icon: BookOpen,
-      label: "更新知识库",
-      description: "添加新的医美知识",
+      label: "知识库",
+      description: `${tableCounts?.knowledgeBase ?? 0} 条知识`,
       path: "/dashboard/knowledge",
       color: "from-[#B8A68D] to-[#A69479]",
+    },
+    {
+      icon: Instagram,
+      label: "内容运营",
+      description: `${tableCounts?.xiaohongshuPosts ?? 0} 条小红书内容`,
+      path: "/dashboard/xiaohongshu",
+      color: "from-rose-400 to-stone-500",
+    },
+    {
+      icon: Workflow,
+      label: "自动化",
+      description: `${tableCounts?.triggers ?? 0} 条触发器`,
+      path: "/dashboard/triggers",
+      color: "from-amber-500 to-stone-500",
+    },
+    {
+      icon: Building2,
+      label: "企微私域",
+      description: `${tableCounts?.weworkCustomers ?? 0} 个企微客户`,
+      path: "/dashboard/wework",
+      color: "from-slate-500 to-stone-600",
     },
   ];
 
@@ -143,9 +251,9 @@ function DashboardOverviewContent() {
       {/* 快速统计 */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
-          title="总客户数"
+          title="客户资产"
           value={totalContacts}
-          description={`customers ${stats?.totalCustomers ?? 0} / leads ${stats?.totalLeads ?? 0}`}
+          description={`档案 ${tableCounts?.customers ?? 0} / 线索 ${tableCounts?.leads ?? 0}`}
           icon={Users}
           trend="neutral"
           trendValue="累计"
@@ -153,7 +261,7 @@ function DashboardOverviewContent() {
         />
         <StatCard
           title="总对话数"
-          value={stats?.totalConversations || 0}
+          value={tableCounts?.conversations ?? stats?.totalConversations ?? 0}
           description="AI 对话总量"
           icon={MessageSquare}
           trend="neutral"
@@ -161,24 +269,39 @@ function DashboardOverviewContent() {
           variant="default"
         />
         <StatCard
-          title="本周新增"
-          value={trendData[trendData.length - 1]?.leads ?? 0}
-          description="本周新增客户/线索"
+          title="知识内容"
+          value={tableCounts?.knowledgeBase ?? 0}
+          description={`医美项目 ${tableCounts?.medicalProjects ?? 0}`}
           icon={BookOpen}
           trend="neutral"
           trendValue="本周"
           variant="glass"
         />
         <StatCard
-          title="转化客户"
-          value={`${Math.round(((stats?.convertedCustomers ?? 0) / Math.max(1, totalContacts)) * 100)}%`}
-          description="线索转化率"
+          title="本周增长"
+          value={trendData[trendData.length - 1]?.leads ?? 0}
+          description={`对话 ${trendData[trendData.length - 1]?.conversations ?? 0}`}
           icon={Target}
           trend="neutral"
           trendValue="实时"
           variant="default"
         />
       </div>
+
+      <Card className="mb-8 border-0 bg-gradient-to-br from-background via-background to-primary/5 shadow-sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+            <Database className="h-5 w-5 text-primary" />
+            PostgreSQL 数据底座
+          </CardTitle>
+          <CardDescription>
+            这些数字来自当前数据库表，不再用前端 demo/fallback 冒充真实状态。
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <DataFoundationGrid items={dataFoundationItems} onNavigate={setLocation} />
+        </CardContent>
+      </Card>
 
       <div className="grid gap-6 lg:grid-cols-3">
         {/* 快速操作 */}
@@ -187,10 +310,10 @@ function DashboardOverviewContent() {
             <CardHeader>
               <CardTitle className="text-lg font-semibold flex items-center gap-2">
                 <Zap className="h-5 w-5 text-primary" />
-                快速操作
+                业务模块
               </CardTitle>
               <CardDescription>
-                常用功能的快捷入口
+                按真实数据量排序的后台入口
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -270,6 +393,32 @@ function DashboardOverviewContent() {
               <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
                 <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-primary/75" />客户/线索</span>
                 <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#B8A68D]" />对话</span>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card className="glass-card border-0">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-lg font-semibold">
+                <FileText className="h-5 w-5 text-primary" />
+                来源与项目分布
+              </CardTitle>
+              <CardDescription>
+                来自 leads/customers 表的渠道和兴趣项目统计
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-6 md:grid-cols-2">
+                <DistributionList
+                  title="来源渠道"
+                  rows={sourceRows}
+                  emptyText="暂无来源数据"
+                />
+                <DistributionList
+                  title="兴趣项目"
+                  rows={projectRows}
+                  emptyText="暂无项目偏好数据"
+                />
               </div>
             </CardContent>
           </Card>

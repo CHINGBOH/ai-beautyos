@@ -33,6 +33,7 @@
     "knowledge:index": "tsx scripts/index-knowledge-embeddings.ts",
     "test:shuangwen": "tsx scripts/test-shuangwen.ts",
     "export:db": "tsx scripts/export-database-to-data.ts",
+    "import:repo-data": "tsx scripts/import-repo-data.ts",
     "sync-columns": "tsx scripts/sync-columns.ts",
     "apply-indexes": "tsx scripts/apply-indexes-only.ts",
     "db:sync": "pnpm run sync-columns && pnpm run apply-indexes",
