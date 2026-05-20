@@ -10,7 +10,7 @@ single host: web, postgres, redis, custom hermes.
 | `docker-compose.yml`         | base: web + postgres (single-host MVP)  |
 | `docker-compose.full.yml`    | overlay: + redis + hermes               |
 | `.env`                       | secrets and tunables (not committed)    |
-| `config/`                    | policies, tool configs, hermes profile  |
+| `config/`                    | policies, tool configs, Hermes profiles |
 | `docs/system-manifest.yaml`  | system map Hermes reads at boot         |
 
 ## Prerequisites
@@ -23,7 +23,8 @@ single host: web, postgres, redis, custom hermes.
    IMAGE_TAG=sha-abc123              # web image tag
    IMAGE_TAG_HERMES=sha-def456       # hermes image tag
    BEAUTYOS_TENANT_ID=salon_001
-   HERMES_POLICY=sales-assistant     # filename minus .yaml
+   HERMES_PROFILE=hermes-app-profile.yaml
+   HERMES_POLICY=content-operator    # filename minus .yaml
    ```
 
 ## Bring up
@@ -65,7 +66,7 @@ curl -s http://localhost:3000/system/manifest | jq '.meta.version'
 curl -s http://localhost:3000/tools | jq '.tools | length'
 ```
 
-From inside the network (Hermes does this automatically at boot):
+From inside the network (Hermes-App does this automatically at boot):
 
 ```
 docker compose exec hermes wget -q -O - http://web:3000/system/manifest
@@ -90,11 +91,30 @@ docker compose -f docker-compose.yml -f docker-compose.full.yml up -d web
 Postgres and Redis are stateful; rolling them back is a restore op, not
 a tag swap.
 
+## Hermes runtime split
+
+The `hermes` service in `docker-compose.full.yml` is **Hermes-App**. It mounts
+`config/hermes-app-profile.yaml` by default and reaches BeautyOS through:
+
+```text
+BEAUTYOS_BASE=http://web:3000
+BEAUTYOS_TOOL_BASE=http://tool-server:5001
+```
+
+Hermes-App is internal-only and should not receive GitHub tokens, SSH keys,
+direct `DATABASE_URL`, or raw shell authority. It is for business queries,
+reports, content drafts, and confirmed/dry-run Tool Server writes.
+
+**Hermes-Ops is not this container.** Run Hermes-Ops from a workstation, CI,
+self-hosted runner, or operations host with `config/hermes-ops-profile.yaml`.
+Its deployment authority should flow through GitHub Actions or the whitelisted
+runbooks below.
+
 ## What is NOT exposed to the host
 
 * `postgres`  — internal only
 * `redis`     — internal only
-* `hermes`    — internal only
+* `hermes`    — internal only; this is Hermes-App, not Hermes-Ops
 
 Only `web` publishes a host port (default 3000). Put a TLS-terminating
 reverse proxy in front. The Tool Server lives inside `web` for MVP

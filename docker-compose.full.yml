@@ -9,7 +9,7 @@
 #
 # What this overlay adds on top of the base compose:
 #   * redis            — Hermes session / scratch state (no host port)
-#   * hermes           — custom Hermes runtime (beautyos-hermes image)
+#   * hermes           — Hermes-App runtime for business tools/content drafts
 #
 # What it does NOT do:
 #   * Move Tool Server out of the web container. MVP keeps it in-process
@@ -57,10 +57,11 @@ services:
       REDIS_URL: redis://redis:6379/0
       # Tenant scoping at runtime — set per deployment, not per image.
       BEAUTYOS_TENANT_ID: ${BEAUTYOS_TENANT_ID:-default}
-      # Which behaviour profile to boot under. Must match a file under
-      # the mounted config/policies/hermes/ directory.
-      HERMES_POLICY_FILE: /opt/beautyos/config/policies/hermes/${HERMES_POLICY:-sales-assistant}.yaml
-      HERMES_PROFILE_FILE: /opt/beautyos/config/hermes-profile.yaml
+      # Server-side Hermes-App: business queries/content drafts only. Ops
+      # Hermes runs outside this app stack with config/hermes-ops-profile.yaml.
+      BEAUTYOS_TOOL_BASE: http://tool-server:5001
+      HERMES_POLICY_FILE: /opt/beautyos/config/policies/hermes/${HERMES_POLICY:-content-operator}.yaml
+      HERMES_PROFILE_FILE: /opt/beautyos/config/${HERMES_PROFILE:-hermes-app-profile.yaml}
     volumes:
       # Mount the contract read-only. Hermes never writes to it.
       - ./config:/opt/beautyos/config:ro

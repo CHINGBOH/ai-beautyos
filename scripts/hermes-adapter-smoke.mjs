@@ -8,7 +8,8 @@
 //
 // Usage (from host, against compose stack):
 //   BEAUTYOS_BASE=http://localhost:3000 \
-//   TOOL_BASE=http://localhost:3000 \
+//   TOOL_BASE=http://localhost:5001 \
+//   HERMES_PROFILE_FILE=config/hermes-app-profile.yaml \
 //   node scripts/hermes-adapter-smoke.mjs
 //
 // Or, when tool-server is published to a host port for testing:
@@ -20,7 +21,7 @@
 //   2  manifest version incompatible
 //   3  invoke failure
 
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { parse as parseYaml } from "yaml";
@@ -58,9 +59,16 @@ async function getJson(url, headers = {}) {
 }
 
 function readProfile() {
-  const path = resolve(__dirname, "../config/hermes-profile.yaml");
+  const configured = process.env.HERMES_PROFILE_FILE;
+  const defaultAppProfile = resolve(__dirname, "../config/hermes-app-profile.yaml");
+  const fallbackProfile = resolve(__dirname, "../config/hermes-profile.yaml");
+  const path = configured
+    ? resolve(configured)
+    : existsSync(defaultAppProfile)
+      ? defaultAppProfile
+      : fallbackProfile;
   const raw = readFileSync(path, "utf-8");
-  return parseYaml(raw);
+  return { path, profile: parseYaml(raw) };
 }
 
 // SemVer range check — handles ">=1.0.0 <2.0.0" subset.
@@ -76,9 +84,9 @@ function isVersionCompatible(version, range) {
 async function main() {
   log("boot", { base: BASE, toolBase: TOOL_BASE, tenantId: TENANT_ID, agentId: AGENT_ID });
 
-  const profile = readProfile();
+  const { path: profilePath, profile } = readProfile();
   const wantRange = profile?.compatible?.beautyosManifest;
-  log("profile.loaded", { policyFile: profile?.policy?.file, wantRange });
+  log("profile.loaded", { profilePath, policyFile: profile?.policy?.file, wantRange });
 
   // Step 1: manifest + version compat
   let manifest;
@@ -110,7 +118,7 @@ async function main() {
     names: (liveTools?.tools || []).map((t) => t.name),
   });
 
-  // Step 5: invoke a low-risk read-only tool with full identity headers
+  // Step 5: invoke low-risk read-only tools with full identity headers
   const target = "get_business_overview";
   if (!(liveTools?.tools || []).some((t) => t.name === target)) {
     fail(3, "expected tool missing from live catalogue", { target });
@@ -130,19 +138,57 @@ async function main() {
   const out = await r.json();
   log("invoke.ok", { tool: out.tool, durationMs: out.durationMs, requestId: headers["x-request-id"] });
 
+  const knowledgeTarget = "query_knowledge_base";
+  if ((liveTools?.tools || []).some((t) => t.name === knowledgeTarget)) {
+    const kr = await fetch(`${TOOL_BASE}/tools/${knowledgeTarget}/invoke`, {
+      method: "POST",
+      headers: { ...reqHeaders(), "content-type": "application/json" },
+      body: JSON.stringify({ input: { keyword: "部署", limit: 3 } }),
+    });
+    if (!kr.ok) {
+      const body = await kr.text();
+      fail(3, "knowledge tool invoke failed", { status: kr.status, body: body.slice(0, 200) });
+    }
+    const kout = await kr.json();
+    log("invoke.knowledge.ok", {
+      tool: kout.tool,
+      rows: Array.isArray(kout?.result?.rows) ? kout.result.rows.length : 0,
+    });
+  }
+
   // Step 6: assert behavioural rules from doc
   // - confirm-required tool must 412 without `confirmed:true`
-  const confirmTarget = "generate_followup_suggestion";
+  const confirmTarget = (liveTools?.tools || []).some((t) => t.name === "create_content_draft")
+    ? "create_content_draft"
+    : "generate_followup_suggestion";
   if ((liveTools?.tools || []).some((t) => t.name === confirmTarget)) {
     const cr = await fetch(`${TOOL_BASE}/tools/${confirmTarget}/invoke`, {
       method: "POST",
       headers: { ...reqHeaders(), "content-type": "application/json" },
-      body: JSON.stringify({ input: { customerId: "cust_demo" } }),
+      body: JSON.stringify({
+        input: confirmTarget === "create_content_draft"
+          ? { type: "project", project: "热玛吉" }
+          : { customerId: "cust_demo" },
+      }),
     });
     if (cr.status !== 412) {
       fail(3, "confirm-required tool did not return 412", { got: cr.status });
     }
     log("invoke.confirm_blocked.ok", { tool: confirmTarget, status: 412 });
+
+    if (confirmTarget === "create_content_draft") {
+      const dr = await fetch(`${TOOL_BASE}/tools/${confirmTarget}/invoke`, {
+        method: "POST",
+        headers: { ...reqHeaders(), "content-type": "application/json" },
+        body: JSON.stringify({ dryRun: true, input: { type: "project", project: "热玛吉" } }),
+      });
+      if (!dr.ok) {
+        const body = await dr.text();
+        fail(3, "confirm-required dry-run failed", { status: dr.status, body: body.slice(0, 200) });
+      }
+      const dout = await dr.json();
+      log("invoke.confirm_dryrun.ok", { tool: dout.tool, dryRun: dout.dryRun });
+    }
   }
 
   log("done", { ok: true });

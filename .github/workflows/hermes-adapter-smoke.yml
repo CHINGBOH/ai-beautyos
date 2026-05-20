@@ -13,8 +13,13 @@ on:
       - "server/**"
       - "scripts/hermes-adapter-smoke.mjs"
       - "config/hermes-profile.yaml"
+      - "config/hermes-app-profile.yaml"
+      - "config/hermes-ops-profile.yaml"
+      - "config/tools/**"
+      - "config/policies/hermes/**"
       - "docs/architecture/hermes-adapter.md"
       - "docker-compose.yml"
+      - "docker-compose.full.yml"
       - "Dockerfile"
       - ".github/workflows/hermes-adapter-smoke.yml"
   pull_request:
@@ -23,8 +28,13 @@ on:
       - "server/**"
       - "scripts/hermes-adapter-smoke.mjs"
       - "config/hermes-profile.yaml"
+      - "config/hermes-app-profile.yaml"
+      - "config/hermes-ops-profile.yaml"
+      - "config/tools/**"
+      - "config/policies/hermes/**"
       - "docs/architecture/hermes-adapter.md"
       - "docker-compose.yml"
+      - "docker-compose.full.yml"
       - "Dockerfile"
       - ".github/workflows/hermes-adapter-smoke.yml"
   workflow_dispatch: {}
@@ -68,15 +78,15 @@ jobs:
 
       - name: Run hermes-adapter smoke
         run: |
-          # The smoke script is not baked into the production image (source-
-          # only). Copy it into /app/scripts/ — the script resolves the
-          # profile path as `__dirname/../config/hermes-profile.yaml`, so
-          # it must live one level under /app where config/ already is.
+          # The smoke script is source-only. Copy it into /app/scripts/ so
+          # its default profile resolution can find /app/config/*.yaml.
           docker compose exec -T -u root web mkdir -p /app/scripts
           docker compose cp scripts/hermes-adapter-smoke.mjs \
             web:/app/scripts/hermes-adapter-smoke.mjs
           docker compose exec -T -u root -w /app web \
-            node /app/scripts/hermes-adapter-smoke.mjs
+            env TOOL_BASE=http://tool-server:5001 \
+                HERMES_PROFILE_FILE=/app/config/hermes-app-profile.yaml \
+                node /app/scripts/hermes-adapter-smoke.mjs
 
       - name: Dump container logs on failure
         if: failure()
