@@ -103,9 +103,16 @@ async function main() {
 
   // Step 2: tool catalogue (system view)
   const sysTools = await getJson(BASE + (profile.beautyos?.endpoints?.tools || "/system/tools"));
+  const sysToolNames = (sysTools?.tools || []).map((t) => t.name);
   log("system.tools", {
     count: Array.isArray(sysTools?.tools) ? sysTools.tools.length : 0,
+    source: sysTools?.source,
   });
+  for (const required of ["query_knowledge_base", "create_content_draft", "run_whitelist_script"]) {
+    if (!sysToolNames.includes(required)) {
+      fail(1, "required tool missing from system catalogue", { required, source: sysTools?.source });
+    }
+  }
 
   // Step 3: permissions
   const perms = await getJson(BASE + (profile.beautyos?.endpoints?.permissions || "/system/permissions"));

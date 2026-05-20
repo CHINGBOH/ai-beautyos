@@ -1,6 +1,3 @@
-import fs from "node:fs";
-import path from "node:path";
-import { parse as parseYaml } from "yaml";
 import type { Express, Request, Response } from "express";
 import { recordAudit } from "./system-registry";
 import {
@@ -10,6 +7,7 @@ import {
 } from "./agent-persistence";
 import { tenantContext, tokenBucketAllow } from "./tenant-context";
 import { getLeadById, getAllConversations, getMessagesByConversationId } from "../db";
+import { loadToolConfigs, toPublicToolDescriptor, type ToolConfig } from "./tool-configs";
 
 // MVP Tool Server — mounted in-process under /tools/*.
 // Issue #17 explicitly allows this; #29 documents splitting it into its
@@ -32,60 +30,7 @@ import { getLeadById, getAllConversations, getMessagesByConversationId } from ".
 //
 // Multi-tenant / rate-limit / auth headers — see middleware module.
 
-export type ToolConfig = {
-  schemaVersion: string;
-  name: string;
-  description: string;
-  risk: "low" | "medium" | "high" | "very_high";
-  access: "ro" | "rw";
-  timeoutMs: number;
-  maxRows: number;
-  rateLimitPerMin: number;
-  requiresConfirm: boolean;
-  supportsDryRun: boolean;
-  tags?: string[];
-  audit?: "full" | "summary" | "none";
-};
-
-const TOOL_DIR_CANDIDATES = [
-  path.resolve(process.cwd(), "config/tools"),
-  path.resolve(import.meta.dirname, "../../config/tools"),
-  path.resolve(import.meta.dirname, "../config/tools"),
-];
-
-function findToolDir(): string | null {
-  for (const p of TOOL_DIR_CANDIDATES) {
-    if (fs.existsSync(p)) return p;
-  }
-  return null;
-}
-
 let TOOL_CONFIGS: Record<string, ToolConfig> = {};
-
-function loadToolConfigs(): Record<string, ToolConfig> {
-  const dir = findToolDir();
-  if (!dir) {
-    console.warn("[tool-server] no config/tools directory found; running with empty registry");
-    return {};
-  }
-  const out: Record<string, ToolConfig> = {};
-  for (const file of fs.readdirSync(dir)) {
-    if (!file.endsWith(".yaml")) continue;
-    const raw = fs.readFileSync(path.join(dir, file), "utf-8");
-    try {
-      const cfg = parseYaml(raw) as ToolConfig;
-      if (!cfg?.name) continue;
-      if (cfg.name !== file.replace(/\.yaml$/, "")) {
-        console.warn(`[tool-server] ${file} name mismatch, skipping`);
-        continue;
-      }
-      out[cfg.name] = cfg;
-    } catch (e) {
-      console.warn(`[tool-server] failed to parse ${file}:`, e);
-    }
-  }
-  return out;
-}
 
 type HandlerContext = {
   tenantId: string;
@@ -291,15 +236,7 @@ export function registerToolServerRoutes(app: Express) {
 
   app.get("/tools", (_req: Request, res: Response) => {
     res.json({
-      tools: Object.values(TOOL_CONFIGS).map((t) => ({
-        name: t.name,
-        description: t.description,
-        risk: t.risk,
-        access: t.access,
-        requiresConfirm: t.requiresConfirm,
-        supportsDryRun: t.supportsDryRun,
-        tags: t.tags ?? [],
-      })),
+      tools: Object.values(TOOL_CONFIGS).map(toPublicToolDescriptor),
     });
   });
 

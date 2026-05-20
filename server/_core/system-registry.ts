@@ -71,6 +71,7 @@ import { loadTenantConfig, clearTenantConfigCache, renderSystemPrompt, validateP
 import { getDb } from "../db";
 import { tenantConfigDrafts } from "../../drizzle/schema-agent";
 import { eq, and, desc, sql as drizzleSql } from "drizzle-orm";
+import { loadToolConfigs, toPublicToolDescriptor } from "./tool-configs";
 
 interface AuditEntry {
   ts: string;
@@ -137,9 +138,11 @@ export function registerSystemRegistryRoutes(
   });
 
   app.get("/system/tools", (_req, res) => {
-    // Until #25's tool-config layer lands, return manifest tool entries.
-    // Tool Server (#17) will register its live tool descriptors here too.
-    res.status(200).json({ tools: loadManifest().tools ?? [] });
+    const configTools = Object.values(loadToolConfigs()).map(toPublicToolDescriptor);
+    res.status(200).json({
+      tools: configTools.length > 0 ? configTools : loadManifest().tools ?? [],
+      source: configTools.length > 0 ? "config/tools" : "docs/system-manifest.yaml",
+    });
   });
 
   app.get("/system/permissions", (_req, res) => {
