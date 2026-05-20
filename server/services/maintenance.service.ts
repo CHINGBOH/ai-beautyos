@@ -250,7 +250,41 @@ const WHITELIST_SCRIPTS = [
   "silent-customer-patrol.sh",
   "content-topics.sh",
   "todo-draft.sh",
+  "ops-preflight.sh",
+  "ops-github-deploy-status.sh",
+  "ops-trigger-image-build.sh",
+  "ops-local-compose-status.sh",
+  "ops-local-compose-deploy.sh",
 ];
+
+export function previewWhitelistScript(name: string) {
+  if (!WHITELIST_SCRIPTS.includes(name)) {
+    return {
+      ok: false,
+      error: `脚本不在白名单中：${name}`,
+      whitelist: WHITELIST_SCRIPTS,
+    };
+  }
+
+  const scriptPath = path.join(WHITELIST_SCRIPTS_DIR, name);
+  if (!fs.existsSync(scriptPath)) {
+    return { ok: false, error: `脚本不存在：${scriptPath}` };
+  }
+
+  const command = name.startsWith("ops-")
+    ? `BEAUTYOS_OPS_DRY_RUN=1 bash scripts/${name}`
+    : `bash scripts/${name}`;
+
+  return {
+    ok: true,
+    dryRun: true,
+    script: name,
+    command,
+    message: name.startsWith("ops-")
+      ? "Ops runbook preview only. Actual execution still requires confirmed:true."
+      : "Script is whitelisted. Actual execution requires confirmed:true.",
+  };
+}
 
 export async function runWhitelistScript(name: string) {
   if (!WHITELIST_SCRIPTS.includes(name)) {
@@ -267,7 +301,7 @@ export async function runWhitelistScript(name: string) {
   }
 
   try {
-    const output = execSync(`bash ${scriptPath}`, { cwd: REPO_ROOT, timeout: 60000, maxBuffer: 200 * 1024 }).toString();
+    const output = execSync(`bash ${scriptPath}`, { cwd: REPO_ROOT, timeout: 300000, maxBuffer: 300 * 1024 }).toString();
     return {
       ok: true,
       script: name,

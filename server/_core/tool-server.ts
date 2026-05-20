@@ -254,11 +254,8 @@ const TOOL_HANDLERS: Record<string, Handler> = {
   async run_whitelist_script(input, ctx) {
     if (!input?.name) throw new Error("name required");
     if (ctx.dryRun) {
-      return {
-        wouldRun: "whitelisted script",
-        script: String(input.name),
-        requiresConfirmedInvoke: true,
-      };
+      const { previewWhitelistScript } = await import("../services/maintenance.service");
+      return previewWhitelistScript(String(input.name));
     }
     const { runWhitelistScript } = await import("../services/maintenance.service");
     return runWhitelistScript(String(input.name));

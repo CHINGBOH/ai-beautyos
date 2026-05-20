@@ -128,3 +128,42 @@ behaviour policies do not change.
 * **Hermes is cattle.** Same.
 * **Tenant data never crosses container boundaries except via the
   documented HTTP contract.**
+
+## Hermes-Ops runbooks
+
+Hermes-Ops must use `run_whitelist_script` instead of arbitrary shell. The
+current whitelisted operational runbooks are:
+
+| Script | Purpose |
+|--------|---------|
+| `ops-preflight.sh` | Inspect repo state, compose syntax, GitHub CLI status, and required deployment files |
+| `ops-github-deploy-status.sh` | List recent GitHub workflow runs for the image build workflow |
+| `ops-trigger-image-build.sh` | Trigger the GitHub image build workflow via `gh workflow run` |
+| `ops-local-compose-status.sh` | Inspect local compose services, health endpoint, and recent web logs |
+| `ops-local-compose-deploy.sh` | Pull latest Git branch and rebuild/restart `web` + `tool-server` |
+
+Every runbook invocation through Tool Server requires confirmation. For local
+server deployment, `ops-local-compose-deploy.sh` also refuses to run unless the
+host environment sets:
+
+```bash
+BEAUTYOS_OPS_ALLOW_LOCAL_DEPLOY=1
+```
+
+Dry-runs are safe and return the planned command shape:
+
+```json
+{
+  "dryRun": true,
+  "input": { "name": "ops-local-compose-deploy.sh" }
+}
+```
+
+Actual deploys still require:
+
+```json
+{
+  "confirmed": true,
+  "input": { "name": "ops-local-compose-deploy.sh" }
+}
+```

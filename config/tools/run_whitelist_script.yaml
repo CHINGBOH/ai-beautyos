@@ -3,7 +3,7 @@ name: run_whitelist_script
 description: 执行白名单内的运维脚本（仅限预定义的受控脚本）
 risk: medium
 access: rw
-timeoutMs: 60000
+timeoutMs: 300000
 maxRows: 0
 rateLimitPerMin: 5
 requiresConfirm: true
@@ -13,6 +13,8 @@ input:
 output:
   ok: boolean
   script: string
+  dryRun: boolean
+  command: string
   output: string
   outputLines: number
 audit: full
