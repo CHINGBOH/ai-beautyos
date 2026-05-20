@@ -41,6 +41,7 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  AlertCircle,
 } from "lucide-react";
 import DashboardLayout from "@/components/DashboardLayout";
 import { trpc } from "@/lib/trpc";
@@ -73,7 +74,9 @@ export default function DashboardCustomers() {
   const [profileText, setProfileText] = useState<string | null>(null);
 
   // 获取客户列表
-  const { data: customers, isLoading } = trpc.customers.list.useQuery();
+  const { data: customers, isLoading, error: customersError } = trpc.customers.list.useQuery(undefined, {
+    retry: false,
+  });
   const utils = trpc.useUtils();
   const updateCustomer = trpc.customers.update.useMutation({
     onSuccess: updated => {
@@ -139,7 +142,7 @@ export default function DashboardCustomers() {
     tierA: customers?.filter((c: Lead) => c.customerTier === "A").length || 0,
     tierB: customers?.filter((c: Lead) => c.customerTier === "B").length || 0,
     tierC: customers?.filter((c: Lead) => c.customerTier === "C").length || 0,
-    tierD: customers?.filter((c: any) => c.customerTier === "D").length || 0,
+    tierD: customers?.filter((c: Lead) => c.customerTier === "D").length || 0,
   };
 
   // 客户分层标签样式
@@ -336,7 +339,15 @@ export default function DashboardCustomers() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            {isLoading ? (
+            {customersError ? (
+              <div className="flex items-start gap-3 rounded-lg border border-destructive/40 bg-destructive/5 p-4 text-sm">
+                <AlertCircle className="mt-0.5 h-5 w-5 text-destructive" />
+                <div>
+                  <p className="font-medium text-destructive">客户数据读取失败</p>
+                  <p className="mt-1 text-muted-foreground">{customersError.message}</p>
+                </div>
+              </div>
+            ) : isLoading ? (
               <div className="text-center py-12 text-muted-foreground">
                 加载中...
               </div>
@@ -361,7 +372,7 @@ export default function DashboardCustomers() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {filteredCustomers.map((customer: any) => (
+                    {filteredCustomers.map((customer: Lead) => (
                       <TableRow key={customer.id}>
                         <TableCell className="font-medium">
                           {customer.name}
@@ -396,13 +407,13 @@ export default function DashboardCustomers() {
                           <Badge variant="outline">{customer.source}</Badge>
                         </TableCell>
                         <TableCell>
-                          {getTierBadge(customer.customerTier)}
+                          {getTierBadge(customer.customerTier ?? null)}
                         </TableCell>
                         <TableCell>
-                          {getPsychologyBadge(customer.psychologyType)}
+                          {getPsychologyBadge(customer.psychologyType ?? null)}
                         </TableCell>
                         <TableCell>
-                          {getBudgetBadge(customer.budgetLevel)}
+                          {getBudgetBadge(customer.budgetLevel ?? null)}
                         </TableCell>
                         <TableCell>{customer.budget || "-"}</TableCell>
                         <TableCell>

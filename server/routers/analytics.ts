@@ -8,6 +8,7 @@ import {
   getWeeklyTrend,
   getRecentActivities,
   getTodayPriorities,
+  getSystemStatus,
 } from "../services/analytics.service";
 
 export const analyticsRouter = router({
@@ -28,4 +29,6 @@ export const analyticsRouter = router({
   getRecentActivities: protectedProcedure.query(() => getRecentActivities()),
 
   getTodayPriorities: protectedProcedure.query(() => getTodayPriorities()),
+
+  getSystemStatus: protectedProcedure.query(() => getSystemStatus()),
 });

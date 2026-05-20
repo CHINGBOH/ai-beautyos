@@ -8,21 +8,84 @@ import {
   ArrowRight,
   Activity,
   Target,
-  Zap
+  Zap,
+  AlertCircle,
 } from "lucide-react";
-import { StatCard, QuickStats } from "@/components/StatCard";
+import { StatCard } from "@/components/StatCard";
 import { PageHeader } from "@/components/PageHeader";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { trpc } from "@/lib/trpc";
 import { useLocation } from "wouter";
+import DashboardLayout from "@/components/DashboardLayout";
 
 export default function DashboardOverview() {
+  return (
+    <DashboardLayout>
+      <DashboardOverviewContent />
+    </DashboardLayout>
+  );
+}
+
+type SystemStatusItem = {
+  status: "ok" | "warning" | "error";
+  label: string;
+  detail: string;
+};
+
+function SystemStatusList({
+  status,
+  loading,
+}: {
+  status?: {
+    runtime: SystemStatusItem;
+    database: SystemStatusItem;
+    ai: SystemStatusItem;
+  };
+  loading: boolean;
+}) {
+  if (loading || !status) {
+    return <p className="text-sm text-muted-foreground">状态读取中...</p>;
+  }
+
+  const rows = [status.runtime, status.database, status.ai];
+  const tone: Record<SystemStatusItem["status"], { text: string; dot: string }> = {
+    ok: { text: "text-stone-500", dot: "bg-stone-500" },
+    warning: { text: "text-amber-600", dot: "bg-amber-500" },
+    error: { text: "text-destructive", dot: "bg-destructive" },
+  };
+
+  return (
+    <div className="space-y-3">
+      {rows.map(item => (
+        <div key={item.label} className="flex items-center justify-between gap-4">
+          <span className="text-sm text-muted-foreground">{item.label}</span>
+          <span className={`flex items-center gap-1.5 text-sm ${tone[item.status].text}`}>
+            <span className={`w-2 h-2 rounded-full animate-pulse ${tone[item.status].dot}`} />
+            {item.detail}
+          </span>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function DashboardOverviewContent() {
   const [, setLocation] = useLocation();
 
-  const { data: stats } = trpc.analytics.getDashboardStats.useQuery();
-  const { data: weeklyTrend } = trpc.analytics.getWeeklyTrend.useQuery();
-  const { data: activitiesData } = trpc.analytics.getRecentActivities.useQuery();
+  const statsQuery = trpc.analytics.getDashboardStats.useQuery(undefined, { retry: false });
+  const weeklyTrendQuery = trpc.analytics.getWeeklyTrend.useQuery(undefined, { retry: false });
+  const activitiesQuery = trpc.analytics.getRecentActivities.useQuery(undefined, { retry: false });
+  const systemStatusQuery = trpc.analytics.getSystemStatus.useQuery(undefined, {
+    retry: false,
+    refetchInterval: 30_000,
+  });
+  const dashboardError = statsQuery.error || weeklyTrendQuery.error || activitiesQuery.error;
+  const stats = statsQuery.data;
+  const weeklyTrend = weeklyTrendQuery.data;
+  const activitiesData = activitiesQuery.data;
+  const systemStatus = systemStatusQuery.data;
+  const totalContacts = stats?.totalContacts ?? stats?.totalCustomers ?? stats?.totalLeads ?? 0;
 
   const trendData = weeklyTrend?.weeks?.length
     ? weeklyTrend.weeks
@@ -59,16 +122,30 @@ export default function DashboardOverview() {
     <div className="animate-fade-in">
       <PageHeader
         title="工作台"
-        description="欢迎回来，以下是今日业务概览"
+        description="欢迎回来，以下是 PostgreSQL 实时业务概览"
         icon={Activity}
       />
+
+      {dashboardError ? (
+        <Card className="mb-8 border-destructive/40 bg-destructive/5">
+          <CardContent className="flex items-start gap-3 p-4">
+            <AlertCircle className="mt-0.5 h-5 w-5 text-destructive" />
+            <div>
+              <p className="font-medium text-destructive">后台数据读取失败</p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {dashboardError.message}
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      ) : null}
 
       {/* 快速统计 */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-8">
         <StatCard
           title="总客户数"
-          value={stats?.totalLeads || 0}
-          description="累计线索数"
+          value={totalContacts}
+          description={`customers ${stats?.totalCustomers ?? 0} / leads ${stats?.totalLeads ?? 0}`}
           icon={Users}
           trend="neutral"
           trendValue="累计"
@@ -86,7 +163,7 @@ export default function DashboardOverview() {
         <StatCard
           title="本周新增"
           value={trendData[trendData.length - 1]?.leads ?? 0}
-          description="本周新增线索"
+          description="本周新增客户/线索"
           icon={BookOpen}
           trend="neutral"
           trendValue="本周"
@@ -94,11 +171,7 @@ export default function DashboardOverview() {
         />
         <StatCard
           title="转化客户"
-          value={(() => {
-            const converted = stats?.recentLeads?.filter((l: any) => l.status === "converted").length ?? 0;
-            const total = stats?.totalLeads || 1;
-            return `${Math.round((converted / total) * 100)}%`;
-          })()}
+          value={`${Math.round(((stats?.convertedCustomers ?? 0) / Math.max(1, totalContacts)) * 100)}%`}
           description="线索转化率"
           icon={Target}
           trend="neutral"
@@ -161,7 +234,7 @@ export default function DashboardOverview() {
                   业务趋势
                 </CardTitle>
                 <CardDescription>
-                  近30天客户增长趋势
+                  近 6 周客户/对话增长趋势
                 </CardDescription>
               </div>
               <Button
@@ -195,7 +268,7 @@ export default function DashboardOverview() {
                 </div>
               </div>
               <div className="mt-3 flex gap-4 text-xs text-muted-foreground">
-                <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-primary/75" />客户</span>
+                <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-primary/75" />客户/线索</span>
                 <span className="inline-flex items-center gap-1"><i className="h-2 w-2 rounded-full bg-[#B8A68D]" />对话</span>
               </div>
             </CardContent>
@@ -281,29 +354,7 @@ export default function DashboardOverview() {
               <CardTitle className="text-base font-semibold">系统状态</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">Go 后端</span>
-                  <span className="flex items-center gap-1.5 text-sm text-stone-500">
-                    <span className="w-2 h-2 rounded-full bg-stone-500 animate-pulse" />
-                    运行中
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">数据库</span>
-                  <span className="flex items-center gap-1.5 text-sm text-stone-500">
-                    <span className="w-2 h-2 rounded-full bg-stone-500 animate-pulse" />
-                    已连接
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm text-muted-foreground">AI 服务</span>
-                  <span className="flex items-center gap-1.5 text-sm text-stone-500">
-                    <span className="w-2 h-2 rounded-full bg-stone-500 animate-pulse" />
-                    正常
-                  </span>
-                </div>
-              </div>
+              <SystemStatusList status={systemStatus} loading={systemStatusQuery.isLoading} />
             </CardContent>
           </Card>
         </div>

@@ -61,19 +61,12 @@ function LoadingFallback() {
 function Router() {
   return (
     <Switch>
-      {/* 落地页路由 */}
-      <Route path={"/dashboard/yanmei-ai"} component={YanmeiAI} />
-      <Route path={"/"} component={Home} />
-      <Route path={"/services"} component={Services} />
-      <Route path={"/cases"} component={Cases} />
-      <Route path={"/about"} component={About} />
-      
       {/* CRM 系统路由 */}
+      <Route path={"/dashboard/yanmei-ai"} component={YanmeiAI} />
       <Route path={"/chat"} component={Chat} />
       <Route path={"/dashboard/chat"} component={Chat} />
       <Route path={"/admin"} component={Admin} />
       <Route path={"/analytics"} component={Analytics} />
-      <Route path={"/dashboard"} component={DashboardOverview} />
       <Route path={"/dashboard/overview"} component={DashboardOverview} />
       <Route path={"/dashboard/admin"} component={Admin} />
       <Route path={"/dashboard/boss"} component={DashboardBoss} />
@@ -91,6 +84,13 @@ function Router() {
       <Route path={"/dashboard/ai"} component={DashboardAI} />
       <Route path={"/dashboard/wework"} component={DashboardWework} />
       <Route path={"/dashboard/triggers"} component={DashboardTriggers} />
+      <Route path={"/dashboard"} component={DashboardOverview} />
+
+      {/* 落地页路由 */}
+      <Route path={"/services"} component={Services} />
+      <Route path={"/cases"} component={Cases} />
+      <Route path={"/about"} component={About} />
+      <Route path={"/"} component={Home} />
       <Route path={"/404"} component={NotFound} />
       <Route component={NotFound} />
     </Switch>

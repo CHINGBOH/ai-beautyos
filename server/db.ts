@@ -1307,7 +1307,7 @@ export async function getUpcomingAppointments(limit = 20) {
     .where(
       and(
         eq(appointments.status, "pending"),
-        sql`${appointments.appointmentTime} >= ${new Date()}`
+        sql`${appointments.appointmentTime} >= ${new Date().toISOString()}`
       )
     )
     .orderBy(appointments.appointmentTime)

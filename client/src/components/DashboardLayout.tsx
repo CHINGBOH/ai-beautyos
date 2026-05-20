@@ -19,7 +19,7 @@ import {
   SidebarTrigger,
   useSidebar,
 } from "@/components/ui/sidebar";
-import { getLoginUrl } from "@/const";
+import { isOauthConfigured } from "@/const";
 import { useIsMobile } from "@/hooks/useMobile";
 import { 
   Sparkles, 
@@ -136,7 +136,8 @@ export default function DashboardLayout({
     return document.documentElement.classList.contains('dark');
   });
   
-  const { loading, user } = useAuth({ redirectOnUnauthenticated: true });
+  const oauthConfigured = isOauthConfigured();
+  const { loading, user } = useAuth({ redirectOnUnauthenticated: oauthConfigured });
 
   useEffect(() => {
     localStorage.setItem(SIDEBAR_WIDTH_KEY, sidebarWidth.toString());
@@ -155,10 +156,26 @@ export default function DashboardLayout({
     }
   };
 
-  if (loading || !user) {
+  if (loading) {
+    return <DashboardLayoutSkeleton />;
+  }
+
+  if (!user) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="w-6 h-6 border-2 border-muted border-t-primary rounded-full animate-spin" />
+      <div className="min-h-screen flex items-center justify-center bg-background px-6">
+        <div className="max-w-md rounded-2xl border bg-card p-6 text-center shadow-sm">
+          <Sparkles className="mx-auto mb-4 h-8 w-8 text-primary" />
+          <h1 className="text-xl font-semibold">需要登录后查看后台</h1>
+          <p className="mt-3 text-sm text-muted-foreground">
+            当前没有有效登录态，受保护的 PostgreSQL 统计接口不会返回数据。
+            本地开发请在项目根目录设置 <code>DISABLE_AUTH=1</code> 后重启服务；线上环境请配置 OAuth。
+          </p>
+          {oauthConfigured ? (
+            <Button className="mt-5" onClick={() => window.location.reload()}>
+              重新检查登录状态
+            </Button>
+          ) : null}
+        </div>
       </div>
     );
   }

@@ -4,23 +4,105 @@
  */
 
 import { desc } from "drizzle-orm";
-import { getDb, getAllLeads, getLeadById, updateLead } from "../db";
+import {
+  getDb,
+  getAllLeads,
+  getLeadById,
+  updateLead,
+  getAllCustomers,
+  getCustomerById as getCustomerRowById,
+  updateCustomer as updateCustomerRow,
+} from "../db";
 import { leads } from "../../drizzle/schema";
+import type { Customer } from "../../drizzle/schema";
+import type { Lead } from "../../shared/api-types";
+
+function normalizeCustomerTier(tier: string | null): string | null {
+  if (!tier) return null;
+  const normalized = tier.toUpperCase();
+  if (["A", "B", "C", "D"].includes(normalized)) return normalized;
+  if (tier === "vip") return "A";
+  if (tier === "normal") return "B";
+  return tier;
+}
+
+function customerToLead(customer: Customer): Lead {
+  return {
+    id: customer.id,
+    airtableId: null,
+    name: customer.name,
+    phone: customer.phone,
+    wechat: customer.wechat,
+    age: customer.age,
+    hood: customer.occupation,
+    birthday: customer.birthday,
+    importantHolidays: customer.tags,
+    interestedServices: customer.tags,
+    budget: customer.totalSpent ? `${customer.totalSpent}` : null,
+    budgetLevel: customer.totalSpent && customer.totalSpent >= 50000 ? "高" : null,
+    message: customer.notes,
+    source: customer.source || "customers",
+    sourceContent: null,
+    status: customer.status || "active",
+    psychologyType: null,
+    psychologyTags: null,
+    customerTier: normalizeCustomerTier(customer.tier),
+    notes: customer.notes,
+    followUpDate: null,
+    conversationId: null,
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+    syncedAt: null,
+    convertedAt: null,
+    convertedToCustomerId: customer.id,
+  };
+}
+
+async function listCustomerRecords(): Promise<Lead[]> {
+  const [leadRows, customerRows] = await Promise.all([
+    getAllLeads(),
+    getAllCustomers(undefined, undefined, 200, 0),
+  ]);
+  const mappedCustomers = customerRows.map(customerToLead);
+  return [
+    ...mappedCustomers,
+    ...leadRows.filter(lead => !customerRows.some(customer => customer.phone === lead.phone)),
+  ].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+}
 
 export async function listCustomers() {
-  return getAllLeads();
+  return listCustomerRecords();
 }
 
 export async function getCustomerById(id: number) {
-  return getLeadById(id);
+  const lead = await getLeadById(id);
+  if (lead) return lead;
+  const customer = await getCustomerRowById(id);
+  return customer ? customerToLead(customer) : null;
 }
 
 export async function updateCustomer(id: number, data: Record<string, unknown>) {
-  return updateLead(id, data);
+  const lead = await getLeadById(id);
+  if (lead) return updateLead(id, data);
+
+  const customer = await getCustomerRowById(id);
+  if (!customer) return null;
+
+  const customerUpdate: Parameters<typeof updateCustomerRow>[1] = {};
+  if (typeof data.name === "string") customerUpdate.name = data.name;
+  if (typeof data.wechat === "string" || data.wechat === null) customerUpdate.wechat = data.wechat ?? "";
+  if (typeof data.birthday === "string" || data.birthday === null) customerUpdate.birthday = data.birthday ?? "";
+  if (typeof data.age === "number") customerUpdate.age = data.age;
+  if (typeof data.notes === "string" || data.notes === null) customerUpdate.notes = data.notes ?? "";
+  if (typeof data.customerTier === "string" || data.customerTier === null) customerUpdate.tier = data.customerTier ?? "";
+  if (typeof data.status === "string") customerUpdate.status = data.status;
+
+  const updated = await updateCustomerRow(id, customerUpdate);
+  return updated ? customerToLead(updated) : null;
 }
 
 export async function getCustomerStats() {
-  const leads = await getAllLeads();
+  const leads = await listCustomerRecords();
   return {
     total: leads.length,
     tierA: leads.filter(l => l.customerTier === "A").length,

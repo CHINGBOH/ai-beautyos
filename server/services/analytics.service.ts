@@ -3,7 +3,7 @@
  * 业务逻辑从 tRPC router 中抽离至此；router 只负责鉴权与参数校验。
  */
 
-import { desc, eq } from "drizzle-orm";
+import { desc, eq, sql } from "drizzle-orm";
 import {
   analyzeLeadsData,
   generateCustomerProfile,
@@ -11,7 +11,9 @@ import {
 } from "../qwen";
 import type { LeadData, LeadInfo } from "../qwen";
 import { getDb } from "../db";
-import { leads, conversations, messages } from "../../drizzle/schema";
+import { ENV } from "../_core/env";
+import { leads, conversations, messages, customers } from "../../drizzle/schema";
+import type { Customer } from "../../drizzle/schema";
 
 // ---------------------------------------------------------------------------
 // Type helpers
@@ -79,6 +81,51 @@ function buildBudgetDistribution(allLeads: any[]): Record<string, number> {
   }, {});
 }
 
+function getErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
+function normalizeCustomerTier(tier: string | null): string | null {
+  if (!tier) return null;
+  const normalized = tier.toUpperCase();
+  if (["A", "B", "C", "D"].includes(normalized)) return normalized;
+  if (tier === "vip") return "A";
+  if (tier === "normal") return "B";
+  return tier;
+}
+
+function customerToLeadLike(customer: Customer) {
+  return {
+    id: customer.id,
+    airtableId: null,
+    name: customer.name,
+    phone: customer.phone,
+    wechat: customer.wechat,
+    age: customer.age,
+    hood: customer.occupation,
+    birthday: customer.birthday,
+    importantHolidays: customer.tags,
+    interestedServices: customer.tags,
+    budget: customer.totalSpent ? `${customer.totalSpent}` : null,
+    budgetLevel: customer.totalSpent && customer.totalSpent >= 50000 ? "高" : null,
+    message: customer.notes,
+    source: customer.source || "customers",
+    sourceContent: null,
+    status: customer.status || "active",
+    psychologyType: null,
+    psychologyTags: null,
+    customerTier: normalizeCustomerTier(customer.tier),
+    notes: customer.notes,
+    followUpDate: null,
+    conversationId: null,
+    createdAt: customer.createdAt,
+    updatedAt: customer.updatedAt,
+    syncedAt: null,
+    convertedAt: null,
+    convertedToCustomerId: customer.id,
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Service functions
 // ---------------------------------------------------------------------------
@@ -87,34 +134,35 @@ export async function getOverview() {
   try {
     const db = await getDb();
     if (!db) {
-      return {
-        totalLeads: 0,
-        totalConversations: 0,
-        sourceDistribution: {} as Record<string, number>,
-        projectDistribution: {} as Record<string, number>,
-        recentLeads: [],
-      };
+      throw new Error("Database not configured");
     }
 
-    const allLeads = await db.select().from(leads);
-    const allConversations = await db.select().from(conversations);
+    const [allLeads, allCustomers, allConversations] = await Promise.all([
+      db.select().from(leads),
+      db.select().from(customers),
+      db.select().from(conversations),
+    ]);
+    const customerLikeRows = allCustomers.map(customerToLeadLike);
+    const mergedCustomerRows = [
+      ...customerLikeRows,
+      ...allLeads.filter(lead => !allCustomers.some(customer => customer.phone === lead.phone)),
+    ].sort((a, b) => (b.createdAt || "").localeCompare(a.createdAt || ""));
+    const convertedCustomers = allCustomers.filter(customer => customer.status === "converted").length
+      + allLeads.filter(lead => lead.status === "converted").length;
 
     return {
+      totalCustomers: allCustomers.length,
       totalLeads: allLeads.length,
+      totalContacts: mergedCustomerRows.length,
       totalConversations: allConversations.length,
-      sourceDistribution: buildSourceDistribution(allLeads),
-      projectDistribution: buildProjectDistribution(allLeads),
-      recentLeads: allLeads.slice(0, 10),
+      convertedCustomers,
+      sourceDistribution: buildSourceDistribution(mergedCustomerRows),
+      projectDistribution: buildProjectDistribution(mergedCustomerRows),
+      recentLeads: mergedCustomerRows.slice(0, 10),
     };
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("[AnalyticsService] getOverview error:", error);
-    return {
-      totalLeads: 0,
-      totalConversations: 0,
-      sourceDistribution: {} as Record<string, number>,
-      projectDistribution: {} as Record<string, number>,
-      recentLeads: [],
-    };
+    throw new Error(`Dashboard overview query failed: ${getErrorMessage(error)}`);
   }
 }
 
@@ -211,7 +259,7 @@ export async function getMarketingSuggestions() {
 export async function getWeeklyTrend() {
   try {
     const db = await getDb();
-    if (!db) return { weeks: [] as Array<{ label: string; leads: number; conversations: number }> };
+    if (!db) throw new Error("Database not configured");
 
     const now = new Date();
     const weeks = Array.from({ length: 6 }, (_, i) => {
@@ -228,39 +276,56 @@ export async function getWeeklyTrend() {
       };
     });
 
-    const allLeads = await db.select({ createdAt: leads.createdAt }).from(leads);
-    const allConvs = await db.select({ createdAt: conversations.createdAt }).from(conversations);
+    const [allLeads, allCustomers, allConvs] = await Promise.all([
+      db.select({ createdAt: leads.createdAt }).from(leads),
+      db.select({ createdAt: customers.createdAt }).from(customers),
+      db.select({ createdAt: conversations.createdAt }).from(conversations),
+    ]);
+    const allCustomerEvents = [...allCustomers, ...allLeads];
 
     return {
       weeks: weeks.map(w => ({
         label: w.label,
-        leads: allLeads.filter(l => l.createdAt >= w.startISO && l.createdAt <= w.endISO).length,
+        leads: allCustomerEvents.filter(l => l.createdAt >= w.startISO && l.createdAt <= w.endISO).length,
         conversations: allConvs.filter(c => c.createdAt >= w.startISO && c.createdAt <= w.endISO).length,
       })),
     };
-  } catch {
-    return { weeks: [] as Array<{ label: string; leads: number; conversations: number }> };
+  } catch (error: unknown) {
+    console.error("[AnalyticsService] getWeeklyTrend error:", error);
+    throw new Error(`Weekly trend query failed: ${getErrorMessage(error)}`);
   }
 }
 
 export async function getRecentActivities() {
   try {
     const db = await getDb();
-    if (!db) return { activities: [] as Array<{ id: string; type: string; content: string; createdAt: string | null }> };
+    if (!db) throw new Error("Database not configured");
 
-    const recentLeads = await db
-      .select({ id: leads.id, name: leads.name, source: leads.source, createdAt: leads.createdAt })
-      .from(leads)
-      .orderBy(desc(leads.createdAt))
-      .limit(5);
-
-    const recentConvs = await db
-      .select({ id: conversations.id, visitorName: conversations.visitorName, createdAt: conversations.createdAt })
-      .from(conversations)
-      .orderBy(desc(conversations.createdAt))
-      .limit(5);
+    const [recentLeads, recentCustomers, recentConvs] = await Promise.all([
+      db
+        .select({ id: leads.id, name: leads.name, source: leads.source, createdAt: leads.createdAt })
+        .from(leads)
+        .orderBy(desc(leads.createdAt))
+        .limit(5),
+      db
+        .select({ id: customers.id, name: customers.name, source: customers.source, createdAt: customers.createdAt })
+        .from(customers)
+        .orderBy(desc(customers.createdAt))
+        .limit(5),
+      db
+        .select({ id: conversations.id, visitorName: conversations.visitorName, createdAt: conversations.createdAt })
+        .from(conversations)
+        .orderBy(desc(conversations.createdAt))
+        .limit(5),
+    ]);
 
     const activities = [
+      ...recentCustomers.map(c => ({
+        id: `customer_${c.id}`,
+        type: "客户",
+        content: `新增客户 ${c.name}（来源：${c.source || "未知"}）`,
+        createdAt: c.createdAt,
+      })),
       ...recentLeads.map(l => ({
         id: `lead_${l.id}`,
         type: "客户",
@@ -278,8 +343,43 @@ export async function getRecentActivities() {
       .slice(0, 8);
 
     return { activities };
-  } catch {
-    return { activities: [] as Array<{ id: string; type: string; content: string; createdAt: string | null }> };
+  } catch (error: unknown) {
+    console.error("[AnalyticsService] getRecentActivities error:", error);
+    throw new Error(`Recent activity query failed: ${getErrorMessage(error)}`);
+  }
+}
+
+export async function getSystemStatus() {
+  const aiConfigured = Boolean(
+    ENV.deepseekApiKey ||
+      ENV.forgeApiKey ||
+      process.env.QWEN_API_KEY ||
+      process.env.OPENAI_API_KEY
+  );
+
+  try {
+    const db = await getDb();
+    if (!db) {
+      return {
+        runtime: { status: "ok" as const, label: "Node/Express 后端", detail: "运行中" },
+        database: { status: "error" as const, label: "PostgreSQL", detail: "DATABASE_URL 未配置" },
+        ai: { status: aiConfigured ? "ok" as const : "warning" as const, label: "AI 服务", detail: aiConfigured ? "已配置" : "未配置 API Key" },
+      };
+    }
+
+    await db.select({ ok: sql<number>`1` }).from(conversations).limit(1);
+    return {
+      runtime: { status: "ok" as const, label: "Node/Express 后端", detail: "运行中" },
+      database: { status: "ok" as const, label: "PostgreSQL", detail: "已连接" },
+      ai: { status: aiConfigured ? "ok" as const : "warning" as const, label: "AI 服务", detail: aiConfigured ? "已配置" : "未配置 API Key" },
+    };
+  } catch (error: unknown) {
+    console.error("[AnalyticsService] getSystemStatus error:", error);
+    return {
+      runtime: { status: "ok" as const, label: "Node/Express 后端", detail: "运行中" },
+      database: { status: "error" as const, label: "PostgreSQL", detail: getErrorMessage(error) },
+      ai: { status: aiConfigured ? "ok" as const : "warning" as const, label: "AI 服务", detail: aiConfigured ? "已配置" : "未配置 API Key" },
+    };
   }
 }
 
