@@ -77,6 +77,14 @@ export default function KnowledgeLibrary() {
     }
   }, [generatedPath]);
 
+  // 自适应学习：阅读进度跟踪
+  const trackProgressMutation = trpc.adaptiveLearning.trackProgress.useMutation();
+
+  const handleSelectKnowledge = (id: number) => {
+    setSelectedKnowledgeId(id);
+    trackProgressMutation.mutate({ contentId: id, status: "started" });
+  };
+
   // 当搜索关键词变化时，自动生成学习路径
   const handleSearchChange = (keyword: string) => {
     setSearchKeyword(keyword);
@@ -155,10 +163,7 @@ export default function KnowledgeLibrary() {
             <CardContent>
               <KnowledgeSearch
                 module={selectedModule}
-                onSelectKnowledge={id => {
-                  setSelectedKnowledgeId(id);
-                  // 获取知识详情后可以基于内容生成学习路径
-                }}
+                onSelectKnowledge={handleSelectKnowledge}
               />
             </CardContent>
           </Card>
@@ -236,9 +241,7 @@ export default function KnowledgeLibrary() {
             ) : knowledgeTree && knowledgeTree.length > 0 ? (
               <KnowledgeTreeView
                 tree={knowledgeTree}
-                onSelect={id => {
-                  setSelectedKnowledgeId(id);
-                }}
+                onSelect={handleSelectKnowledge}
                 isEmployee={isEmployee}
               />
             ) : (

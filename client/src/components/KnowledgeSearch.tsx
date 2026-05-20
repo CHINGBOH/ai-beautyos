@@ -28,10 +28,10 @@ export function KnowledgeSearch({ onSelectKnowledge, module }: KnowledgeSearchPr
     }
   );
 
-  // 症状搜索（可以扩展为专门的症状匹配API）
-  const { data: symptomResults, isLoading: symptomLoading } = trpc.knowledge.search.useQuery(
+  // 症状搜索 — 使用向量搜索，支持相关性评分
+  const { data: symptomSearchData, isLoading: symptomLoading } = trpc.vectorSearch.search.useQuery(
     {
-      keyword: searchKeyword,
+      query: searchKeyword,
       module,
       limit: 10,
     },
@@ -40,9 +40,10 @@ export function KnowledgeSearch({ onSelectKnowledge, module }: KnowledgeSearchPr
     }
   );
 
-  const { data: imageResults, isLoading: imageLoading } = trpc.knowledge.search.useQuery(
+  // 图片描述搜索 — 同样使用向量搜索
+  const { data: imageSearchData, isLoading: imageLoading } = trpc.vectorSearch.search.useQuery(
     {
-      keyword: searchKeyword,
+      query: searchKeyword,
       module,
       limit: 10,
     },
@@ -50,6 +51,9 @@ export function KnowledgeSearch({ onSelectKnowledge, module }: KnowledgeSearchPr
       enabled: searchKeyword.length > 0 && searchMode === "image",
     }
   );
+
+  const symptomResults = symptomSearchData?.results;
+  const imageResults = imageSearchData?.results;
 
   const isLoading = keywordLoading || symptomLoading || imageLoading;
   const results = searchMode === "symptom" ? symptomResults : searchMode === "image" ? imageResults : keywordResults;
@@ -136,41 +140,49 @@ export function KnowledgeSearch({ onSelectKnowledge, module }: KnowledgeSearchPr
               <div className="text-sm text-muted-foreground">
                 找到 {results.length} 个相关结果
               </div>
-              {results.map((item) => (
-                <Card
-                  key={item.id}
-                  className="cursor-pointer hover:bg-gray-50 transition-colors"
-                  onClick={() => onSelectKnowledge?.(item.id)}
-                >
-                  <CardContent className="pt-4">
-                    <div className="flex items-start justify-between gap-4">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-medium mb-1">{item.title}</h3>
-                        {item.summary && (
-                          <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
-                            {item.summary}
-                          </p>
-                        )}
-                        <div className="flex flex-wrap gap-2">
-                          {item.module && (
-                            <Badge variant="secondary" className="text-xs">
-                              {MODULE_NAMES[item.module as keyof typeof MODULE_NAMES] || item.module}
-                            </Badge>
+              {(results as Array<{ id: number; title: string; summary?: string | null; module?: string | null; viewCount?: number | null; category?: string | null; similarity?: number; [key: string]: unknown }>).map((item) => {
+                const similarity = item.similarity;
+                return (
+                  <Card
+                    key={item.id}
+                    className="cursor-pointer hover:bg-gray-50 transition-colors"
+                    onClick={() => onSelectKnowledge?.(item.id)}
+                  >
+                    <CardContent className="pt-4">
+                      <div className="flex items-start justify-between gap-4">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-medium mb-1">{item.title}</h3>
+                          {item.summary && (
+                            <p className="text-sm text-muted-foreground line-clamp-2 mb-2">
+                              {item.summary}
+                            </p>
                           )}
-                          {item.category && (
+                          <div className="flex flex-wrap gap-2">
+                            {item.module && (
+                              <Badge variant="secondary" className="text-xs">
+                                {MODULE_NAMES[item.module as keyof typeof MODULE_NAMES] || item.module}
+                              </Badge>
+                            )}
+                            {(item as any).category && (
+                              <Badge variant="outline" className="text-xs">
+                                {(item as any).category}
+                              </Badge>
+                            )}
                             <Badge variant="outline" className="text-xs">
-                              {item.category}
+                              查看 {item.viewCount}
                             </Badge>
-                          )}
-                          <Badge variant="outline" className="text-xs">
-                            查看 {item.viewCount}
-                          </Badge>
+                            {similarity !== undefined && (
+                              <Badge variant="secondary" className="text-xs bg-primary/10">
+                                相关度 {Math.round(similarity * 100)}%
+                              </Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                    </CardContent>
+                  </Card>
+                );
+              })}
             </>
           ) : (
             <div className="text-center py-8 text-muted-foreground">
