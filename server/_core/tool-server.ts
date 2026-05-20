@@ -8,6 +8,7 @@ import {
 import { tenantContext, tokenBucketAllow } from "./tenant-context";
 import { getLeadById, getAllConversations, getMessagesByConversationId } from "../db";
 import { loadToolConfigs, toPublicToolDescriptor, type ToolConfig } from "./tool-configs";
+import { evaluateHermesToolPolicy } from "./hermes-policies";
 
 // MVP Tool Server — mounted in-process under /tools/*.
 // Issue #17 explicitly allows this; #29 documents splitting it into its
@@ -262,6 +263,95 @@ export function registerToolServerRoutes(app: Express) {
     const dryRun = body.dryRun === true;
     const confirmed = body.confirmed === true;
 
+    const policyDecision = evaluateHermesToolPolicy({
+      agentId,
+      toolName: name,
+      toolConfig: cfg,
+      confirmed,
+    });
+
+    if (policyDecision.decision === "deny") {
+      recordAudit({
+        kind: "tool.invoke.blocked",
+        tool: name,
+        tenantId,
+        agentId,
+        requestId,
+        reason: policyDecision.reason,
+      });
+      const blockedId = await persistInvocationStart({
+        tenantId,
+        callerKind: "hermes",
+        callerRef: agentId,
+        toolName: name,
+        params: input,
+        dryRun,
+        requestId,
+      });
+      if (blockedId) {
+        persistInvocationFinish({
+          invocationId: blockedId,
+          status: "blocked",
+          latencyMs: 0,
+          errorCode: "policy_denied",
+        });
+        persistPolicyDecision({
+          tenantId,
+          invocationId: blockedId,
+          policyId: policyDecision.policyId ?? "unmapped",
+          rulePath: policyDecision.rulePath,
+          decision: "deny",
+          reason: policyDecision.reason,
+        });
+      }
+      return res.status(403).json({
+        error: "policy_denied",
+        tool: name,
+        message: policyDecision.reason,
+      });
+    }
+
+    if (policyDecision.decision === "require_confirm" && !(dryRun && cfg.supportsDryRun)) {
+      recordAudit({
+        kind: "tool.invoke.blocked",
+        tool: name,
+        tenantId,
+        agentId,
+        requestId,
+        reason: policyDecision.reason,
+      });
+      const blockedId = await persistInvocationStart({
+        tenantId,
+        callerKind: "hermes",
+        callerRef: agentId,
+        toolName: name,
+        params: input,
+        dryRun,
+        requestId,
+      });
+      if (blockedId) {
+        persistInvocationFinish({
+          invocationId: blockedId,
+          status: "blocked",
+          latencyMs: 0,
+          errorCode: "policy_confirmation_required",
+        });
+        persistPolicyDecision({
+          tenantId,
+          invocationId: blockedId,
+          policyId: policyDecision.policyId,
+          rulePath: policyDecision.rulePath,
+          decision: "require_confirm",
+          reason: policyDecision.reason,
+        });
+      }
+      return res.status(412).json({
+        error: "confirmation_required",
+        tool: name,
+        message: policyDecision.reason,
+      });
+    }
+
     if (!tokenBucketAllow(tenantId, name, cfg.rateLimitPerMin)) {
       recordAudit({
         kind: "tool.invoke.rate_limited",
@@ -319,7 +409,7 @@ export function registerToolServerRoutes(app: Express) {
         persistPolicyDecision({
           tenantId,
           invocationId: blockedId,
-          policyId: "sales-assistant",
+          policyId: policyDecision.policyId ?? "tool-config",
           rulePath: `tools.${name}.requires_confirm`,
           decision: "require_confirm",
           reason: "confirmation_required",

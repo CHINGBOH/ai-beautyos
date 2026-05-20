@@ -31,7 +31,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const BASE = process.env.BEAUTYOS_BASE || "http://localhost:3000";
 const TOOL_BASE = process.env.TOOL_BASE || BASE;
 const TENANT_ID = process.env.BEAUTYOS_TENANT_ID || "00000000-0000-0000-0000-000000000001";
-const AGENT_ID = process.env.BEAUTYOS_AGENT_ID || "hermes-smoke";
+let AGENT_ID = process.env.BEAUTYOS_AGENT_ID || "";
 
 function log(stage, detail) {
   console.log(JSON.stringify({ ts: new Date().toISOString(), stage, ...detail }));
@@ -82,10 +82,10 @@ function isVersionCompatible(version, range) {
 }
 
 async function main() {
-  log("boot", { base: BASE, toolBase: TOOL_BASE, tenantId: TENANT_ID, agentId: AGENT_ID });
-
   const { path: profilePath, profile } = readProfile();
+  AGENT_ID = AGENT_ID || profile?.identity?.agentId || "hermes-app-business-v1";
   const wantRange = profile?.compatible?.beautyosManifest;
+  log("boot", { base: BASE, toolBase: TOOL_BASE, tenantId: TENANT_ID, agentId: AGENT_ID });
   log("profile.loaded", { profilePath, policyFile: profile?.policy?.file, wantRange });
 
   // Step 1: manifest + version compat
@@ -196,6 +196,19 @@ async function main() {
       const dout = await dr.json();
       log("invoke.confirm_dryrun.ok", { tool: dout.tool, dryRun: dout.dryRun });
     }
+  }
+
+  const forbiddenForApp = "run_whitelist_script";
+  if ((liveTools?.tools || []).some((t) => t.name === forbiddenForApp) && AGENT_ID.startsWith("hermes-app-")) {
+    const fr = await fetch(`${TOOL_BASE}/tools/${forbiddenForApp}/invoke`, {
+      method: "POST",
+      headers: { ...reqHeaders(), "content-type": "application/json" },
+      body: JSON.stringify({ dryRun: true, input: { name: "ops-preflight.sh" } }),
+    });
+    if (fr.status !== 403) {
+      fail(3, "app agent was not blocked from ops-only tool", { tool: forbiddenForApp, got: fr.status });
+    }
+    log("invoke.policy_denied.ok", { tool: forbiddenForApp, status: 403, agentId: AGENT_ID });
   }
 
   log("done", { ok: true });
