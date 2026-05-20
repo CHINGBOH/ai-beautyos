@@ -10,7 +10,6 @@ import {
 } from "./agent-persistence";
 import { tenantContext, tokenBucketAllow } from "./tenant-context";
 import { getLeadById, getAllConversations, getMessagesByConversationId } from "../db";
-import { callQwen } from "../qwen";
 
 // MVP Tool Server — mounted in-process under /tools/*.
 // Issue #17 explicitly allows this; #29 documents splitting it into its
@@ -92,33 +91,12 @@ type Handler = (input: any, ctx: { tenantId: string }) => Promise<any>;
 
 const TOOL_HANDLERS: Record<string, Handler> = {
   async search_customers(input) {
-    const limit = Math.min(input?.limit ?? 20, 50);
-    const channel = input?.channel as string | undefined;
-    const tier = input?.tier as string | undefined;
-
-    const { getDb } = await import("../db");
-    const { leads } = await import("../../drizzle/schema");
-    const { desc } = await import("drizzle-orm");
-    const db = await getDb();
-    if (!db) return { rows: [], total: 0 };
-
-    const allLeads = await db.select().from(leads).orderBy(desc(leads.createdAt));
-    let filtered = allLeads as typeof allLeads;
-    if (channel) filtered = filtered.filter(l => l.source?.includes(channel));
-    if (tier) filtered = filtered.filter(l => l.customerTier === tier);
-
-    const rows = filtered.slice(0, limit).map(l => ({
-      id: l.id,
-      name: l.name,
-      phone: l.phone,
-      channel: l.source,
-      tier: l.customerTier,
-      psychologyType: l.psychologyType,
-      status: l.status,
-      lastContactAt: l.updatedAt,
-    }));
-
-    return { rows, total: filtered.length };
+    const { searchCustomers } = await import("../services/customers.service");
+    return searchCustomers({
+      limit: input?.limit,
+      channel: input?.channel,
+      tier: input?.tier,
+    });
   },
 
   async get_customer_profile(input) {
@@ -154,35 +132,8 @@ const TOOL_HANDLERS: Record<string, Handler> = {
   },
 
   async get_business_overview(input) {
-    const rangeDays = input?.rangeDays ?? 7;
-    const since = new Date(Date.now() - rangeDays * 86400_000).toISOString();
-    const nowISO = new Date().toISOString();
-
-    const { getDb } = await import("../db");
-    const { leads } = await import("../../drizzle/schema");
-    const db = await getDb();
-    if (!db) return { windowDays: rangeDays, newCustomers: 0, conversions: 0, pendingFollowups: 0, staleFollowups: 0, totalLeads: 0 };
-
-    const allLeads = await db.select().from(leads);
-    const newCustomers = allLeads.filter(l => l.createdAt >= since).length;
-    const pendingFollowups = allLeads.filter(l =>
-      l.followUpDate && l.followUpDate >= nowISO && l.status !== "converted"
-    ).length;
-    const staleFollowups = allLeads.filter(l =>
-      l.followUpDate && l.followUpDate < nowISO && l.status !== "converted"
-    ).length;
-    const conversions = allLeads.filter(l =>
-      l.convertedAt && l.convertedAt >= since
-    ).length;
-
-    return {
-      windowDays: rangeDays,
-      newCustomers,
-      conversions,
-      pendingFollowups,
-      staleFollowups,
-      totalLeads: allLeads.length,
-    };
+    const { getBusinessOverview } = await import("../services/analytics.service");
+    return getBusinessOverview(input?.rangeDays ?? 7);
   },
 
   async list_recent_conversations(input) {
@@ -200,42 +151,68 @@ const TOOL_HANDLERS: Record<string, Handler> = {
 
   async generate_followup_suggestion(input) {
     if (!input?.customerId) throw new Error("customerId required");
-    const id = Number(input.customerId);
-    const lead = await getLeadById(id);
-    if (!lead) throw new Error(`Customer ${id} not found`);
+    const { generateFollowupSuggestion } = await import("../services/followup.service");
+    return generateFollowupSuggestion({
+      customerId: Number(input.customerId),
+      tone: input?.tone,
+    });
+  },
 
-    const tone = input?.tone ?? "warm_concierge";
-    const toneMap: Record<string, string> = {
-      warm_concierge: "温暖、亲切、像老朋友一样",
-      professional: "专业、权威、简洁",
-      caring: "关怀、体贴、情感化",
-    };
-    const toneDesc = toneMap[tone] || toneMap.warm_concierge;
+  async generate_daily_report() {
+    const { generateDailyReport } = await import("../services/daily-report.service");
+    return generateDailyReport();
+  },
 
-    let services: string[] = [];
-    try { services = JSON.parse(lead.interestedServices || "[]"); } catch {}
+  async generate_silent_customer_report(input) {
+    const { generateSilentCustomerReport } = await import("../services/silent-customer.service");
+    return generateSilentCustomerReport(input?.coldDaysThreshold ?? 30);
+  },
 
-    const prompt = `你是一名医美机构的销售顾问，请根据以下客户信息生成一条${toneDesc}风格的跟进话术（微信消息），50-80字，不要有任何额外说明。
+  async generate_content_topics() {
+    const { generateContentTopics } = await import("../services/content-strategy.service");
+    return generateContentTopics();
+  },
 
-客户姓名：${lead.name}
-感兴趣项目：${services.join("、") || "未知"}
-预算：${lead.budget || "未填写"}
-客户心理类型：${lead.psychologyType || "未知"}
-状态：${lead.status}`;
+  async generate_todo_draft() {
+    const { generateTodoDraft } = await import("../services/todo-draft.service");
+    return generateTodoDraft();
+  },
 
-    let draft: string;
-    try {
-      draft = await callQwen([{ role: "user", content: prompt }]);
-    } catch {
-      draft = `您好${lead.name}，最近肌肤状态怎么样？我们最近有${services[0] || "护肤"}方面的新方案，方便的话可以约个时间来详细了解一下～`;
-    }
+  async read_beautyos_log(input) {
+    const { readLog } = await import("../services/maintenance.service");
+    return readLog(input?.lines ?? 50, input?.filter);
+  },
 
-    return {
-      customerId: id,
-      customerName: lead.name,
-      tone,
-      draft: draft.trim(),
-    };
+  async check_beautyos_status() {
+    const { checkStatus } = await import("../services/maintenance.service");
+    return checkStatus();
+  },
+
+  async read_beautyos_file(input) {
+    if (!input?.path) throw new Error("path required");
+    const { readRepoFile } = await import("../services/maintenance.service");
+    return readRepoFile(String(input.path));
+  },
+
+  async get_beautyos_git_status() {
+    const { getGitStatus } = await import("../services/maintenance.service");
+    return getGitStatus();
+  },
+
+  async get_beautyos_git_diff(input) {
+    const { getGitDiff } = await import("../services/maintenance.service");
+    return getGitDiff(input?.pathspec);
+  },
+
+  async run_beautyos_tests(input) {
+    const { runTests } = await import("../services/maintenance.service");
+    return runTests(input?.suite);
+  },
+
+  async run_whitelist_script(input) {
+    if (!input?.name) throw new Error("name required");
+    const { runWhitelistScript } = await import("../services/maintenance.service");
+    return runWhitelistScript(String(input.name));
   },
 };
 

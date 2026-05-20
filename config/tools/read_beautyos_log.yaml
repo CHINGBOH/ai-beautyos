@@ -1,0 +1,23 @@
+schemaVersion: "1.0.0"
+name: read_beautyos_log
+description: 读取 BeautyOS 服务器最近日志（支持关键词过滤）
+risk: low
+access: ro
+timeoutMs: 5000
+maxRows: 200
+rateLimitPerMin: 20
+requiresConfirm: false
+supportsDryRun: false
+input:
+  lines: { type: number, required: false, default: 50, max: 200 }
+  filter: { type: string, required: false }
+output:
+  available: boolean
+  path: string
+  totalLines: number
+  matchedLines: number
+  lines: array
+  truncated: boolean
+audit: full
+tags:
+  - "maintenance:read"

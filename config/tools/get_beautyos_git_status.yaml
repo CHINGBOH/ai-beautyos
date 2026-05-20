@@ -1,0 +1,20 @@
+schemaVersion: "1.0.0"
+name: get_beautyos_git_status
+description: 查看 BeautyOS 仓库 Git 状态（分支/变更/最近提交）
+risk: low
+access: ro
+timeoutMs: 5000
+maxRows: 0
+rateLimitPerMin: 20
+requiresConfirm: false
+supportsDryRun: false
+input: {}
+output:
+  ok: boolean
+  branch: string
+  dirty: boolean
+  changes: array
+  recentCommits: array
+audit: summary
+tags:
+  - "maintenance:read"

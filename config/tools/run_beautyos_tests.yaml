@@ -1,0 +1,21 @@
+schemaVersion: "1.0.0"
+name: run_beautyos_tests
+description: 运行 BeautyOS 测试套件（可指定 suite 路径）
+risk: medium
+access: rw
+timeoutMs: 120000
+maxRows: 0
+rateLimitPerMin: 3
+requiresConfirm: true
+supportsDryRun: true
+input:
+  suite: { type: string, required: false }
+output:
+  ok: boolean
+  command: string
+  output: string
+  outputLines: number
+  truncated: boolean
+audit: full
+tags:
+  - "maintenance:write"

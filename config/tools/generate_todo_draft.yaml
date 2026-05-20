@@ -1,0 +1,23 @@
+schemaVersion: "1.0.0"
+name: generate_todo_draft
+description: 生成今日跟进待办清单 — 合并高意向、逾期未跟、新线索，按优先级排序
+risk: low
+access: ro
+timeoutMs: 10000
+maxRows: 0
+rateLimitPerMin: 10
+requiresConfirm: false
+supportsDryRun: true
+input: {}
+output:
+  date: string
+  totalTasks: number
+  priorities: array
+  urgent: array
+  important: array
+  normal: array
+  summary: string
+audit: summary
+tags:
+  - "customer:read"
+  - "analytics:read"

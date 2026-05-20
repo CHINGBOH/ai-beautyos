@@ -1,0 +1,20 @@
+schemaVersion: "1.0.0"
+name: run_whitelist_script
+description: 执行白名单内的运维脚本（仅限预定义的受控脚本）
+risk: medium
+access: rw
+timeoutMs: 60000
+maxRows: 0
+rateLimitPerMin: 5
+requiresConfirm: true
+supportsDryRun: true
+input:
+  name: { type: string, required: true }
+output:
+  ok: boolean
+  script: string
+  output: string
+  outputLines: number
+audit: full
+tags:
+  - "maintenance:write"

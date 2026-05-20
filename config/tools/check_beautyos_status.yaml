@@ -1,0 +1,18 @@
+schemaVersion: "1.0.0"
+name: check_beautyos_status
+description: 检查 BeautyOS 服务运行状态（进程/内存/Git/Docker）
+risk: low
+access: ro
+timeoutMs: 10000
+maxRows: 0
+rateLimitPerMin: 30
+requiresConfirm: false
+supportsDryRun: false
+input: {}
+output:
+  timestamp: string
+  healthy: boolean
+  checks: array
+audit: summary
+tags:
+  - "maintenance:read"

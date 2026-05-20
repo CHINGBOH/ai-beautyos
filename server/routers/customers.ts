@@ -1,40 +1,27 @@
 import { z } from "zod";
 import { protectedProcedure, router } from "../_core/trpc";
-import { getAllLeads, getLeadById, updateLead } from "../db";
+import {
+  listCustomers,
+  getCustomerById,
+  updateCustomer,
+  getCustomerStats,
+  getHighIntentCustomers,
+  getUnconvertedByProject,
+} from "../services/customers.service";
 
 export const customersRouter = router({
-  /**
-   * 获取客户列表
-   */
-  list: protectedProcedure.query(async () => {
-    const leads = await getAllLeads();
-    return leads;
-  }),
+  list: protectedProcedure.query(() => listCustomers()),
 
-  /**
-   * 获取客户详情
-   */
   getById: protectedProcedure
     .input(z.object({ id: z.number() }))
-    .query(async ({ input }) => {
-      const lead = await getLeadById(input.id);
-      return lead;
-    }),
+    .query(({ input }) => getCustomerById(input.id)),
 
-  /**
-   * 更新客户（含区域、生日、重要节日等）
-   */
   update: protectedProcedure
     .input(
       z.object({
         id: z.number(),
         hood: z.string().max(200).optional(),
-        birthday: z
-          .string()
-          .max(50)
-          .optional()
-          .nullable()
-          .describe("生日，ISO 8601 字符串格式（例如 '1990-01-01'）"),
+        birthday: z.string().max(50).optional().nullable(),
         importantHolidays: z.string().max(500).optional().nullable(),
         name: z.string().max(200).optional(),
         phone: z.string().max(50).optional(),
@@ -45,27 +32,20 @@ export const customersRouter = router({
         status: z.string().optional(),
       })
     )
-    .mutation(async ({ input }) => {
+    .mutation(({ input }) => {
       const { id, ...data } = input;
-      return updateLead(id, data);
+      return updateCustomer(id, data as Record<string, unknown>);
     }),
 
-  /**
-   * 获取客户统计
-   */
-  stats: protectedProcedure.query(async () => {
-    const leads = await getAllLeads();
+  stats: protectedProcedure.query(() => getCustomerStats()),
 
-    return {
-      total: leads.length,
-      tierA: leads.filter(l => l.customerTier === "A").length,
-      tierB: leads.filter(l => l.customerTier === "B").length,
-      tierC: leads.filter(l => l.customerTier === "C").length,
-      tierD: leads.filter(l => l.customerTier === "D").length,
-      恐惧型: leads.filter(l => l.psychologyType === "恐惧型").length,
-      贪婪型: leads.filter(l => l.psychologyType === "贪婪型").length,
-      安全型: leads.filter(l => l.psychologyType === "安全型").length,
-      敏感型: leads.filter(l => l.psychologyType === "敏感型").length,
-    };
-  }),
+  /** 高意向客户（A/B 级未转化）— 供 Hermes 工具调用 */
+  highIntent: protectedProcedure
+    .input(z.object({ limit: z.number().min(1).max(100).default(20) }).optional())
+    .query(({ input }) => getHighIntentCustomers(input?.limit)),
+
+  /** 咨询过某项目但未转化的线索 */
+  unconvertedByProject: protectedProcedure
+    .input(z.object({ project: z.string(), limit: z.number().min(1).max(100).default(20) }))
+    .query(({ input }) => getUnconvertedByProject(input.project, input.limit)),
 });

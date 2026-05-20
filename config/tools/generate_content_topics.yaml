@@ -1,0 +1,24 @@
+schemaVersion: "1.0.0"
+name: generate_content_topics
+description: 内容选题建议 — 基于热门咨询项目、小红书表现、客户来源生成本周内容选题
+risk: medium
+access: ro
+timeoutMs: 30000
+maxRows: 0
+rateLimitPerMin: 5
+requiresConfirm: false
+supportsDryRun: true
+input: {}
+output:
+  date: string
+  hotProjects: array
+  xiaohongshuPerformance: object
+  topPerformingTopics: array
+  recentSourceChannels: object
+  suggestions: string
+  summary: string
+audit: summary
+tags:
+  - "analytics:read"
+  - "content:read"
+  - "llm:generate"

@@ -1,0 +1,30 @@
+schemaVersion: "1.0.0"
+name: generate_silent_customer_report
+description: 沉默客户巡检 — 识别已留资未转化、逾期未跟进、长时间未互动的客户
+risk: low
+access: ro
+timeoutMs: 10000
+maxRows: 0
+rateLimitPerMin: 10
+requiresConfirm: false
+supportsDryRun: true
+input:
+  coldDaysThreshold: { type: number, required: false, default: 30, min: 7, max: 180 }
+output:
+  date: string
+  totalLeads: number
+  unconverted:
+    count: number
+    rows: array
+  staleFollowups:
+    count: number
+    rows: array
+  coldLeads:
+    count: number
+    daysThreshold: number
+    rows: array
+  summary: string
+audit: summary
+tags:
+  - "customer:read"
+  - "analytics:read"

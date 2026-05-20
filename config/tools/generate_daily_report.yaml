@@ -1,0 +1,24 @@
+schemaVersion: "1.0.0"
+name: generate_daily_report
+description: 生成今日经营日报（新增客户/渠道分布/意向项目/等级分布/高意向客户名单/操作提醒）
+risk: low
+access: ro
+timeoutMs: 15000
+maxRows: 0
+rateLimitPerMin: 10
+requiresConfirm: false
+supportsDryRun: true
+input: {}
+output:
+  date: string
+  today: object
+  channelDistribution: object
+  projectDistribution: object
+  tierDistribution: object
+  highIntentLeads: array
+  priorities: array
+  summary: string
+audit: summary
+tags:
+  - "analytics:read"
+  - "customer:read"
