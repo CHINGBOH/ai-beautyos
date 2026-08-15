@@ -143,3 +143,9 @@ server/.env
 .venv/
 env/
 node_modules/
+
+# Ops & Local Deploy Files (Keep GitHub Pure Core Code)
+Dockerfile*
+docker-compose*.yml
+nginx*.conf
+.env.production
