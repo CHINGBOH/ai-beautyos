@@ -1,1 +1,0 @@
-ALTER TABLE "knowledge_base" ALTER COLUMN "module" SET DEFAULT 'skin_care';
