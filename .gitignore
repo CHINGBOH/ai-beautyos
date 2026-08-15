@@ -149,3 +149,14 @@ Dockerfile*
 docker-compose*.yml
 nginx*.conf
 .env.production
+
+# Logic-First Publishing Ignores (No Tooling Plumbing)
+pnpm-lock.yaml
+.prettier*
+.eslint*
+.env*
+components.json
+drizzle.config.ts
+vitest.config.ts
+vite.config.ts
+compose*.yaml
