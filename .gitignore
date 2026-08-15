@@ -155,10 +155,6 @@ pnpm-lock.yaml
 .prettier*
 .eslint*
 .env*
-components.json
-drizzle.config.ts
-vitest.config.ts
-vite.config.ts
 compose*.yaml
 
 # Untracked Local Noise Folders (Keep Public Repo Focused)
@@ -166,8 +162,6 @@ patches/
 data/
 e2e/
 config/
-scripts/
-drizzle/
 .github/
 
 # Logic-First Lean Publishing Ignores
