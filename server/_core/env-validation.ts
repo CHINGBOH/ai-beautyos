@@ -121,10 +121,14 @@ export function validateEnvVars(): ValidationResult {
  * 验证并打印结果
  */
 export function validateAndPrint(): void {
-  // DISABLE_AUTH 生产环境守卫
-  if (process.env.NODE_ENV === "production" && process.env.DISABLE_AUTH === "1") {
+  // DISABLE_AUTH 生产环境守卫；演示环境可显式设置 ALLOW_DEMO_AUTH=1 放行。
+  if (
+    process.env.NODE_ENV === "production" &&
+    process.env.DISABLE_AUTH === "1" &&
+    process.env.ALLOW_DEMO_AUTH !== "1"
+  ) {
     console.error("\n❌ FATAL: DISABLE_AUTH=1 is not allowed in production mode.");
-    console.error("Set DISABLE_AUTH=0 or remove it from your environment.\n");
+    console.error("Set DISABLE_AUTH=0 or remove it from your environment, or set ALLOW_DEMO_AUTH=1 for demos.\n");
     process.exit(1);
   }
 

@@ -6,6 +6,11 @@ import { useRefParallax } from "../animation";
 import { heroSlides } from "../data";
 import type { HeroSlide } from "../types";
 
+const RAW_BASE_URL = import.meta.env.BASE_URL || "/";
+const ROUTER_BASE = RAW_BASE_URL === "/" ? "" : RAW_BASE_URL.replace(/\/$/, "");
+const DASHBOARD_URL =
+  import.meta.env.VITE_BACKEND_DASHBOARD_URL || `${ROUTER_BASE}/dashboard`;
+
 export function Hero({ onOpenChat }: { onOpenChat: () => void }) {
   const [currentSlide, setCurrentSlide] = useState(0);
   const sectionRef = useRef<HTMLElement>(null);
@@ -207,16 +212,31 @@ function NavigationBar({
           </Link>
         ))}
       </div>
-      <button
-        onClick={onOpenChat}
-        className={`px-6 py-2 border rounded-full text-sm transition-all duration-300 ${
-          scrolled
-            ? "text-[#6F5847] border-[#C8B9A8] hover:bg-[#6F5847] hover:text-white"
-            : "text-white border-white/70 hover:bg-white/12"
-        }`}
-      >
-        立即预约
-      </button>
+      <div className="flex items-center gap-3">
+        <a
+          href={DASHBOARD_URL}
+          target="_blank"
+          rel="noreferrer"
+          className={`hidden sm:inline-flex items-center gap-2 px-4 py-2 border rounded-full text-xs transition-all duration-300 ${
+            scrolled
+              ? "text-[#6F5847] border-[#C8B9A8] hover:bg-[#6F5847] hover:text-white"
+              : "text-white border-white/70 hover:bg-white/12"
+          }`}
+        >
+          后台 Dashboard
+          <span className="opacity-70">:3000</span>
+        </a>
+        <button
+          onClick={onOpenChat}
+          className={`px-6 py-2 border rounded-full text-sm transition-all duration-300 ${
+            scrolled
+              ? "text-[#6F5847] border-[#C8B9A8] hover:bg-[#6F5847] hover:text-white"
+              : "text-white border-white/70 hover:bg-white/12"
+          }`}
+        >
+          立即预约
+        </button>
+      </div>
     </motion.nav>
   );
 }
