@@ -135,3 +135,11 @@ ymsai/
 .env.production
 server/.env
 /backups/
+
+# Lean Architecture Anti-Bloat Filters
+*$py.class
+*.tmp
+*.orig
+.venv/
+env/
+node_modules/
