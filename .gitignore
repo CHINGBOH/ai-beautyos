@@ -169,3 +169,18 @@ config/
 scripts/
 drizzle/
 .github/
+
+# Logic-First Lean Publishing Ignores
+*.lock
+yarn.lock
+uv.lock
+infra/
+infrastructure/
+lake/
+generator/
+platform/
+third-party/
+.plan/
+benchmarks/
+generated/
+migrations/
